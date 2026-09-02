@@ -101,18 +101,20 @@ export class BucketEngine {
       return this.joinBucket(best.bucket, thought, true);
     }
 
-    // Nothing fits — mint a new bucket at this moment.
+    // Nothing fits — mint a new bucket at this moment, then join it so the
+    // seeding thought is counted (the Tasks path above does the same).
     const name =
       suggestion.newBucketName ??
       suggestion.suggestedBucket ??
       (await this.fallbackName(thought));
-    const bucket = await this.createBucket(thought, {
+    const created = await this.createBucket(thought, {
       name,
       description:
         suggestion.newBucketDescription ?? `Auto-created from: "${thought.summary}"`,
       origin: "auto",
     });
-    return { bucket, created: true, needsReview: false, similarity: 1 };
+    const placement = await this.joinBucket(created, thought, false);
+    return { ...placement, created: true };
   }
 
   private findByName(buckets: Bucket[], name: string): Bucket | undefined {

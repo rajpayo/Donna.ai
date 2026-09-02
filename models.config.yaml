@@ -18,7 +18,12 @@ stages:
       params:
         response_format: json
         # language: en   # pin to skip auto-detect latency once launch language is decided
-    # Request catalog addition: gpt-4o-mini-transcribe ($0.003/min, half the cost).
+    # NOTE (verified 2026-09-02): the gateway's gpt-4o-transcribe rejects
+    # verbose_json — no native segment timestamps. The adapter falls back to
+    # silence-aware local chunking (real chunk-window timestamps). Requested
+    # from the TrueFoundry admin: whisper-1 or gpt-4o-transcribe-diarize for
+    # native sentence-level timestamps; either drops in here with no code change.
+    # Also requested: gpt-4o-mini-transcribe ($0.003/min, half the cost).
     # escalation:
     #   provider: openai-compatible
     #   model: gpt-4o-transcribe-diarize

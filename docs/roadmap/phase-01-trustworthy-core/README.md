@@ -27,36 +27,56 @@ than assumed.
 
 ### Specification 1.1 — Real gateway compatibility and reference capture
 
-Status: `blocked`
+Status: `in-review`
 
-> Blocker recorded 2026-09-02 (implementation worker): the live reference
-> capture cannot run because ALL of its external prerequisites are missing
-> in the execution environment:
+> Live-run evidence (2026-09-02, product owner supplied gateway credentials;
+> reference recordings synthesized locally with espeak-ng — non-sensitive,
+> known content):
 >
-> 1. `TRUEFOUNDRY_BASE_URL` — present in `.env` but still the
->    `.env.example` placeholder; no secret-injected value provided.
-> 2. `TRUEFOUNDRY_API_KEY` — present in `.env` but still the
->    `.env.example` placeholder; no secret-injected value provided.
-> 3. Representative consented non-sensitive recording — no audio file
->    exists in the environment.
+> - **Gateway path resolved:** the working base URL is
+>   `https://eu.gateway.truefoundry.ai/api/llm` (the `/openai` suffix from
+>   the vendor doc snippet 404s on this deployment). Verified live:
+>   `gpt-5-mini` chat/completions, `claude-sonnet-5` native `/messages`,
+>   `text-embedding-3-large` at exactly 1024 dimensions (AC-4).
+> - **Timestamp limitation found and worked around (Option C, approved by
+>   product owner):** the gateway's `gpt-4o-transcribe` rejects
+>   `verbose_json` (400) and plain `json` returns no segments. The
+>   transcriber adapter now falls back to silence-aware local chunking
+>   (ffmpeg `silencedetect`, `packages/providers/src/audio-chunker.ts`):
+>   each chunk is transcribed separately and its segment bounds are the
+>   exact audio window sent to the model — provenance stays truthful at
+>   chunk granularity. Native verbose_json is still attempted first, so
+>   enabling `whisper-1`/`gpt-4o-transcribe-diarize` later is a config-only
+>   upgrade. **Manual action requested from product owner:** ask the
+>   TrueFoundry admin to enable `whisper-1` or `gpt-4o-transcribe-diarize`
+>   (both currently 403) for sentence-level native timestamps.
+> - **Three live captures completed** (AC-1): 23.6s, 11.8s, and 6.8s
+>   recordings; STT text matched the known scripts; segments non-empty and
+>   monotonic (AC-2); every thought passed deterministic provenance
+>   verification (AC-3); tasks routed to `Tasks`, ideas to a dynamic
+>   bucket, and the second/third captures reused existing buckets (AC-5).
+> - **Encrypted audio verified live:** `.enc` files present per capture;
+>   capture/transcript records persisted in scope order.
+> - **Eval harness baseline (first live run):** schema validity 100%,
+>   content coverage 100%, task recall 100%, task precision 61%,
+>   tasks-bucketed 100% — report
+>   `packages/evals/reports/1788372957854-gpt-5-mini.json` (AC-6).
+> - **Misfires logged for the eval loop (Phase 4 dataset candidates):**
+>   (a) task over-extraction — "we should test removing email verification"
+>   was classed as a commitment (precision 0.61 driver); (b) duplicate
+>   bucket minted — a third onboarding thought scored below the 0.65
+>   create-threshold against the existing "Onboarding improvements"
+>   centroid, creating a near-duplicate bucket; (c) STT rendered "Meera"
+>   as "Mira" on synthetic speech.
+> - **Bug found and fixed by the live run:** newly minted buckets never
+>   counted their seeding item (`itemCount` stayed 0), and repeat joins
+>   within one capture used stale centroid/count. Fixed in
+>   `packages/buckets/src/engine.ts` and `packages/pipeline/src/run.ts`;
+>   93 tests green, typecheck clean.
+> - Known limitation: `gpt-4o-mini-tts` returns gateway-side 500 for all
+>   voices; TTS is optional and not in the core loop.
 >
-> Required decision/action: the product owner supplies secret-injected
-> gateway credentials (Cursor Dashboard secrets) and one representative
-> recording, then re-runs `donna compat-check --audio <file>` followed by
-> two `donna capture` runs.
->
-> Completed under the blocked path (per the product-owner directive):
->
-> - `donna capture` now fails BEFORE any gateway request when credentials
->   are missing/placeholder or the audio file is missing/empty, with an
->   actionable message that names variables and never prints values (FR-1).
-> - New `donna compat-check [--audio <file>]` writes a sanitized
->   compatibility report to `packages/evals/reports/compatibility/`
->   (gitignored) enumerating each configured stage/model, the expected 1024
->   embedding dimensions, and the exact missing prerequisites (FR-3
->   scaffolding; SR-1/SR-2 redaction verified by tests).
-> - No live run was performed and none is claimed; AC-1..AC-6 remain
->   unverified until the prerequisites exist.
+> Awaiting product-owner examination for acceptance.
 
 Depends on: current scaffold
 

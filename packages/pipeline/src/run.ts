@@ -218,6 +218,11 @@ export class DonnaPipeline implements CoreLoop {
       if (placement.created) {
         bucketsCreated.push(placement.bucket);
         currentBuckets = [...currentBuckets, placement.bucket];
+      } else {
+        // Keep centroid/itemCount fresh for later thoughts in this capture.
+        currentBuckets = currentBuckets.map((b) =>
+          b.id === placement.bucket.id ? placement.bucket : b,
+        );
       }
       items.push({ thought, bucket: placement.bucket, needsReview: placement.needsReview });
     }
