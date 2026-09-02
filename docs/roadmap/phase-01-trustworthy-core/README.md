@@ -27,7 +27,36 @@ than assumed.
 
 ### Specification 1.1 — Real gateway compatibility and reference capture
 
-Status: `approved`
+Status: `blocked`
+
+> Blocker recorded 2026-09-02 (implementation worker): the live reference
+> capture cannot run because ALL of its external prerequisites are missing
+> in the execution environment:
+>
+> 1. `TRUEFOUNDRY_BASE_URL` — present in `.env` but still the
+>    `.env.example` placeholder; no secret-injected value provided.
+> 2. `TRUEFOUNDRY_API_KEY` — present in `.env` but still the
+>    `.env.example` placeholder; no secret-injected value provided.
+> 3. Representative consented non-sensitive recording — no audio file
+>    exists in the environment.
+>
+> Required decision/action: the product owner supplies secret-injected
+> gateway credentials (Cursor Dashboard secrets) and one representative
+> recording, then re-runs `donna compat-check --audio <file>` followed by
+> two `donna capture` runs.
+>
+> Completed under the blocked path (per the product-owner directive):
+>
+> - `donna capture` now fails BEFORE any gateway request when credentials
+>   are missing/placeholder or the audio file is missing/empty, with an
+>   actionable message that names variables and never prints values (FR-1).
+> - New `donna compat-check [--audio <file>]` writes a sanitized
+>   compatibility report to `packages/evals/reports/compatibility/`
+>   (gitignored) enumerating each configured stage/model, the expected 1024
+>   embedding dimensions, and the exact missing prerequisites (FR-3
+>   scaffolding; SR-1/SR-2 redaction verified by tests).
+> - No live run was performed and none is claimed; AC-1..AC-6 remain
+>   unverified until the prerequisites exist.
 
 Depends on: current scaffold
 

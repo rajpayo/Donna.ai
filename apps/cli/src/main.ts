@@ -3,19 +3,25 @@
  *
  *   donna capture <audio-file> [--user <id>]   run the core loop on a recording
  *   donna buckets [--user <id>]                list the user's current buckets
+ *   donna compat-check [--audio <file>]        offline Spec 1.1 preflight +
+ *                                              sanitized compatibility report
  *
  * This is the internal demo surface: one command turns a messy voice memo
  * into organized, bucketed, provenance-linked thoughts.
  */
 import { randomUUID } from "node:crypto";
+import { stat } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Capture, EventSink } from "@donna/core";
 import { FileBucketStore } from "@donna/buckets";
+import { runCompatibilityCheck } from "@donna/evals";
 import { DonnaPipeline } from "@donna/pipeline";
 import { config as loadEnv } from "dotenv";
 import {
+  gatewayEnvProblems,
   gatewayFromEnv,
+  inspectGatewayEnv,
   loadModelsConfig,
   resolveStack,
 } from "@donna/providers";
@@ -26,7 +32,8 @@ loadEnv({ path: resolve(repoRoot, ".env"), quiet: true });
 
 const USAGE = `usage:
   donna capture <audio-file> [--user <id>]
-  donna buckets [--user <id>]`;
+  donna buckets [--user <id>]
+  donna compat-check [--audio <file>]`;
 
 const consoleEvents: EventSink = {
   emit: (e) =>
@@ -82,6 +89,27 @@ async function main(): Promise<void> {
       process.exit(1);
     }
     const audioPath = resolve(invocationDir, audioArg);
+    // FR-1 (Spec 1.1): fail BEFORE any gateway request when credentials or
+    // the recording are missing. Messages name variables, never values.
+    const preflightProblems = gatewayEnvProblems(inspectGatewayEnv());
+    try {
+      const info = await stat(audioPath);
+      if (!info.isFile() || info.size === 0) {
+        preflightProblems.push(`audio file is empty or not a regular file: ${audioArg}`);
+      }
+    } catch {
+      preflightProblems.push(`audio file does not exist: ${audioArg}`);
+    }
+    if (preflightProblems.length > 0) {
+      console.error(
+        "Cannot run capture — prerequisites are not met:\n" +
+          preflightProblems.map((p) => `  - ${p}`).join("\n") +
+          "\nSet real secret-injected gateway credentials (see .env.example) " +
+          "and pass an existing recording. Run `donna compat-check` for a " +
+          "sanitized compatibility report.",
+      );
+      process.exit(1);
+    }
     const { pipeline } = await buildPipeline();
     const capture: Capture = {
       id: randomUUID(),
@@ -128,6 +156,40 @@ async function main(): Promise<void> {
     for (const b of buckets) {
       console.log(`• ${b.name} (${b.itemCount} items, ${b.origin}) — ${b.description}`);
     }
+    return;
+  }
+
+  if (command === "compat-check") {
+    const audioArg = arg("--audio");
+    const { report, reportPath } = await runCompatibilityCheck({
+      ...(audioArg !== undefined
+        ? { audioPath: resolve(invocationDir, audioArg) }
+        : {}),
+      configPath: resolve(
+        repoRoot,
+        process.env.DONNA_MODELS_CONFIG ?? "models.config.yaml",
+      ),
+      reportsDir: resolve(
+        repoRoot,
+        "packages/evals/reports/compatibility",
+      ),
+    });
+    console.log(`Compatibility status: ${report.status}`);
+    if (report.missingPrerequisites.length > 0) {
+      console.log("Missing prerequisites:");
+      for (const p of report.missingPrerequisites) console.log(`  - ${p}`);
+    }
+    for (const stage of report.stages) {
+      const dims =
+        stage.expectedDimensions !== null
+          ? ` (${stage.expectedDimensions} dims)`
+          : "";
+      console.log(
+        `  ${stage.stage}: ${stage.model} via ${stage.provider}${dims} — ${stage.status} (${stage.reason})`,
+      );
+    }
+    console.log(`Sanitized report written: ${reportPath}`);
+    if (report.status === "blocked") process.exit(1);
     return;
   }
 

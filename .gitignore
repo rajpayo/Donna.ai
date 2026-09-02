@@ -5,5 +5,7 @@ dist/
 .DS_Store
 packages/evals/reports/*.json
 !packages/evals/reports/.gitkeep
+packages/evals/reports/compatibility/*.json
+!packages/evals/reports/compatibility/.gitkeep
 data/
 *.log

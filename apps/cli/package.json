@@ -10,6 +10,7 @@
   "dependencies": {
     "@donna/buckets": "*",
     "@donna/core": "*",
+    "@donna/evals": "*",
     "@donna/pipeline": "*",
     "@donna/providers": "*",
     "dotenv": "^17.4.2"
