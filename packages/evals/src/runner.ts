@@ -10,9 +10,10 @@
  * comparable across model swaps — that's the iteration loop.
  */
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Transcript } from "@donna/core";
+import { config as loadEnv } from "dotenv";
 import {
   gatewayFromEnv,
   loadModelsConfig,
@@ -22,9 +23,14 @@ import {
 import { scoreCase, type CaseScore, type GoldenCase } from "./scorers.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
+const repoRoot = resolve(here, "../../..");
+loadEnv({ path: resolve(repoRoot, ".env"), quiet: true });
 
 async function main(): Promise<void> {
-  const configPath = process.env.DONNA_MODELS_CONFIG ?? "./models.config.yaml";
+  const configPath = resolve(
+    repoRoot,
+    process.env.DONNA_MODELS_CONFIG ?? "models.config.yaml",
+  );
   const datasetPath = join(here, "../datasets/golden/organize.v1.json");
   const dataset = JSON.parse(await readFile(datasetPath, "utf8")) as {
     name: string;

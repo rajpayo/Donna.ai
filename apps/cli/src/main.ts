@@ -8,14 +8,25 @@
  * into organized, bucketed, provenance-linked thoughts.
  */
 import { randomUUID } from "node:crypto";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { Capture, EventSink } from "@donna/core";
 import { FileBucketStore } from "@donna/buckets";
 import { DonnaPipeline } from "@donna/pipeline";
+import { config as loadEnv } from "dotenv";
 import {
   gatewayFromEnv,
   loadModelsConfig,
   resolveStack,
 } from "@donna/providers";
+
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
+const invocationDir = process.env.INIT_CWD ?? process.cwd();
+loadEnv({ path: resolve(repoRoot, ".env"), quiet: true });
+
+const USAGE = `usage:
+  donna capture <audio-file> [--user <id>]
+  donna buckets [--user <id>]`;
 
 const consoleEvents: EventSink = {
   emit: (e) =>
@@ -32,8 +43,11 @@ function arg(flag: string): string | undefined {
 }
 
 async function buildPipeline(): Promise<{ pipeline: DonnaPipeline; store: FileBucketStore }> {
-  const configPath = process.env.DONNA_MODELS_CONFIG ?? "./models.config.yaml";
-  const dataDir = process.env.DONNA_DATA_DIR ?? "./data";
+  const configPath = resolve(
+    repoRoot,
+    process.env.DONNA_MODELS_CONFIG ?? "models.config.yaml",
+  );
+  const dataDir = resolve(repoRoot, process.env.DONNA_DATA_DIR ?? "data");
   const config = await loadModelsConfig(configPath);
   const stack = resolveStack(gatewayFromEnv(), config);
   const store = new FileBucketStore(dataDir);
@@ -56,12 +70,18 @@ async function main(): Promise<void> {
   const tenantId = process.env.DONNA_TENANT_ID ?? "demo-tenant";
   const userId = arg("--user") ?? "demo-user";
 
+  if (command === "--help" || command === "-h") {
+    console.log(USAGE);
+    return;
+  }
+
   if (command === "capture") {
-    const audioPath = process.argv[3];
-    if (!audioPath) {
+    const audioArg = process.argv[3];
+    if (!audioArg) {
       console.error("usage: donna capture <audio-file> [--user <id>]");
       process.exit(1);
     }
+    const audioPath = resolve(invocationDir, audioArg);
     const { pipeline } = await buildPipeline();
     const capture: Capture = {
       id: randomUUID(),
@@ -98,7 +118,7 @@ async function main(): Promise<void> {
   }
 
   if (command === "buckets") {
-    const dataDir = process.env.DONNA_DATA_DIR ?? "./data";
+    const dataDir = resolve(repoRoot, process.env.DONNA_DATA_DIR ?? "data");
     const store = new FileBucketStore(dataDir);
     const buckets = await store.listBuckets(tenantId, userId);
     if (buckets.length === 0) {
@@ -111,7 +131,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  console.error("usage: donna <capture|buckets> ...");
+  console.error(USAGE);
   process.exit(1);
 }
 
