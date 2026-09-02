@@ -1,6 +1,14 @@
 # Phase 1 — Trustworthy core
 
-Status: `not-started`
+Status: `in-progress`
+
+> Product-owner directive (2026-09-02): Specifications 1.1, 1.2, and 1.3 are
+> approved and are executed in one ordered run. If Specification 1.1's live
+> prerequisites (secret-injected gateway credentials, representative
+> recording) are unavailable, it is recorded `blocked` with the exact missing
+> prerequisite and Specifications 1.2 and 1.3 still proceed under this
+> explicit directive, overriding the default dependency gate for this phase
+> only.
 
 ## Objective
 
@@ -19,7 +27,7 @@ than assumed.
 
 ### Specification 1.1 — Real gateway compatibility and reference capture
 
-Status: `draft`
+Status: `approved`
 
 Depends on: current scaffold
 
@@ -93,7 +101,7 @@ to `blocked`; do not fake timestamps or start Specification 1.2.
 
 ### Specification 1.2 — Persisted transcripts and deterministic provenance
 
-Status: `draft`
+Status: `approved`
 
 Depends on: Specification 1.1 accepted
 
@@ -164,7 +172,7 @@ Specification 1.3 until the product owner accepts the persisted chain.
 
 ### Specification 1.3 — Encrypted audio retention and user data controls
 
-Status: `draft`
+Status: `approved`
 
 Depends on: Specification 1.2 accepted
 
