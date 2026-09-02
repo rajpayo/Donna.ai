@@ -73,6 +73,8 @@ export interface BucketStore {
   createBucket(bucket: Bucket): Promise<Bucket>;
   /** Persist the new centroid and item count after an item joins. */
   updateBucketStats(
+    tenantId: string,
+    userId: string,
     bucketId: string,
     centroid: number[],
     itemCount: number,

@@ -52,6 +52,15 @@ export class BucketEngine {
   ): Promise<Placement> {
     const embedding = thought.embedding;
     if (!embedding) throw new Error("Thought must be embedded before placement");
+    if (
+      buckets.some(
+        (bucket) =>
+          bucket.tenantId !== thought.tenantId ||
+          bucket.userId !== thought.userId,
+      )
+    ) {
+      throw new Error("Bucket scope does not match thought scope");
+    }
 
     // Rule 0: tasks always go to the Tasks bucket.
     if (thought.task) {
@@ -134,12 +143,24 @@ export class BucketEngine {
     thought: Thought,
     needsReview: boolean,
   ): Promise<Placement> {
+    if (
+      bucket.tenantId !== thought.tenantId ||
+      bucket.userId !== thought.userId
+    ) {
+      throw new Error("Bucket scope does not match thought scope");
+    }
     const centroid = updatedCentroid(
       bucket.centroid,
       bucket.itemCount,
       thought.embedding!,
     );
-    await this.store.updateBucketStats(bucket.id, centroid, bucket.itemCount + 1);
+    await this.store.updateBucketStats(
+      thought.tenantId,
+      thought.userId,
+      bucket.id,
+      centroid,
+      bucket.itemCount + 1,
+    );
     return {
       bucket: { ...bucket, centroid, itemCount: bucket.itemCount + 1 },
       created: false,

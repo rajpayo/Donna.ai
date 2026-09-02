@@ -18,8 +18,17 @@ class MemStore implements BucketStore {
     this.buckets.push(bucket);
     return bucket;
   }
-  async updateBucketStats(id: string, centroid: number[], itemCount: number): Promise<void> {
-    const b = this.buckets.find((x) => x.id === id);
+  async updateBucketStats(
+    tenantId: string,
+    userId: string,
+    id: string,
+    centroid: number[],
+    itemCount: number,
+  ): Promise<void> {
+    const b = this.buckets.find(
+      (x) =>
+        x.tenantId === tenantId && x.userId === userId && x.id === id,
+    );
     if (b) {
       b.centroid = centroid;
       b.itemCount = itemCount;
@@ -105,5 +114,20 @@ describe("BucketEngine", () => {
     assert.equal(again.bucket.name, TASKS_BUCKET.name);
     assert.equal(again.created, false);
     assert.equal(store.buckets.filter((b) => b.name === TASKS_BUCKET.name).length, 1);
+  });
+
+  it("rejects buckets from a different tenant or user", async () => {
+    const store = new MemStore();
+    const engine = new BucketEngine(store, TUNING);
+    await engine.place(thought([1, 0, 0]), { newBucketName: "Hiring" }, []);
+
+    const otherTenantThought = {
+      ...thought([1, 0, 0]),
+      tenantId: "other-tenant",
+    };
+    await assert.rejects(
+      engine.place(otherTenantThought, {}, store.buckets),
+      /Bucket scope does not match thought scope/,
+    );
   });
 });
