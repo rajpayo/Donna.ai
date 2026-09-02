@@ -6,6 +6,8 @@ import type { Bucket, OrganizeOutput, Organizer, Transcript } from "@donna/core"
 import type { GatewayClient } from "./gateway.js";
 import {
   buildOrganizePrompt,
+  ORGANIZE_PROMPT_VERSION,
+  ORGANIZE_SCHEMA_VERSION,
   organizeJsonSchema,
   organizeOutputSchema,
 } from "./organize-schema.js";
@@ -15,6 +17,9 @@ interface ChatCompletionsResponse {
 }
 
 export class OpenAiCompatibleOrganizer implements Organizer {
+  readonly schemaVersion = ORGANIZE_SCHEMA_VERSION;
+  readonly promptVersion = ORGANIZE_PROMPT_VERSION;
+
   constructor(
     private readonly gateway: GatewayClient,
     readonly modelId: string,

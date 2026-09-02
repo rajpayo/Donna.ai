@@ -16,7 +16,11 @@ import { fileURLToPath } from "node:url";
 import type { Capture, EventSink } from "@donna/core";
 import { FileBucketStore } from "@donna/buckets";
 import { runCompatibilityCheck } from "@donna/evals";
-import { DonnaPipeline } from "@donna/pipeline";
+import {
+  DonnaPipeline,
+  FileCaptureStore,
+  FileTranscriptStore,
+} from "@donna/pipeline";
 import { config as loadEnv } from "dotenv";
 import {
   gatewayEnvProblems,
@@ -66,6 +70,8 @@ async function buildPipeline(): Promise<{ pipeline: DonnaPipeline; store: FileBu
       : {}),
     embedder: stack.embedder,
     store,
+    captures: new FileCaptureStore(dataDir),
+    transcripts: new FileTranscriptStore(dataDir),
     bucketTuning: stack.bucketTuning,
     events: consoleEvents,
   });

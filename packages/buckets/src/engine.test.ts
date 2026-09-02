@@ -55,6 +55,11 @@ function thought(embedding: number[], withTask = false): Thought {
       startSec: 0,
       endSec: 1,
     },
+    versions: {
+      organizerModel: "test-organizer",
+      organizeSchemaVersion: "test-schema",
+      organizePromptVersion: "test-prompt",
+    },
     embedding,
   };
 }

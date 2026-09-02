@@ -12,9 +12,12 @@
 import type {
   Bucket,
   Capture,
+  CaptureRecord,
   CoreLoopResult,
+  Provenance,
   Thought,
   Transcript,
+  TranscriptRecord,
 } from "./types.js";
 
 export interface Transcriber {
@@ -46,6 +49,10 @@ export interface OrganizeOutput {
 
 export interface Organizer {
   readonly modelId: string;
+  /** Structured-output contract version the adapter validates against. */
+  readonly schemaVersion?: string;
+  /** Prompt template version the adapter renders. */
+  readonly promptVersion?: string;
   /**
    * Distill a transcript into atomic thoughts. `existingBuckets` is the
    * user's current bucket list (name + description) so the model can prefer
@@ -80,6 +87,53 @@ export interface BucketStore {
     itemCount: number,
   ): Promise<void>;
   saveItem(item: { thought: Thought; bucketId: string }): Promise<void>;
+}
+
+/**
+ * Durable store for capture records. Every method is scoped: a record is
+ * only ever read or written inside its own tenant/user partition, and a
+ * stored record whose scope does not match its partition fails closed.
+ */
+export interface CaptureStore {
+  saveCapture(record: CaptureRecord): Promise<void>;
+  getCapture(
+    tenantId: string,
+    userId: string,
+    captureId: string,
+  ): Promise<CaptureRecord | undefined>;
+  listCaptures(tenantId: string, userId: string): Promise<CaptureRecord[]>;
+}
+
+/**
+ * Durable store for transcript records. Transcripts are persisted BEFORE
+ * any organization result is accepted, so provenance always has a durable
+ * anchor. Reads re-verify the content hash and fail closed on tampering.
+ */
+export interface TranscriptStore {
+  saveTranscript(record: TranscriptRecord): Promise<void>;
+  getTranscript(
+    tenantId: string,
+    userId: string,
+    captureId: string,
+  ): Promise<TranscriptRecord | undefined>;
+}
+
+/** Outcome of checking one organizer provenance proposal. */
+export type ProvenanceVerification =
+  | { ok: true; provenance: Provenance }
+  | { ok: false; reason: string };
+
+/**
+ * Deterministic provenance verification. The LLM PROPOSES source segments;
+ * the verifier checks them against the stored transcript and derives the
+ * canonical sourceText/startSec/endSec from those segments. Model-generated
+ * text and bounds are never trusted.
+ */
+export interface ProvenanceVerifier {
+  verify(
+    transcript: TranscriptRecord,
+    proposal: { captureId: string; segmentIds: string[] },
+  ): ProvenanceVerification;
 }
 
 /** Telemetry sink — cost/latency per stage, for cost-per-successful-loop. */

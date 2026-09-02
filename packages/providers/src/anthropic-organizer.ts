@@ -4,7 +4,12 @@
  */
 import type { Bucket, OrganizeOutput, Organizer, Transcript } from "@donna/core";
 import type { GatewayClient } from "./gateway.js";
-import { buildOrganizePrompt, organizeOutputSchema } from "./organize-schema.js";
+import {
+  buildOrganizePrompt,
+  ORGANIZE_PROMPT_VERSION,
+  ORGANIZE_SCHEMA_VERSION,
+  organizeOutputSchema,
+} from "./organize-schema.js";
 
 interface AnthropicMessagesResponse {
   content: Array<{ type: string; input?: unknown; text?: string }>;
@@ -56,6 +61,9 @@ const ORGANIZE_TOOL = {
 } as const;
 
 export class AnthropicOrganizer implements Organizer {
+  readonly schemaVersion = ORGANIZE_SCHEMA_VERSION;
+  readonly promptVersion = ORGANIZE_PROMPT_VERSION;
+
   constructor(
     private readonly gateway: GatewayClient,
     readonly modelId: string,

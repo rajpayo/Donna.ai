@@ -130,7 +130,34 @@ to `blocked`; do not fake timestamps or start Specification 1.2.
 
 ### Specification 1.2 — Persisted transcripts and deterministic provenance
 
-Status: `approved`
+Status: `in-review`
+
+> Implementation evidence (2026-09-02, implementation worker):
+>
+> - New domain records `CaptureRecord`/`TranscriptRecord` (tenant/user
+>   scope, SHA-256 content hash, model ID, timestamps) and
+>   `DerivationVersions` on every thought (FR-4) in `packages/core`.
+> - New ports `CaptureStore`, `TranscriptStore`, `ProvenanceVerifier`;
+>   scoped file adapters `FileCaptureStore`/`FileTranscriptStore`
+>   (`packages/pipeline/src/stores.file.ts`) with partition-ID and
+>   capture-ID validation, fail-closed scope mismatch, and transcript
+>   content-hash re-verification on read (SR-1/SR-2).
+> - `DeterministicProvenanceVerifier`
+>   (`packages/pipeline/src/provenance.ts`): rejects empty, unknown,
+>   duplicate, and cross-capture segment references and invalid stored
+>   bounds; canonicalizes `sourceText`/`startSec`/`endSec` from stored
+>   segments only (FR-2/FR-3).
+> - Pipeline persists capture → transcript → thoughts in that order (FR-1),
+>   escalates provenance-invalid output to the escalation lane at most
+>   once, then fails closed with `ProvenanceError` persisting no thoughts;
+>   organizer output is matched to thoughts by stable output index instead
+>   of text equality.
+> - Tests: `provenance.test.ts` (9), `run.test.ts` (8),
+>   `stores.file.test.ts` (7), `run.integration.test.ts` (2, reload +
+>   tenant isolation) — all green; `npm run typecheck` clean.
+> - Known limitation: provenance proves which stored segments were used,
+>   not that the speaker's statement is factually true (per non-goals).
+>   Awaiting product-owner examination for acceptance.
 
 Depends on: Specification 1.1 accepted
 

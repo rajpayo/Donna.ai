@@ -7,6 +7,14 @@
 import { z } from "zod";
 import type { OrganizeOutput } from "@donna/core";
 
+/**
+ * Contract versions attached to every derived thought (Spec 1.2 FR-4).
+ * Bump when the structured-output schema or the prompt template changes so
+ * stored thoughts record exactly what produced them.
+ */
+export const ORGANIZE_SCHEMA_VERSION = "donna.organize.v1";
+export const ORGANIZE_PROMPT_VERSION = "donna.organize-prompt.v1";
+
 export const organizeOutputSchema = z.object({
   thoughts: z.array(
     z.object({

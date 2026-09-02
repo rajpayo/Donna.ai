@@ -17,6 +17,43 @@ export interface Capture {
   durationSec?: number;
 }
 
+/**
+ * The durable, persisted form of a capture. Every derived record
+ * (transcript, thought, memory) anchors back to this. The content hash is
+ * SHA-256 over the captured audio bytes, hex-encoded.
+ */
+export interface CaptureRecord {
+  id: string;
+  tenantId: string;
+  userId: string;
+  /** SHA-256 of the source audio bytes, hex. */
+  contentHash: string;
+  capturedAt: string; // ISO 8601
+  durationSec?: number;
+  /** Set once the original audio is deleted or expires (Spec 1.3). */
+  audioDeletedAt?: string;
+}
+
+/**
+ * The persisted form of a transcript. Stored BEFORE any organization
+ * result is accepted, so provenance always has a durable anchor. The
+ * content hash covers the canonical transcript content and is re-verified
+ * on every read — tampering fails closed.
+ */
+export interface TranscriptRecord {
+  captureId: string;
+  tenantId: string;
+  userId: string;
+  text: string;
+  segments: TranscriptSegment[];
+  language?: string;
+  /** Model that produced this transcript, e.g. "gpt-4o-transcribe". */
+  model: string;
+  /** SHA-256 over the canonical transcript content, hex. */
+  contentHash: string;
+  createdAt: string; // ISO 8601
+}
+
 /** One timed span of a transcript. */
 export interface TranscriptSegment {
   id: string;
@@ -34,7 +71,11 @@ export interface Transcript {
   model: string;
 }
 
-/** Trace back to the exact spoken words. */
+/**
+ * Trace back to the exact spoken words. On persisted thoughts these values
+ * are CANONICAL: derived from the stored transcript segments named by
+ * segmentIds, never trusted from model output.
+ */
 export interface Provenance {
   captureId: string;
   segmentIds: string[];
@@ -42,6 +83,16 @@ export interface Provenance {
   sourceText: string;
   startSec: number;
   endSec: number;
+}
+
+/** Model/prompt/schema versions that produced a derived record. */
+export interface DerivationVersions {
+  /** Organizer model that produced the accepted output. */
+  organizerModel: string;
+  /** Structured-output contract version the output was validated against. */
+  organizeSchemaVersion: string;
+  /** Prompt template version used for the accepted output. */
+  organizePromptVersion: string;
 }
 
 /**
@@ -68,6 +119,8 @@ export interface Thought {
   confidence: number;
   task?: TaskCandidate;
   provenance: Provenance;
+  /** Versions of the organizer lane that produced this thought. */
+  versions: DerivationVersions;
   embedding?: number[];
   /** Filled by the bucket engine. */
   bucketId?: string;
