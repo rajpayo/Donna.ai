@@ -228,7 +228,38 @@ Specification 1.3 until the product owner accepts the persisted chain.
 
 ### Specification 1.3 — Encrypted audio retention and user data controls
 
-Status: `approved`
+Status: `in-review`
+
+> Implementation evidence (2026-09-02, implementation worker):
+>
+> - New `@donna/privacy` package: AES-256-GCM encryption (random 96-bit
+>   nonces, versioned payload format), `EncryptedFileAudioStore`,
+>   append-only non-content `FileAuditLog`, `RetentionService`
+>   (seven-day retention from capture time, injectable clock, idempotent
+>   cleanup), and `CaptureLifecycleService` (scoped export, early audio
+>   deletion, complete capture deletion).
+> - Keys come only from `DONNA_AUDIO_KEY` runtime secret management
+>   (base64/hex 32 bytes); missing/invalid keys fail closed before any
+>   capture work; keys are never written beside ciphertext or logged
+>   (SR-1/SR-2).
+> - Complete deletion propagates through audio, capture record,
+>   transcript, and bucket items (thoughts + embeddings) with bucket
+>   stats recomputed from surviving members; future projections plug in
+>   via `extraProjections` and any non-deletable target fails explicitly
+>   and retryably via `CaptureDeletionError` (FR-4).
+> - CLI: `export`, `delete-audio`, `delete-capture`, `retention
+>   [--cleanup]`; pipeline stores encrypted audio at capture time.
+> - Tests: 30 privacy tests (round-trip, tamper, wrong-key, traversal,
+>   cross-tenant, replay/idempotency, clock-controlled expiry, export
+>   scoping, deletion propagation, explicit projection failure) + pipeline
+>   audio-hook test — all green; `npm run typecheck` clean.
+> - Demonstrated with a fake clock and seeded synthetic fixture: audio
+>   available before expiry, transcript-only state after deletion,
+>   idempotent replay, non-content audit trail.
+> - Known limitation: export bundles contain capture/transcript/thoughts/
+>   provenance metadata but not the raw audio bytes; bucket records
+>   themselves are retained (they are the user's filing system) with
+>   stats repaired. Awaiting product-owner examination for acceptance.
 
 Depends on: Specification 1.2 accepted
 

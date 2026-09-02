@@ -5,6 +5,13 @@
  *   donna buckets [--user <id>]                list the user's current buckets
  *   donna compat-check [--audio <file>]        offline Spec 1.1 preflight +
  *                                              sanitized compatibility report
+ *   donna export <capture-id> [--user <id>]    scoped capture export (JSON)
+ *   donna delete-audio <capture-id>            delete audio early (transcript
+ *                                              and thoughts remain)
+ *   donna delete-capture <capture-id>          delete a capture and every
+ *                                              derived record
+ *   donna retention [--cleanup] [--user <id>]  retention status; --cleanup
+ *                                              removes expired audio
  *
  * This is the internal demo surface: one command turns a messy voice memo
  * into organized, bucketed, provenance-linked thoughts.
@@ -21,6 +28,14 @@ import {
   FileCaptureStore,
   FileTranscriptStore,
 } from "@donna/pipeline";
+import {
+  AudioKeyError,
+  CaptureLifecycleService,
+  EncryptedFileAudioStore,
+  FileAuditLog,
+  parseAudioKey,
+  RetentionService,
+} from "@donna/privacy";
 import { config as loadEnv } from "dotenv";
 import {
   gatewayEnvProblems,
@@ -37,7 +52,44 @@ loadEnv({ path: resolve(repoRoot, ".env"), quiet: true });
 const USAGE = `usage:
   donna capture <audio-file> [--user <id>]
   donna buckets [--user <id>]
-  donna compat-check [--audio <file>]`;
+  donna compat-check [--audio <file>]
+  donna export <capture-id> [--user <id>]
+  donna delete-audio <capture-id> [--user <id>]
+  donna delete-capture <capture-id> [--user <id>]
+  donna retention [--cleanup] [--user <id>]`;
+
+function dataDir(): string {
+  return resolve(repoRoot, process.env.DONNA_DATA_DIR ?? "data");
+}
+
+/**
+ * The audio encryption key comes from runtime secret management only. A
+ * missing or invalid key fails closed with an actionable message — audio
+ * is never stored unencrypted.
+ */
+function buildAudioStore(): EncryptedFileAudioStore {
+  const key = parseAudioKey(process.env.DONNA_AUDIO_KEY);
+  return new EncryptedFileAudioStore(dataDir(), key);
+}
+
+function buildLifecycle(): {
+  lifecycle: CaptureLifecycleService;
+  retention: RetentionService;
+} {
+  const dir = dataDir();
+  const deps = {
+    audio: buildAudioStore(),
+    captures: new FileCaptureStore(dir),
+    transcripts: new FileTranscriptStore(dir),
+    buckets: new FileBucketStore(dir),
+    audit: new FileAuditLog(dir),
+    now: () => new Date(),
+  };
+  return {
+    lifecycle: new CaptureLifecycleService(deps),
+    retention: new RetentionService(deps),
+  };
+}
 
 const consoleEvents: EventSink = {
   emit: (e) =>
@@ -58,10 +110,10 @@ async function buildPipeline(): Promise<{ pipeline: DonnaPipeline; store: FileBu
     repoRoot,
     process.env.DONNA_MODELS_CONFIG ?? "models.config.yaml",
   );
-  const dataDir = resolve(repoRoot, process.env.DONNA_DATA_DIR ?? "data");
+  const dir = dataDir();
   const config = await loadModelsConfig(configPath);
   const stack = resolveStack(gatewayFromEnv(), config);
-  const store = new FileBucketStore(dataDir);
+  const store = new FileBucketStore(dir);
   const pipeline = new DonnaPipeline({
     transcriber: stack.transcriber,
     organizer: stack.organizer,
@@ -70,8 +122,10 @@ async function buildPipeline(): Promise<{ pipeline: DonnaPipeline; store: FileBu
       : {}),
     embedder: stack.embedder,
     store,
-    captures: new FileCaptureStore(dataDir),
-    transcripts: new FileTranscriptStore(dataDir),
+    captures: new FileCaptureStore(dir),
+    transcripts: new FileTranscriptStore(dir),
+    audio: buildAudioStore(),
+    audit: new FileAuditLog(dir),
     bucketTuning: stack.bucketTuning,
     events: consoleEvents,
   });
@@ -105,6 +159,14 @@ async function main(): Promise<void> {
       }
     } catch {
       preflightProblems.push(`audio file does not exist: ${audioArg}`);
+    }
+    // Spec 1.3 FR-1: audio must be encryptable before durable storage.
+    try {
+      parseAudioKey(process.env.DONNA_AUDIO_KEY);
+    } catch (error) {
+      preflightProblems.push(
+        error instanceof AudioKeyError ? error.message : String(error),
+      );
     }
     if (preflightProblems.length > 0) {
       console.error(
@@ -152,8 +214,7 @@ async function main(): Promise<void> {
   }
 
   if (command === "buckets") {
-    const dataDir = resolve(repoRoot, process.env.DONNA_DATA_DIR ?? "data");
-    const store = new FileBucketStore(dataDir);
+    const store = new FileBucketStore(dataDir());
     const buckets = await store.listBuckets(tenantId, userId);
     if (buckets.length === 0) {
       console.log("No buckets yet — capture something first.");
@@ -196,6 +257,68 @@ async function main(): Promise<void> {
     }
     console.log(`Sanitized report written: ${reportPath}`);
     if (report.status === "blocked") process.exit(1);
+    return;
+  }
+
+  if (command === "export") {
+    const captureId = process.argv[3];
+    if (!captureId) {
+      console.error("usage: donna export <capture-id> [--user <id>]");
+      process.exit(1);
+    }
+    const { lifecycle } = buildLifecycle();
+    const bundle = await lifecycle.exportCapture(tenantId, userId, captureId);
+    console.log(JSON.stringify(bundle, null, 2));
+    return;
+  }
+
+  if (command === "delete-audio") {
+    const captureId = process.argv[3];
+    if (!captureId) {
+      console.error("usage: donna delete-audio <capture-id> [--user <id>]");
+      process.exit(1);
+    }
+    const { lifecycle } = buildLifecycle();
+    await lifecycle.deleteAudio(tenantId, userId, captureId);
+    console.log(
+      `Audio deleted for capture ${captureId}. Transcript and thoughts remain (transcript-only provenance).`,
+    );
+    return;
+  }
+
+  if (command === "delete-capture") {
+    const captureId = process.argv[3];
+    if (!captureId) {
+      console.error("usage: donna delete-capture <capture-id> [--user <id>]");
+      process.exit(1);
+    }
+    const { lifecycle } = buildLifecycle();
+    await lifecycle.deleteCapture(tenantId, userId, captureId);
+    console.log(
+      `Capture ${captureId} and all derived records (audio, transcript, thoughts, embeddings) deleted.`,
+    );
+    return;
+  }
+
+  if (command === "retention") {
+    const { retention } = buildLifecycle();
+    if (process.argv.includes("--cleanup")) {
+      const result = await retention.cleanup(tenantId, userId);
+      console.log(
+        `Cleanup: ${result.scanned} captures scanned, ${result.expired} expired, ${result.deleted} audio deleted, ${result.alreadyDeleted} already deleted.`,
+      );
+    }
+    const statuses = await retention.statusAll(tenantId, userId);
+    if (statuses.length === 0) {
+      console.log("No captures yet.");
+      return;
+    }
+    for (const s of statuses) {
+      const state = s.audioAvailable
+        ? `audio available until ${s.expiresAt}`
+        : `transcript-only (audio deleted ${s.audioDeletedAt ?? "never stored"})`;
+      console.log(`• ${s.captureId}: captured ${s.capturedAt} — ${state}`);
+    }
     return;
   }
 

@@ -153,6 +153,29 @@ export interface OrganizedItem {
   needsReview: boolean;
 }
 
+/**
+ * Append-only audit record for privacy lifecycle operations (Spec 1.3).
+ * Deliberately non-content: operation, scope, identifiers, outcome, and
+ * machine-readable detail tokens only — never audio, transcript text, key
+ * material, or personal data.
+ */
+export interface AuditEntry {
+  /** ISO 8601 time of the operation. */
+  at: string;
+  op:
+    | "audio.store"
+    | "audio.delete"
+    | "audio.expire"
+    | "capture.export"
+    | "capture.delete";
+  tenantId: string;
+  userId: string;
+  captureId?: string;
+  result: "ok" | "error";
+  /** Non-content detail token, e.g. "expired", "already-deleted". */
+  detail?: string;
+}
+
 /** End-to-end result of one capture through the loop. */
 export interface CoreLoopResult {
   capture: Capture;

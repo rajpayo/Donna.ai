@@ -12,6 +12,7 @@
     "@donna/core": "*",
     "@donna/evals": "*",
     "@donna/pipeline": "*",
+    "@donna/privacy": "*",
     "@donna/providers": "*",
     "dotenv": "^17.4.2"
   },

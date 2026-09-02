@@ -23,6 +23,8 @@ import { readFile } from "node:fs/promises";
 import {
   hashTranscriptContent,
   sha256Hex,
+  type AudioStore,
+  type AuditLog,
   type BucketStore,
   type Capture,
   type CaptureStore,
@@ -59,6 +61,12 @@ export interface PipelineDeps {
   verifier?: ProvenanceVerifier;
   bucketTuning: BucketTuning;
   events?: EventSink;
+  /**
+   * When present, the source audio is encrypted and retained (Spec 1.3)
+   * at capture time, before transcription.
+   */
+  audio?: AudioStore;
+  audit?: AuditLog;
 }
 
 interface LaneOutput {
@@ -92,6 +100,25 @@ export class DonnaPipeline implements CoreLoop {
         ? { durationSec: capture.durationSec }
         : {}),
     });
+
+    // Spec 1.3 FR-1: audio is encrypted before durable storage.
+    if (this.deps.audio !== undefined) {
+      await this.deps.audio.put(
+        capture.tenantId,
+        capture.userId,
+        capture.id,
+        audio,
+      );
+      await this.deps.audit?.append({
+        at: new Date().toISOString(),
+        op: "audio.store",
+        tenantId: capture.tenantId,
+        userId: capture.userId,
+        captureId: capture.id,
+        result: "ok",
+        detail: `bytes=${audio.byteLength}`,
+      });
+    }
 
     const tStt = Date.now();
     const transcript = await transcriber.transcribe(capture);

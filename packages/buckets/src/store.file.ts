@@ -123,4 +123,43 @@ export class FileBucketStore implements BucketStore {
     data.items.push(item);
     await this.save(tenantId, userId, data);
   }
+
+  async listItems(
+    tenantId: string,
+    userId: string,
+  ): Promise<Array<{ thought: Thought; bucketId: string }>> {
+    return (await this.load(tenantId, userId)).items;
+  }
+
+  async deleteItemsForCapture(
+    tenantId: string,
+    userId: string,
+    captureId: string,
+  ): Promise<{ removed: number }> {
+    const data = await this.load(tenantId, userId);
+    const kept = data.items.filter(
+      (item) => item.thought.provenance.captureId !== captureId,
+    );
+    const removed = data.items.length - kept.length;
+    if (removed === 0) return { removed: 0 };
+    data.items = kept;
+    // Repair bucket stats: exact recompute from the surviving members.
+    for (const bucket of data.buckets) {
+      const members = kept.filter((item) => item.bucketId === bucket.id);
+      bucket.itemCount = members.length;
+      const embeddings = members
+        .map((item) => item.thought.embedding)
+        .filter((e): e is number[] => e !== undefined);
+      if (embeddings.length === 0) {
+        bucket.centroid = [];
+      } else {
+        const dims = embeddings[0]!.length;
+        bucket.centroid = Array.from({ length: dims }, (_, i) =>
+          embeddings.reduce((sum, e) => sum + (e[i] ?? 0), 0) / embeddings.length,
+        );
+      }
+    }
+    await this.save(tenantId, userId, data);
+    return { removed };
+  }
 }

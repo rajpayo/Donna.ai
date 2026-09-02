@@ -10,6 +10,7 @@
  * agents subscribe to bucket events and use the same ports.
  */
 import type {
+  AuditEntry,
   Bucket,
   Capture,
   CaptureRecord,
@@ -87,6 +88,22 @@ export interface BucketStore {
     itemCount: number,
   ): Promise<void>;
   saveItem(item: { thought: Thought; bucketId: string }): Promise<void>;
+  /** Every persisted item in the scope (for export and deletion). */
+  listItems(
+    tenantId: string,
+    userId: string,
+  ): Promise<Array<{ thought: Thought; bucketId: string }>>;
+  /**
+   * Remove every item whose thought derives from the given capture and
+   * repair affected bucket stats (item count and centroid recomputed from
+   * the remaining members). Buckets themselves are kept — they are the
+   * user's filing system. Returns how many items were removed.
+   */
+  deleteItemsForCapture(
+    tenantId: string,
+    userId: string,
+    captureId: string,
+  ): Promise<{ removed: number }>;
 }
 
 /**
@@ -102,6 +119,22 @@ export interface CaptureStore {
     captureId: string,
   ): Promise<CaptureRecord | undefined>;
   listCaptures(tenantId: string, userId: string): Promise<CaptureRecord[]>;
+  /**
+   * Record that the capture's audio is gone (expired or deleted early).
+   * Idempotent. Throws when the capture does not exist in the scope.
+   */
+  markAudioDeleted(
+    tenantId: string,
+    userId: string,
+    captureId: string,
+    deletedAt: string,
+  ): Promise<void>;
+  /** Remove the capture record itself. Idempotent. */
+  deleteCapture(
+    tenantId: string,
+    userId: string,
+    captureId: string,
+  ): Promise<void>;
 }
 
 /**
@@ -116,6 +149,47 @@ export interface TranscriptStore {
     userId: string,
     captureId: string,
   ): Promise<TranscriptRecord | undefined>;
+  /** Remove the transcript for a capture. Idempotent. */
+  deleteTranscript(
+    tenantId: string,
+    userId: string,
+    captureId: string,
+  ): Promise<void>;
+}
+
+/**
+ * Encrypted-at-rest audio storage (Spec 1.3). Implementations encrypt
+ * before durable write with runtime-supplied keys; ciphertext and keys are
+ * never co-located. All methods are scoped and identifier-validated so a
+ * malicious capture ID cannot traverse paths or select another scope's
+ * object.
+ */
+export interface AudioStore {
+  put(
+    tenantId: string,
+    userId: string,
+    captureId: string,
+    audio: Uint8Array,
+  ): Promise<void>;
+  /** Decrypted audio, or undefined when absent (expired/deleted/never stored). */
+  get(
+    tenantId: string,
+    userId: string,
+    captureId: string,
+  ): Promise<Uint8Array | undefined>;
+  has(tenantId: string, userId: string, captureId: string): Promise<boolean>;
+  /** Idempotent: returns true when an object was actually removed. */
+  delete(
+    tenantId: string,
+    userId: string,
+    captureId: string,
+  ): Promise<boolean>;
+}
+
+/** Append-only, non-content audit log for privacy lifecycle operations. */
+export interface AuditLog {
+  append(entry: AuditEntry): Promise<void>;
+  list(tenantId: string, userId: string): Promise<AuditEntry[]>;
 }
 
 /** Outcome of checking one organizer provenance proposal. */

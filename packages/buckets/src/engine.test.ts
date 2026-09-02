@@ -37,6 +37,20 @@ class MemStore implements BucketStore {
   async saveItem(item: { thought: Thought; bucketId: string }): Promise<void> {
     this.items.push(item);
   }
+  async listItems(): Promise<Array<{ thought: Thought; bucketId: string }>> {
+    return this.items;
+  }
+  async deleteItemsForCapture(
+    _t: string,
+    _u: string,
+    captureId: string,
+  ): Promise<{ removed: number }> {
+    const before = this.items.length;
+    this.items = this.items.filter(
+      (item) => item.thought.provenance.captureId !== captureId,
+    );
+    return { removed: before - this.items.length };
+  }
 }
 
 function thought(embedding: number[], withTask = false): Thought {

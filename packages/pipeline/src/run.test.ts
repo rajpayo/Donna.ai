@@ -4,6 +4,9 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
+  AudioStore,
+  AuditEntry,
+  AuditLog,
   Bucket,
   BucketStore,
   Capture,
@@ -42,6 +45,18 @@ class MemStores implements CaptureStore, TranscriptStore, BucketStore {
   async listCaptures(t: string, u: string) {
     return this.captures.filter((c) => c.tenantId === t && c.userId === u);
   }
+  async markAudioDeleted(t: string, u: string, id: string, deletedAt: string) {
+    const c = this.captures.find(
+      (x) => x.tenantId === t && x.userId === u && x.id === id,
+    );
+    if (!c) throw new Error("Capture does not exist in the requested scope");
+    c.audioDeletedAt = deletedAt;
+  }
+  async deleteCapture(t: string, u: string, id: string) {
+    this.captures = this.captures.filter(
+      (c) => !(c.tenantId === t && c.userId === u && c.id === id),
+    );
+  }
   async saveTranscript(record: TranscriptRecord): Promise<void> {
     this.order.push(`transcript:${record.captureId}`);
     this.transcripts.push(record);
@@ -49,6 +64,11 @@ class MemStores implements CaptureStore, TranscriptStore, BucketStore {
   async getTranscript(t: string, u: string, captureId: string) {
     return this.transcripts.find(
       (r) => r.tenantId === t && r.userId === u && r.captureId === captureId,
+    );
+  }
+  async deleteTranscript(t: string, u: string, captureId: string) {
+    this.transcripts = this.transcripts.filter(
+      (r) => !(r.tenantId === t && r.userId === u && r.captureId === captureId),
     );
   }
   async listBuckets(): Promise<Bucket[]> {
@@ -71,6 +91,16 @@ class MemStores implements CaptureStore, TranscriptStore, BucketStore {
   async saveItem(item: { thought: Thought; bucketId: string }): Promise<void> {
     this.order.push(`item:${item.thought.id}`);
     this.items.push(item);
+  }
+  async listItems() {
+    return this.items;
+  }
+  async deleteItemsForCapture(_t: string, _u: string, captureId: string) {
+    const before = this.items.length;
+    this.items = this.items.filter(
+      (item) => item.thought.provenance.captureId !== captureId,
+    );
+    return { removed: before - this.items.length };
   }
 }
 
@@ -409,6 +439,54 @@ describe("DonnaPipeline persistence and provenance (Spec 1.2)", () => {
       },
       { defaultOutputs: [invalid], withEscalation: false },
     );
+  });
+
+  it("stores encrypted audio and audits it when an audio store is configured", async () => {
+    const stored: Array<{ captureId: string; bytes: number }> = [];
+    const auditEntries: AuditEntry[] = [];
+    const audio: AudioStore = {
+      put: async (_t, _u, captureId, bytes) => {
+        stored.push({ captureId, bytes: bytes.byteLength });
+      },
+      get: async () => undefined,
+      has: async () => false,
+      delete: async () => false,
+    };
+    const audit: AuditLog = {
+      append: async (entry) => {
+        auditEntries.push(entry);
+      },
+      list: async () => auditEntries,
+    };
+    const dir = await mkdtemp(join(tmpdir(), "donna-run-"));
+    try {
+      const stores = new MemStores();
+      const pipeline = new DonnaPipeline({
+        transcriber: stubTranscriber(),
+        organizer: organizerReturning([validOutput()]),
+        embedder: stubEmbedder(),
+        store: stores,
+        captures: stores,
+        transcripts: stores,
+        audio,
+        audit,
+        bucketTuning: TUNING,
+      });
+      const capture = await makeCapture(dir);
+      await pipeline.run(capture);
+
+      assert.equal(stored.length, 1);
+      assert.equal(stored[0]!.captureId, "cap-1");
+      assert.equal(stored[0]!.bytes, 5);
+      const audioAudit = auditEntries.find((e) => e.op === "audio.store");
+      assert.ok(audioAudit);
+      assert.equal(audioAudit.captureId, "cap-1");
+      assert.equal(audioAudit.result, "ok");
+      // Non-content: byte count only, never audio data.
+      assert.equal(audioAudit.detail, "bytes=5");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 
   it("rejects cross-capture segment references", async () => {

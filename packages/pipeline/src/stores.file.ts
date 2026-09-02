@@ -12,7 +12,7 @@
  * fails closed with an error instead of falling back to an empty file; and
  * transcript reads re-verify the content hash so tampering is detected.
  */
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import {
   hashTranscriptContent,
@@ -64,6 +64,11 @@ async function readJsonIfPresent(path: string): Promise<unknown | undefined> {
     }
     throw error;
   }
+}
+
+/** Idempotent delete: a missing file is not an error. */
+async function removeIfPresent(path: string): Promise<void> {
+  await rm(path, { force: true });
 }
 
 export class FileCaptureStore implements CaptureStore {
@@ -125,6 +130,29 @@ export class FileCaptureStore implements CaptureStore {
     }
     return records.sort((a, b) => a.capturedAt.localeCompare(b.capturedAt));
   }
+
+  async markAudioDeleted(
+    tenantId: string,
+    userId: string,
+    captureId: string,
+    deletedAt: string,
+  ): Promise<void> {
+    const record = await this.getCapture(tenantId, userId, captureId);
+    if (record === undefined) {
+      throw new Error("Capture does not exist in the requested tenant/user scope");
+    }
+    if (record.audioDeletedAt !== undefined) return; // idempotent
+    record.audioDeletedAt = deletedAt;
+    await this.saveCapture(record);
+  }
+
+  async deleteCapture(
+    tenantId: string,
+    userId: string,
+    captureId: string,
+  ): Promise<void> {
+    await removeIfPresent(this.fileFor(tenantId, userId, captureId));
+  }
 }
 
 export class FileTranscriptStore implements TranscriptStore {
@@ -179,5 +207,13 @@ export class FileTranscriptStore implements TranscriptStore {
       );
     }
     return record;
+  }
+
+  async deleteTranscript(
+    tenantId: string,
+    userId: string,
+    captureId: string,
+  ): Promise<void> {
+    await removeIfPresent(this.fileFor(tenantId, userId, captureId));
   }
 }
