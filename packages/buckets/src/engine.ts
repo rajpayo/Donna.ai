@@ -101,12 +101,21 @@ export class BucketEngine {
       return this.joinBucket(best.bucket, thought, true);
     }
 
+    // Name-collision guard: if the organizer proposed a bucket name that
+    // already exists, that is strong evidence of intent even when geometry
+    // fell below the create threshold. Join it (flagged for review) instead
+    // of minting a duplicate with the same name.
+    const proposedName = suggestion.newBucketName ?? suggestion.suggestedBucket;
+    if (proposedName) {
+      const collision = this.findByName(buckets, proposedName);
+      if (collision) {
+        return this.joinBucket(collision, thought, true);
+      }
+    }
+
     // Nothing fits — mint a new bucket at this moment, then join it so the
     // seeding thought is counted (the Tasks path above does the same).
-    const name =
-      suggestion.newBucketName ??
-      suggestion.suggestedBucket ??
-      (await this.fallbackName(thought));
+    const name = proposedName ?? (await this.fallbackName(thought));
     const created = await this.createBucket(thought, {
       name,
       description:

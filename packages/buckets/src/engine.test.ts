@@ -135,6 +135,38 @@ describe("BucketEngine", () => {
     assert.equal(store.buckets.filter((b) => b.name === TASKS_BUCKET.name).length, 1);
   });
 
+  it("joins an existing bucket when the proposed new-bucket name collides, even below threshold", async () => {
+    const store = new MemStore();
+    const engine = new BucketEngine(store, TUNING);
+    await engine.place(thought([1, 0, 0]), { newBucketName: "Onboarding improvements" }, []);
+
+    // Dissimilar embedding (sim ≈ 0.32, below create_threshold) but the
+    // organizer proposed the SAME bucket name — join, never duplicate.
+    const placement = await engine.place(
+      thought([0.3, 0.9, 0]),
+      { newBucketName: " onboarding improvements " },
+      store.buckets,
+    );
+    assert.equal(placement.created, false);
+    assert.equal(placement.bucket.name, "Onboarding improvements");
+    assert.equal(placement.needsReview, true);
+    assert.equal(store.buckets.length, 1);
+    assert.equal(store.buckets[0]!.itemCount, 2);
+  });
+
+  it("still mints a new bucket when the proposed name does not collide", async () => {
+    const store = new MemStore();
+    const engine = new BucketEngine(store, TUNING);
+    await engine.place(thought([1, 0, 0]), { newBucketName: "Hiring" }, []);
+    const placement = await engine.place(
+      thought([0.3, 0.9, 0]),
+      { newBucketName: "Investor Updates" },
+      store.buckets,
+    );
+    assert.equal(placement.created, true);
+    assert.equal(store.buckets.length, 2);
+  });
+
   it("rejects buckets from a different tenant or user", async () => {
     const store = new MemStore();
     const engine = new BucketEngine(store, TUNING);
