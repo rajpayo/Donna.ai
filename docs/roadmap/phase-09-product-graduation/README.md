@@ -4,9 +4,12 @@ Status: `not-started`
 
 ## Objective
 
-Turn the proven CLI and backend into employee-facing mobile/PWA and Teams
-experiences, then separate all company-only dependencies and pass security,
-privacy, reliability, and operational gates before any public launch.
+Turn the proven CLI and backend into employee-facing **desktop** and Teams
+experiences — users are corporate workers at laptops/desktops, so the
+graduated product is a desktop app or desktop browser PWA with microphone
+voice capture. Mobile is a later companion, not the launch form factor.
+Then separate all company-only dependencies and pass security, privacy,
+reliability, and operational gates before any public launch.
 
 ## Entry conditions
 
@@ -19,7 +22,7 @@ privacy, reliability, and operational gates before any public launch.
 
 ## Specification order
 
-### Specification 9.1 — Mobile/PWA voice, memory, and retrieval experience
+### Specification 9.1 — Desktop voice, memory, and retrieval experience
 
 Status: `draft`
 
@@ -27,14 +30,15 @@ Depends on: Phase 8 accepted and CLI graduation accepted
 
 #### Outcome
 
-An employee can securely capture voice, see live processing state, review
-organized output, search memory, correct Donna, and control personal data from
-a mobile-friendly product rather than a terminal.
+An employee can securely capture voice from their laptop/desktop microphone,
+see live processing state, review organized output, search memory, correct
+Donna, and control personal data from a desktop product rather than a
+terminal.
 
 #### Scope
 
-- Build authenticated mobile/PWA capture with resilient upload and clear
-  recording state.
+- Build authenticated desktop capture (desktop app or desktop browser PWA)
+  with microphone recording, resilient upload, and clear recording state.
 - Show transcript/provenance, dynamic buckets, low-confidence review, memory
   proposals, corrections, retrieval, and source links.
 - Expose source consent, emotional-context setting, retention status, export,
@@ -43,7 +47,9 @@ a mobile-friendly product rather than a terminal.
   prevention.
 - Keep sensitive content out of notification previews and client logs.
 - Add accessibility and keyboard/screen-reader support appropriate to the
-  chosen web/mobile stack.
+  chosen desktop stack.
+- Mobile form factors are explicitly deferred; the design must not preclude a
+  later mobile companion.
 
 #### Non-goals
 
@@ -79,7 +85,7 @@ a mobile-friendly product rather than a terminal.
 
 #### Review gate
 
-Demonstrate the complete experience on target mobile and desktop browsers with
+Demonstrate the complete experience on the target desktop platforms with
 normal, failed, offline, and deletion scenarios. Do not start Specification
 9.2 until accepted.
 
@@ -276,7 +282,7 @@ package. Phase 9 and the roadmap complete only after explicit acceptance.
 
 ## Phase exit gate
 
-- Employees have secure mobile/PWA and Teams experiences.
+- Employees have secure desktop and Teams experiences.
 - Public runtime is fully separated from company-only infrastructure.
 - Security, privacy, reliability, and operational evidence supports launch.
 - The product owner records the final launch decision.

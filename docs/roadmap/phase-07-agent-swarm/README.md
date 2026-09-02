@@ -113,7 +113,7 @@ the action, and every transition is auditable.
 - `packages/approvals/`
 - `packages/destinations/`
 - database migrations for drafts, decisions, side effects, and audit
-- notification interfaces for later Teams/mobile surfaces
+- notification interfaces for later Teams/desktop surfaces
 
 #### Requirements
 

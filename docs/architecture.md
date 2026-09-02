@@ -62,7 +62,8 @@ Capture (audio file)
 ## Why TypeScript
 
 One language across the future surfaces that are already committed in the
-business plan: React Native mobile client, Office add-in, and this backend.
+business plan: a desktop app/PWA (the primary surface — users are at
+laptops), an Office add-in, and this backend.
 The AI SDKs (OpenAI/Anthropic) are first-class in TS, and the eval harness
 doesn't need a Python data stack at MVP scale.
 

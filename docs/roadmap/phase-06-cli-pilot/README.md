@@ -6,7 +6,7 @@ Status: `not-started`
 
 Validate Donna with the product owner and a small consenting employee cohort in
 real work patterns, using the CLI and measured evidence before investing in
-mobile/PWA, Teams, or action-taking agents.
+desktop, Teams, or action-taking agents.
 
 ## Entry conditions
 
@@ -154,7 +154,7 @@ Depends on: Specification 6.2 accepted
 #### Outcome
 
 A signed, evidence-linked decision determines whether Donna is ready for the
-mobile/PWA and Teams phase or must continue iterating in the CLI pilot.
+desktop and Teams phase or must continue iterating in the CLI pilot.
 
 #### Scope
 

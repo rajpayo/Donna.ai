@@ -24,8 +24,13 @@ decision and an update to this file.
 - First test with the product owner, then a small consenting volunteer cohort.
 - Pilot content excludes HR, legal, financial, KYC, payment, and similarly
   high-sensitivity workflows.
-- Move to mobile/PWA voice capture and Teams review/retrieval only after the
-  measured CLI graduation gate passes.
+- **Primary surface is laptop/desktop, not mobile.** Users are corporate
+  workers at their computers; the graduated product is a desktop experience
+  (desktop app or desktop browser PWA with microphone voice capture) plus
+  Teams/Office surfaces where they already work. Mobile is a later companion,
+  not the launch form factor.
+- Move to the desktop voice/retrieval experience and Teams review/approval
+  cards only after the measured CLI graduation gate passes.
 
 ## Context and memory
 

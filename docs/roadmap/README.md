@@ -78,7 +78,8 @@ flowchart LR
    Generate quarantined personal agent blueprints for unmatched buckets, with
    policy checks, dry runs, and reviewed promotion.
 9. [Phase 9 — Product graduation and public readiness](./phase-09-product-graduation/README.md)
-   Build mobile/PWA and Teams surfaces, then separate company-only
+   Build desktop and Teams surfaces (mobile is a later companion), then
+   separate company-only
    infrastructure before any public launch.
 
 Phase numbers express dependency order, not calendar estimates. Evaluation
@@ -86,8 +87,8 @@ work begins early, but Phase 4 is where the complete gate is formalized.
 
 ## CLI graduation gate
 
-Donna does not move from the controlled CLI pilot to mobile/PWA and Teams until
-the accepted evaluation reports demonstrate:
+Donna does not move from the controlled CLI pilot to the desktop and Teams
+surfaces until the accepted evaluation reports demonstrate:
 
 - at least 95% atomic-thought coverage;
 - at least 95% task recall;
