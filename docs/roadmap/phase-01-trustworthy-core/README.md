@@ -1,6 +1,6 @@
 # Phase 1 — Trustworthy core
 
-Status: `in-progress`
+Status: `accepted` (product owner, 2026-09-02)
 
 > Product-owner directive (2026-09-02): Specifications 1.1, 1.2, and 1.3 are
 > approved and are executed in one ordered run. If Specification 1.1's live
@@ -9,6 +9,14 @@ Status: `in-progress`
 > prerequisite and Specifications 1.2 and 1.3 still proceed under this
 > explicit directive, overriding the default dependency gate for this phase
 > only.
+>
+> **Acceptance record (2026-09-02):** the product owner examined the live
+> evidence — real-voice capture (WhatsApp audio, 5 thoughts, correct task
+> routing), silent-audio refusal, encrypted-at-rest audio, deterministic
+> provenance, 95 green tests, and the duplicate-bucket misfire fix — and
+> explicitly accepted all three specifications. Open upgrade thread (not a
+> blocker): native-timestamp STT model (`whisper-1` /
+> `gpt-4o-transcribe-diarize`) pending TrueFoundry admin enablement.
 
 ## Objective
 
@@ -27,7 +35,7 @@ than assumed.
 
 ### Specification 1.1 — Real gateway compatibility and reference capture
 
-Status: `in-review`
+Status: `accepted` (product owner, 2026-09-02)
 
 > Live-run evidence (2026-09-02, product owner supplied gateway credentials;
 > reference recordings synthesized locally with espeak-ng — non-sensitive,
@@ -150,7 +158,7 @@ to `blocked`; do not fake timestamps or start Specification 1.2.
 
 ### Specification 1.2 — Persisted transcripts and deterministic provenance
 
-Status: `in-review`
+Status: `accepted` (product owner, 2026-09-02)
 
 > Implementation evidence (2026-09-02, implementation worker):
 >
@@ -248,7 +256,7 @@ Specification 1.3 until the product owner accepts the persisted chain.
 
 ### Specification 1.3 — Encrypted audio retention and user data controls
 
-Status: `in-review`
+Status: `accepted` (product owner, 2026-09-02)
 
 > Implementation evidence (2026-09-02, implementation worker):
 >
