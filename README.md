@@ -6,8 +6,8 @@ Speak a messy stream of thoughts; Donna distills atomic thoughts, files them int
 
 > **Status:** MVP core loop (internal demo). Runs on the company TrueFoundry
 > gateway — **internal use only**, not for public users. See
-> `docs/architecture.md` for the design and `docs/roadmap-agents.md` for where
-> this goes next (bucket-driven agents that act on your behalf).
+> `docs/architecture.md` for the design and
+> [`docs/roadmap/`](docs/roadmap/README.md) for the gated delivery plan.
 
 ## The core loop
 
@@ -37,7 +37,8 @@ Donna.ai/
 │   ├── architecture.md       # system design and the why behind it
 │   ├── model-registry.md     # how to add or swap a model
 │   ├── evals.md              # the iterate-to-perfection loop
-│   └── roadmap-agents.md     # bucket-driven agents (Asana task pickup, etc.)
+│   ├── roadmap-agents.md     # bucket-driven agent vision
+│   └── roadmap/              # phase folders, specifications, and review gates
 ├── packages/
 │   ├── core/                 # domain types + ports (interfaces) — no vendor code
 │   ├── providers/            # gateway client + per-vendor adapters + registry
@@ -77,3 +78,10 @@ npm run eval
 npm test          # unit tests (bucket engine, scorers) — no API keys needed
 npm run typecheck
 ```
+
+## Delivery roadmap
+
+The project is implemented one reviewed specification at a time. Each phase,
+its ordered specifications, acceptance criteria, and completion gates live in
+[`docs/roadmap/`](docs/roadmap/README.md). No later specification starts until
+the current one has been implemented, demonstrated, and explicitly accepted.

@@ -1,0 +1,96 @@
+# Agreed product and architecture decisions
+
+These decisions were made during roadmap planning. A phase specification must
+not silently override them. Material changes require an explicit product-owner
+decision and an update to this file.
+
+## Product strategy
+
+- Donna is a personal AI assistant for busy corporate workers who need to
+  capture messy thoughts, recover context, organize knowledge, and approve
+  prepared actions.
+- The moat is not a proprietary foundation model. It is consented personal
+  memory, correction-driven personalization, sorting quality, retrieval
+  quality, evaluation data, and trusted workflows.
+- The internal company pilot uses foundation models available through
+  TrueFoundry. A public product must use separate provider accounts and
+  infrastructure.
+- Models remain selected through `models.config.yaml`; model identity must not
+  be hard-coded into pipeline or agent logic.
+
+## Delivery sequence
+
+- Start with the CLI.
+- First test with the product owner, then a small consenting volunteer cohort.
+- Pilot content excludes HR, legal, financial, KYC, payment, and similarly
+  high-sensitivity workflows.
+- Move to mobile/PWA voice capture and Teams review/retrieval only after the
+  measured CLI graduation gate passes.
+
+## Context and memory
+
+- Donna uses voice plus scoped corporate context; it is not only a
+  transcription product.
+- Initial Microsoft 365 grounding includes calendar and user-selected emails,
+  Teams threads, and files.
+- Donna does not continuously ingest the full mailbox, Teams history,
+  OneDrive, or SharePoint estate.
+- Durable personal memory may include explicit facts, preferences,
+  relationships, vocabulary, recurring themes, corrections, and organization
+  patterns.
+- Emotional or frustration inference is probabilistic, user-correctable, and
+  session-only by default.
+- Persistent emotional context requires explicit employee opt-in and can be
+  viewed, corrected, or deleted.
+- Personal memory is private to the employee. It is not an employer-visible
+  psychological or performance profile.
+- Original audio is encrypted and retained for seven days, then automatically
+  deleted. The transcript remains until the employee deletes it under the
+  accepted retention policy.
+
+## Dynamic organization
+
+- The organizer produces atomic thoughts, not one summary of an entire voice
+  note.
+- Buckets are dynamic and personal; there is no mandatory fixed taxonomy.
+- The LLM may propose a bucket, but deterministic similarity and product rules
+  decide placement.
+- Commitments always route to `Tasks`.
+- Corrections are first-class learning events and evaluation inputs.
+- Every thought and derived memory requires source provenance.
+
+## Agent swarm
+
+- Buckets can become independent work queues.
+- Approved templates cover common buckets initially.
+- Agents operate independently and may plan concurrently; one failing agent
+  does not block unrelated buckets.
+- Agents may read, reason, research, and prepare drafts without action
+  approval.
+- Every external write, send, assignment, share, or mutation requires explicit
+  accept/reject.
+- External actions are idempotent and auditable.
+- An unmatched bucket may trigger a manager agent to draft a specialized
+  blueprint.
+- A generated blueprint is declarative, contains no credentials or executable
+  code, and remains quarantined until automated policy checks, human approval,
+  and a dry run pass.
+- Learned agents remain personal by default.
+- A learned agent may become a tenant template only after de-identification,
+  repeat evaluation, a visible diff, and tenant-admin approval.
+- No learned agent or memory crosses company tenants.
+
+## Quality gates
+
+CLI graduation requires:
+
+- atomic-thought coverage of at least 95%;
+- task recall of at least 95%;
+- first-pass bucket acceptance of at least 85%;
+- valid provenance of 100%;
+- successful retrieval of at least 80%;
+- zero tenant-isolation failures; and
+- zero duplicate external actions.
+
+Security, privacy, or provenance failures are hard blockers even when aggregate
+quality metrics pass.

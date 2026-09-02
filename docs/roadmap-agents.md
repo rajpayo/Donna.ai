@@ -2,6 +2,10 @@
 
 > Vision, not MVP scope. Written down now because the MVP's data model is
 > deliberately shaped to make this possible without rework.
+>
+> The executable specifications and review gates are now maintained in
+> [Phase 7 — Bucket-agent swarm](./roadmap/phase-07-agent-swarm/README.md) and
+> [Phase 8 — Manager-generated agents](./roadmap/phase-08-manager-agents/README.md).
 
 ## The idea
 
@@ -52,7 +56,15 @@ not a pipeline change.
 
 ## Sequencing
 
-1. MVP core loop (this repo, now) — prove capture → organize → retrieve.
-2. OneNote destination adapter — land buckets on the page.
-3. Tasks → Asana agent with confirm/reject — first agent, proving the pattern.
-4. Generalize the agent subscription interface; add buckets/agents by demand.
+The complete dependency order is defined in
+[`docs/roadmap/`](./roadmap/README.md). In summary:
+
+1. Prove provenance, memory, retrieval, evaluations, and scoped Microsoft 365
+   context.
+2. Pass the controlled CLI pilot quality gate.
+3. Build durable bucket events, approvals, idempotency, audit, and approved
+   common agent templates.
+4. Add the quarantined manager-agent blueprint flow for recurring unmatched
+   buckets.
+5. Graduate to product clients and separate public infrastructure only after
+   the relevant specifications are accepted.
