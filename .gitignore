@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+*.local
+.DS_Store
+packages/evals/reports/*.json
+!packages/evals/reports/.gitkeep
+data/
+*.log

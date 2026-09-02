@@ -1,0 +1,56 @@
+# Model registry — the ONLY place models are chosen.
+# Swap a model here and every stage, eval, and the CLI pick it up. No code changes.
+#
+# Lanes:
+#   default    — handles routine volume cheaply
+#   escalation — invoked on low confidence / schema repair / demo-quality runs
+#
+# `provider` selects the adapter in packages/providers. `model` is the catalog ID
+# as exposed by the gateway. Any catalog model can be dropped in here.
+
+version: 1
+
+stages:
+  transcribe:
+    default:
+      provider: openai-compatible
+      model: gpt-4o-transcribe
+      params:
+        response_format: json
+        # language: en   # pin to skip auto-detect latency once launch language is decided
+    # Request catalog addition: gpt-4o-mini-transcribe ($0.003/min, half the cost).
+    # escalation:
+    #   provider: openai-compatible
+    #   model: gpt-4o-transcribe-diarize
+
+  organize:
+    default:
+      provider: openai-compatible
+      model: gpt-5-mini
+      params:
+        temperature: 0.2
+    escalation:
+      provider: anthropic
+      model: claude-sonnet-5
+      params:
+        temperature: 0.2
+
+  embed:
+    default:
+      provider: openai-compatible
+      model: text-embedding-3-large
+      params:
+        dimensions: 1024   # Matryoshka truncation: cheaper storage, faster search
+
+  tts:
+    default:
+      provider: openai-compatible
+      model: gpt-4o-mini-tts
+      params:
+        voice: marin
+
+# Dynamic bucket engine tuning (see packages/buckets).
+buckets:
+  assign_threshold: 0.82    # cosine sim ≥ this → join existing bucket
+  create_threshold: 0.65    # below this → propose a new bucket
+  # between the two: assign to best match but flag low-confidence for review

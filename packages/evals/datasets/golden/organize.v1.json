@@ -1,0 +1,37 @@
+{
+  "name": "organize.v1",
+  "description": "Hand-labeled messy voice dumps → expected thoughts, buckets, and tasks. Grow this set every time the organizer misfires in the demo. Labels are adjudicated by a human, optionally with a flagship model assisting.",
+  "cases": [
+    {
+      "id": "walk-between-meetings-01",
+      "transcript": "Okay so the onboarding flow, Priya's right, the drop-off is at step three, we need to cut the LinkedIn import, that's an idea for next sprint. Also I promised Arjun I'd send him the pricing deck by Thursday. And random thought — we should look at what Copilot shipped last week, might change our positioning.",
+      "expected": {
+        "thoughts": [
+          { "kind": "idea", "bucket": "Product Ideas", "contains": ["onboarding", "step three"] },
+          { "kind": "task", "bucket": "Tasks", "contains": ["pricing deck", "Arjun"], "task": { "assigneeHint": "Arjun", "dueHint": "Thursday" } },
+          { "kind": "idea", "bucket": null, "contains": ["Copilot", "positioning"] }
+        ]
+      }
+    },
+    {
+      "id": "post-board-call-02",
+      "transcript": "Board went well, they're pushing on the enterprise tier timing. I need to ask Tushar whether we can pull the security review forward. Also note to self: the churn number they quoted, three percent, that's the good end of the SMB band, don't cite it as typical.",
+      "expected": {
+        "thoughts": [
+          { "kind": "note", "bucket": null, "contains": ["enterprise tier"] },
+          { "kind": "task", "bucket": "Tasks", "contains": ["Tushar", "security review"] },
+          { "kind": "note", "bucket": null, "contains": ["churn", "three percent"] }
+        ]
+      }
+    },
+    {
+      "id": "single-task-03",
+      "transcript": "Remind me to approve the AppSource listing copy before Friday, and loop in Meera on the screenshots.",
+      "expected": {
+        "thoughts": [
+          { "kind": "task", "bucket": "Tasks", "contains": ["AppSource", "Friday"], "task": { "assigneeHint": "Meera" } }
+        ]
+      }
+    }
+  ]
+}
