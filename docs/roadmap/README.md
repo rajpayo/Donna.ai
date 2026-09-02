@@ -53,31 +53,31 @@ flowchart LR
 
 ## Ordered phases
 
-1. [Phase 1 — Trustworthy core](./phase-01-trustworthy-core/README.md)  
+1. [Phase 1 — Trustworthy core](./phase-01-trustworthy-core/README.md)
    Prove the real gateway path, persist transcripts, verify provenance, and
    enforce the seven-day encrypted audio lifecycle.
-2. [Phase 2 — Private memory and personalization](./phase-02-private-memory/README.md)  
+2. [Phase 2 — Private memory and personalization](./phase-02-private-memory/README.md)
    Add explicit memory layers, context assembly, correction-driven learning,
    and consented session emotion.
-3. [Phase 3 — Retrieval and production storage](./phase-03-retrieval-storage/README.md)  
+3. [Phase 3 — Retrieval and production storage](./phase-03-retrieval-storage/README.md)
    Make stored knowledge findable, then move concurrent state to
    tenant-isolated PostgreSQL and pgvector.
-4. [Phase 4 — Evaluation moat](./phase-04-evaluation-moat/README.md)  
+4. [Phase 4 — Evaluation moat](./phase-04-evaluation-moat/README.md)
    Measure the complete loop, personalization improvement, privacy, latency,
    and cost with regression gates.
-5. [Phase 5 — Microsoft 365 grounding](./phase-05-microsoft-365/README.md)  
+5. [Phase 5 — Microsoft 365 grounding](./phase-05-microsoft-365/README.md)
    Bind Entra identity, add scoped read context, and implement reviewed
    Microsoft destinations, including OneNote when its API is available.
-6. [Phase 6 — Controlled CLI pilot](./phase-06-cli-pilot/README.md)  
+6. [Phase 6 — Controlled CLI pilot](./phase-06-cli-pilot/README.md)
    Run a consented volunteer pilot and graduate only when measured quality
    gates pass.
-7. [Phase 7 — Bucket-agent swarm](./phase-07-agent-swarm/README.md)  
+7. [Phase 7 — Bucket-agent swarm](./phase-07-agent-swarm/README.md)
    Add durable bucket events, independent workers, approvals, idempotency,
    auditing, and approved common agent templates.
-8. [Phase 8 — Manager-generated agents](./phase-08-manager-agents/README.md)  
+8. [Phase 8 — Manager-generated agents](./phase-08-manager-agents/README.md)
    Generate quarantined personal agent blueprints for unmatched buckets, with
    policy checks, dry runs, and reviewed promotion.
-9. [Phase 9 — Product graduation and public readiness](./phase-09-product-graduation/README.md)  
+9. [Phase 9 — Product graduation and public readiness](./phase-09-product-graduation/README.md)
    Build mobile/PWA and Teams surfaces, then separate company-only
    infrastructure before any public launch.
 
