@@ -7,7 +7,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "tsx --test src/*.test.ts",
+    "test": "tsx --test src/*.test.ts src/scorers/*.test.ts",
     "eval": "tsx src/runner.ts",
     "eval:harness": "tsx src/cli.ts"
   },

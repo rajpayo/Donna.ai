@@ -339,11 +339,11 @@ export const adversarialScorer: StageScorer = {
     const adversarialCase = testCase as unknown as LoadedCase<AdversarialPayload>;
     switch (adversarialCase.payload.category) {
       case "prompt-injection":
-        return scorePromptInjection(adversarialCase);
+        return [scorePromptInjection(adversarialCase)];
       case "tenant-scope":
-        return await scoreTenantScope(adversarialCase, context);
+        return [await scoreTenantScope(adversarialCase, context)];
       case "false-provenance":
-        return scoreFalseProvenance(adversarialCase, context);
+        return [scoreFalseProvenance(adversarialCase, context)];
     }
   },
 };

@@ -185,7 +185,85 @@ start Specification 4.2 until the product owner accepts the dataset rules.
 
 ### Specification 4.2 — Full-loop quality, latency, and cost scoring
 
-Status: `draft`
+Status: `in-review` (approved by the product owner 2026-09-03)
+
+> Implementation evidence (2026-09-03, implementation worker):
+>
+> - **Stage scorers** (`packages/evals/src/scorers/`): stt.ts (WER via
+>   word-Levenshtein with number-word/percent normalization +
+>   entity/date/task preservation), organize.ts (schema validity, thought
+>   coverage, over/under-splitting F1, STRICT task precision/recall — an
+>   expected task counts only when a task-bearing thought covers it —
+>   bucket acceptance, provenance fidelity), provenance.ts, buckets.ts
+>   (engine replay of the seeded misfires), memory.ts (proposal precision
+>   with runtime-materialized synthetic secrets, correction adherence,
+>   conflict handling), retrieval.ts (hit@k + citation validity +
+>   abstention + stale exclusion), emotion.ts (calibration/abstention).
+>   Every metric is documented in METRIC_DOCS with denominator,
+>   missing-data behavior, and pass direction (FR-1) — enforced by test.
+> - **Full-loop longitudinal runner** (`scorers/full-loop.ts`): real
+>   pipeline + stores + context assembler + correction service + retrieval
+>   index in an isolated scratch tree. Deterministic mode replays
+>   scriptedThoughts through scripted adapters (offline, exact); live mode
+>   synthesizes espeak-ng audio from the case transcripts and runs the
+>   configured gateway stack (gpt-4o-transcribe → gpt-5-mini →
+>   text-embedding-3-large). Per-capture outcomes carry stage/total
+>   latency, tokens, escalation flag; summaries carry bucket-state,
+>   hard-rule, and adherence scores (FR-4). Fault-injection seam proves
+>   broken implementations fail closed (AC-1). Personalization on/off
+>   comparison supported (FR-3).
+> - **Cost/latency (FR-4, AC-4):** MeteredGatewayClient wraps the real
+>   client and records per-call usage the gateway reports. This gateway
+>   reports TOKENS (prompt/completion) but NO cost field — USD cost is
+>   recorded as missing (never estimated); tokens per accepted loop are
+>   the honest proxy. Live full-loop: 5/5 captures accepted, total
+>   latency 12.2–18.7s per capture (stt 2.3–3.1s, organize 9.0–15.2s,
+>   embed 0.6–1.1s), 1,364–2,168 tokens/loop, escalation rate 0.
+> - **Live results (real gateway, 2026-09-03):**
+>   transcribe WER 0.000 (5/5, preservation 100% — clean synthetic
+>   speech caveat); organize coverage 0.889, task recall 1.000, task
+>   precision 0.611 (the documented "we should test X" over-tasking —
+>   consistent with the Phase 2 live eval), bucket acceptance 0.833,
+>   provenance fidelity 1.000; retrieval hit@3 100% (24/24), citation
+>   validity 100% (17/17 answers), abstention correctness 79.2%
+>   (over-abstention on 5 answerable cases — real finding), stale
+>   exclusion 100%; memory/emotion/buckets/provenance all 100%.
+> - **Longitudinal (AC-3):** deterministic mode: both scenarios pass —
+>   bucket state evolves correctly, corrections apply, adherence recorded
+>   (followed:1 / contradicted:1 per the scenarios), personalization-off
+>   runs flip adherence to unobserved (FR-3 comparison proven). Live mode:
+>   placement-time Tasks hard rule 100% (5/5).
+> - **Hard failures never average out (SR-1):** per-case hard-failure
+>   lists + top-level counts; the seeded provenance-failure test proves a
+>   broken organizer fails closed with invalid-provenance hard failures
+>   while quality metrics still average normally.
+> - **Findings for the product owner (real, surfaced by the live run):**
+>   (1) DECISION POINT: an accepted bucket.move correction moved a
+>   task-bearing thought OUT of Tasks (placement-time hard rule held at
+>   100%; the correction-apply path is separate). Should bucket.move
+>   refuse or record "contradicted" when the target thought carries a
+>   task? (2) Live bucket naming: gpt-5-mini minted "Onboarding" beside
+>   "Onboarding improvements" (the known near-duplicate class from
+>   buckets.v1.json). (3) Live adherence did not fire on the paraphrase
+>   (semantic threshold 0.5 was calibrated on one pair — flagged for
+>   revisit per the existing decision note). (4) Answer synthesis
+>   over-abstains on 5/22 retrieval cases.
+> - **Tests: 27 new (323 total green with Postgres live, typecheck
+>   clean).** Coverage: WER math + normalization + credential-absent
+>   classification + degraded-STT regression (AC-1), organize metrics +
+>   under-splitting regression + provenance hard failure, provenance /
+>   buckets / memory / retrieval / emotion stages through the harness,
+>   full-loop deterministic + personalization comparison + seeded
+>   provenance fail-closed, report distributions + cohort suppression
+>   (n<3) + error classification + metric-doc completeness.
+> - **Known limitations:** STT fixtures are clean synthetic speech (real
+>   accents/noise will score lower — the cohort machinery is ready for
+>   consented real fixtures); the gateway reports no USD cost (tokens are
+>   the proxy; TrueFoundry's dashboard aggregates cost by stage tags);
+>   citation validity is measured on synthetic fixtures; over-abstention
+>   finding needs product-owner judgment (stricter prompt vs. accept).
+>
+> Awaiting product-owner examination for acceptance.
 
 Depends on: Specification 4.1 accepted
 

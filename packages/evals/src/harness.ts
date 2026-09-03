@@ -63,7 +63,20 @@ export interface StageScorer {
   stage: string;
   /** Cohort slice keys to report (pseudonymous metadata labels only). */
   cohortKeys?: string[];
-  score: (testCase: LoadedCase, context: StageContext) => Promise<CaseOutcome>;
+  /**
+   * Optional per-run setup over the whole loaded dataset (e.g. build the
+   * retrieval index from fixtures once). Runs inside the isolated scratch
+   * dir, after isolation assertions.
+   */
+  setup?(context: StageContext, dataset: LoadedDataset): Promise<void>;
+  /**
+   * Score one case. Most stages return a single outcome; longitudinal
+   * stages may return one outcome per capture step plus a case summary
+   * (per-capture latency/cost distributions come from this).
+   */
+  score: (testCase: LoadedCase, context: StageContext) => Promise<CaseOutcome[]>;
+  /** Optional per-run teardown (release stores, delete scratch state). */
+  teardown?(context: StageContext): Promise<void>;
 }
 
 export interface RunEvalOptions {
@@ -118,18 +131,25 @@ export async function runEval(options: RunEvalOptions): Promise<RunEvalResult> {
   const startedAt = now();
   const context: StageContext = { scope, scratchDir, snapshot };
   const cases: CaseOutcome[] = [];
-  for (const testCase of dataset.cases) {
-    const outcome = await options.scorer.score(testCase, context);
-    // Cohort labels come from fixture metadata only — pseudonymous by
-    // construction (accent/noise/language notes, never identity).
-    const cohort: Record<string, string> = {};
-    for (const key of options.scorer.cohortKeys ?? []) {
-      const value = testCase.meta[key as keyof typeof testCase.meta];
-      if (typeof value === "string") cohort[key] = value;
+  await options.scorer.setup?.(context, dataset);
+  try {
+    for (const testCase of dataset.cases) {
+      const outcomes = await options.scorer.score(testCase, context);
+      // Cohort labels come from fixture metadata only — pseudonymous by
+      // construction (accent/noise/language notes, never identity).
+      const cohort: Record<string, string> = {};
+      for (const key of options.scorer.cohortKeys ?? []) {
+        const value = testCase.meta[key as keyof typeof testCase.meta];
+        if (typeof value === "string") cohort[key] = value;
+      }
+      for (const outcome of outcomes) {
+        cases.push(
+          Object.keys(cohort).length > 0 ? { ...outcome, cohort } : outcome,
+        );
+      }
     }
-    cases.push(
-      Object.keys(cohort).length > 0 ? { ...outcome, cohort } : outcome,
-    );
+  } finally {
+    await options.scorer.teardown?.(context);
   }
   const finishedAt = now();
 

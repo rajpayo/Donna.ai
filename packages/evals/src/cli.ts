@@ -1,24 +1,42 @@
 /**
- * Eval harness CLI (Specification 4.1).
+ * Eval harness CLI (Specification 4.1 + 4.2).
  *
- *   tsx src/cli.ts validate                 # schema-validate every dataset
- *   tsx src/cli.ts run <stage>              # run one stage eval, write reports
- *   tsx src/cli.ts snapshot                 # print the config fingerprint
+ *   tsx src/cli.ts validate                          # schema-validate every dataset
+ *   tsx src/cli.ts run <stage> [--mode live|deterministic] [--personalization on|off]
+ *   tsx src/cli.ts snapshot                          # print the config fingerprint
  *
- * Stage scorers are registered in SCORERS. Deterministic stages
- * (adversarial, provenance, retrieval, memory, emotion) run with no
- * gateway credentials; stages that need the live gateway (transcribe,
- * organize, full-loop in live mode) fail closed with a classified
- * external-flaky error when credentials are absent — never a crash, never
- * a fake pass.
+ * Deterministic stages (adversarial, provenance, buckets, memory,
+ * retrieval, emotion, full-loop in deterministic mode) run with no
+ * gateway credentials. Stages that need the live gateway (transcribe,
+ * organize, full-loop --mode live) fail closed with a classified
+ * external-flaky error when credentials are absent — never a crash,
+ * never a fake pass.
  */
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { config as loadEnv } from "dotenv";
+import {
+  gatewayFromEnv,
+  inspectGatewayEnv,
+  gatewayEnvProblems,
+  loadModelsConfig,
+  resolveStack,
+  type ModelsConfig,
+  type ResolvedStack,
+} from "@donna/providers";
 import { loadDataset } from "./datasets.js";
 import { runEval, type StageScorer } from "./harness.js";
 import { adversarialScorer } from "./adversarial.js";
 import { captureSnapshot, snapshotFingerprint } from "./snapshot.js";
+import { MeteredGatewayClient } from "./scripted.js";
+import { createSttScorer } from "./scorers/stt.js";
+import { createOrganizeScorer } from "./scorers/organize.js";
+import { createProvenanceScorer } from "./scorers/provenance.js";
+import { createBucketsScorer } from "./scorers/buckets.js";
+import { createMemoryScorer } from "./scorers/memory.js";
+import { createRetrievalScorer } from "./scorers/retrieval.js";
+import { createEmotionScorer } from "./scorers/emotion.js";
+import { createFullLoopScorer } from "./scorers/full-loop.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const evalsDir = resolve(here, "..");
@@ -37,13 +55,107 @@ const DATASETS: Record<string, string> = {
   adversarial: "datasets/adversarial/adversarial.v1.json",
 };
 
-/** Stage scorers. 4.2 adds transcribe/organize/retrieval/memory/full-loop. */
-const SCORERS: Record<string, () => Promise<StageScorer>> = {
-  adversarial: async () => adversarialScorer,
-};
-
 function configPath(): string {
   return resolve(repoRoot, process.env.DONNA_MODELS_CONFIG ?? "models.config.yaml");
+}
+
+function arg(flag: string): string | undefined {
+  const index = process.argv.indexOf(flag);
+  return index >= 0 ? process.argv[index + 1] : undefined;
+}
+
+interface LiveStack {
+  config: ModelsConfig;
+  stack: ResolvedStack;
+  metered: MeteredGatewayClient;
+}
+
+/** Build the live stack when gateway credentials exist; else undefined. */
+async function liveStack(): Promise<LiveStack | undefined> {
+  const problems = gatewayEnvProblems(inspectGatewayEnv());
+  if (problems.length > 0) return undefined;
+  const config = await loadModelsConfig(configPath());
+  // Metering wraps the real client; adapters are unchanged (ports/adapters).
+  const metered = new MeteredGatewayClient({
+    baseUrl: process.env.TRUEFOUNDRY_BASE_URL!,
+    apiKey: process.env.TRUEFOUNDRY_API_KEY!,
+    tenantId: process.env.DONNA_TENANT_ID ?? "demo-tenant",
+    appId: process.env.DONNA_APP_ID ?? "donna-mvp",
+  });
+  void gatewayFromEnv; // env validated above via inspectGatewayEnv
+  const stack = resolveStack(metered, config);
+  return { config, stack, metered };
+}
+
+async function buildScorer(stage: string, live: LiveStack | undefined): Promise<StageScorer> {
+  switch (stage) {
+    case "adversarial":
+      return adversarialScorer;
+    case "provenance":
+      return createProvenanceScorer();
+    case "memory":
+      return createMemoryScorer();
+    case "emotion":
+      return createEmotionScorer();
+    case "buckets": {
+      const config = await loadModelsConfig(configPath());
+      return createBucketsScorer({ tuning: config.buckets });
+    }
+    case "retrieval": {
+      const config = await loadModelsConfig(configPath());
+      return createRetrievalScorer({
+        ranking: {
+          version: config.retrieval.rankingVersion,
+          weights: config.retrieval.weights,
+          recencyHalfLifeDays: config.retrieval.recencyHalfLifeDays,
+          candidateLimit: config.retrieval.candidateLimit,
+          minScore: config.retrieval.minScore,
+        },
+        ...(live?.stack.answerGenerator !== undefined
+          ? { answerGenerator: live.stack.answerGenerator }
+          : {}),
+      });
+    }
+    case "transcribe":
+      return createSttScorer({
+        ...(live !== undefined ? { transcriber: live.stack.transcriber } : {}),
+        fixturesDir: join(evalsDir, "fixtures", "audio"),
+      });
+    case "organize":
+      return createOrganizeScorer({
+        ...(live !== undefined ? { organizer: live.stack.organizer } : {}),
+      });
+    case "full-loop": {
+      const config = live?.config ?? (await loadModelsConfig(configPath()));
+      const mode = arg("--mode") ?? (live !== undefined ? "live" : "deterministic");
+      const personalized = (arg("--personalization") ?? "on") !== "off";
+      return createFullLoopScorer({
+        mode: mode === "live" && live !== undefined ? "live" : "deterministic",
+        personalized,
+        bucketTuning: config.buckets,
+        contextBudgets: config.context,
+        ...(mode === "live" && live !== undefined
+          ? {
+              live: {
+                transcriber: live.stack.transcriber,
+                organizer: live.stack.organizer,
+                ...(live.stack.escalationOrganizer !== undefined
+                  ? { escalationOrganizer: live.stack.escalationOrganizer }
+                  : {}),
+                embedder: live.stack.embedder,
+                meteredGateway: live.metered,
+                defaultOrganizerModel: config.stages.organize.default.model,
+                ...(config.stages.organize.escalation !== undefined
+                  ? { escalationOrganizerModel: config.stages.organize.escalation.model }
+                  : {}),
+              },
+            }
+          : {}),
+      });
+    }
+    default:
+      throw new Error(`Unknown stage "${stage}". Known: ${Object.keys(DATASETS).join(", ")}`);
+  }
 }
 
 async function validateAll(): Promise<boolean> {
@@ -83,16 +195,14 @@ async function main(): Promise<void> {
 
   if (command === "run" && stage !== undefined) {
     const datasetRel = DATASETS[stage];
-    const scorerFactory = SCORERS[stage];
     if (datasetRel === undefined) {
       throw new Error(`Unknown stage "${stage}". Known: ${Object.keys(DATASETS).join(", ")}`);
     }
-    if (scorerFactory === undefined) {
-      throw new Error(
-        `No scorer registered for stage "${stage}" yet (4.2 wires the remaining stages).`,
-      );
+    const live = await liveStack();
+    const scorer = await buildScorer(stage, live);
+    if (live === undefined && ["transcribe", "organize"].includes(stage)) {
+      console.error(`note: no gateway credentials — ${stage} cases will error external-flaky`);
     }
-    const scorer = await scorerFactory();
     const result = await runEval({
       datasetPath: join(evalsDir, datasetRel),
       configPath: configPath(),

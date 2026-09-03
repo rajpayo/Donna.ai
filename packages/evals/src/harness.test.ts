@@ -65,13 +65,13 @@ describe("runEval", () => {
   it("FR-2: hard failures are surfaced per case and never averaged out", async () => {
     const failingScorer: typeof adversarialScorer = {
       stage: "adversarial",
-      async score(testCase, context): Promise<CaseOutcome> {
+      async score(testCase, context): Promise<CaseOutcome[]> {
         if (testCase.id === "tenant-read-items-01") {
-          return {
+          return [{
             caseId: testCase.id,
             scores: { "adversarial.blocked": 1 },
             hardFailures: [{ kind: "tenant-leak", detail: "seeded leak for the test" }],
-          };
+          }];
         }
         return adversarialScorer.score(testCase, context);
       },

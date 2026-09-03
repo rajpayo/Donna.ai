@@ -115,6 +115,22 @@ export const METRIC_DOCS: Record<string, MetricDoc> = {
     missing: "a case with no persisted thoughts scores 0",
     passDirection: "higher-is-better",
   },
+  /* ---- provenance / buckets (4.2) ---- */
+  "provenance.decision_correct": {
+    denominator: "claims per case (validity + labeled reason must match)",
+    missing: "always computed for provenance cases",
+    passDirection: "higher-is-better",
+  },
+  "buckets.action_correct": {
+    denominator: "bucket-assignment cases (join/create + target bucket match)",
+    missing: "always computed for bucket cases",
+    passDirection: "higher-is-better",
+  },
+  "buckets.no_duplicate": {
+    denominator: "bucket-assignment cases (1 when no forbidden bucket name is minted)",
+    missing: "cases without mustNotCreate labels score 1 by definition",
+    passDirection: "higher-is-better",
+  },
   /* ---- retrieval (4.2) ---- */
   "retrieval.hit_at_k": {
     denominator: "positive cases (1 when a relevant thought ranks in top k); negative cases pass on zero hits",
@@ -147,6 +163,11 @@ export const METRIC_DOCS: Record<string, MetricDoc> = {
     missing: "no applicable placements: metric is skipped, not failed",
     passDirection: "higher-is-better",
   },
+  "memory.adherence_counts_match": {
+    denominator: "adherence cases (1 when followed/contradicted/not-applicable counts match the labels)",
+    missing: "always computed for adherence cases",
+    passDirection: "higher-is-better",
+  },
   "memory.conflict_handling": {
     denominator: "seeded conflicts per case (1 when conflict is detected and resolved by supersession)",
     missing: "cases without a seeded conflict are excluded",
@@ -168,6 +189,31 @@ export const METRIC_DOCS: Record<string, MetricDoc> = {
     denominator: "full-loop captures (1 when the capture completes with valid provenance and no hard failure)",
     missing: "stage errors classify the case errored, not failed",
     passDirection: "higher-is-better",
+  },
+  "loop.bucket_state_correct": {
+    denominator: "longitudinal cases (1 when expected buckets exist and forbidden ones do not)",
+    missing: "always computed for full-loop cases",
+    passDirection: "higher-is-better",
+  },
+  "loop.tasks_hard_rule": {
+    denominator: "full-loop captures (1 when every task-bearing thought was PLACED in Tasks — the absolute hard rule at placement time)",
+    missing: "always computed for accepted captures",
+    passDirection: "higher-is-better",
+  },
+  "loop.tasks_final_in_tasks": {
+    denominator: "longitudinal cases (1 when every task-bearing item is in Tasks after corrections)",
+    missing: "always computed for full-loop cases; corrections may legitimately move items (product decision point)",
+    passDirection: "higher-is-better",
+  },
+  "loop.adherence_as_expected": {
+    denominator: "longitudinal cases with adherence expectations",
+    missing: "cases without adherence expectations still compute (vacuous match)",
+    passDirection: "higher-is-better",
+  },
+  "routing.escalated": {
+    denominator: "full-loop captures (1 when the escalation lane produced the accepted output)",
+    missing: "0 in deterministic mode (scripted organizer never escalates)",
+    passDirection: "lower-is-better",
   },
   "routing.escalation_rate": {
     denominator: "organize invocations per run",

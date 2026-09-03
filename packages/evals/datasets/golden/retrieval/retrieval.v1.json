@@ -13,7 +13,26 @@
     "language": "en",
     "notes": "synthetic fixtures with clean vector separation; grow with real misfires"
   },
-  "cases": [],
+  "cases": [
+    {
+      "id": "stale-deleted-01",
+      "meta": { "notes": "deleted content must never resurface in search (Spec 3.3 SR-3)" },
+      "query": "vendor contract renewal",
+      "embedding": [0.1, 1, 0, 0, 0],
+      "deleteBeforeQuery": ["th-vendor"],
+      "mustNotHit": ["th-vendor"],
+      "relevant": []
+    },
+    {
+      "id": "stale-deleted-02",
+      "meta": { "notes": "deleting one thought leaves other relevant hits intact" },
+      "query": "onboarding plan for the new analyst",
+      "embedding": [0.95, 0.1, 0, 0, 0],
+      "deleteBeforeQuery": ["th-onboarding"],
+      "mustNotHit": ["th-onboarding"],
+      "relevant": []
+    }
+  ],
   "legacyImport": { "path": "../retrieval.v1.json", "format": "retrieval-legacy-v1" },
   "adjudications": []
 }

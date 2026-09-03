@@ -344,6 +344,12 @@ export interface LoadedDataset<T = Record<string, unknown>> {
   sha256: string;
   cases: Array<LoadedCase<T>>;
   adjudications: Adjudication[];
+  /**
+   * Stage-specific top-level data beyond cases (e.g. retrieval fixtures,
+   * metric, successBar). Envelope extras plus, for legacyImport datasets,
+   * the legacy file's top-level keys (name/cases excluded).
+   */
+  extras: Record<string, unknown>;
   /** Absolute path the dataset was loaded from. */
   sourcePath: string;
 }
@@ -420,15 +426,20 @@ export async function loadDataset<T = Record<string, unknown>>(
   // Legacy import: lift flat golden cases into the envelope (content is
   // single-sourced in the original file; metadata comes from defaultMeta).
   let rawCases = [...envelope.cases];
+  const extras: Record<string, unknown> = {};
   if (envelope.legacyImport !== undefined) {
     const legacyPath = resolve(dirname(absolute), envelope.legacyImport.path);
-    const legacy = JSON.parse(await readFile(legacyPath, "utf8")) as {
-      cases?: Array<Record<string, unknown>>;
-    };
+    const legacy = JSON.parse(await readFile(legacyPath, "utf8")) as Record<
+      string,
+      unknown
+    > & { cases?: Array<Record<string, unknown>> };
     if (!Array.isArray(legacy.cases)) {
       problems.push(`legacyImport ${envelope.legacyImport.path}: no cases array`);
     } else {
       rawCases = [...rawCases, ...legacy.cases];
+      for (const [key, value] of Object.entries(legacy)) {
+        if (key !== "cases" && key !== "name") extras[key] = value;
+      }
     }
   }
 
@@ -489,6 +500,7 @@ export async function loadDataset<T = Record<string, unknown>>(
     sha256: sha256Hex(raw),
     cases,
     adjudications: envelope.adjudications,
+    extras,
     sourcePath: absolute,
   };
 }
