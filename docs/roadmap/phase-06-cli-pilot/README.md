@@ -1,6 +1,6 @@
 # Phase 6 — Controlled CLI pilot
 
-Status: `in-review` (all three specifications in-review with evidence; the measured graduation decision is honestly REJECTED on the pre-pilot dataset — bucket acceptance 0.833 < 0.85 — and the volunteer-dependent acceptance criteria await the product owner's pilot runs)
+Status: `accepted` (product owner, 2026-09-03)
 
 > Product-owner directive (2026-09-03): Specifications 6.1, 6.2, and 6.3 are
 > approved and are executed in one ordered run, one specification at a time,
@@ -34,7 +34,7 @@ desktop, Teams, or action-taking agents.
 
 ### Specification 6.1 — Pilot onboarding, consent, and review experience
 
-Status: `in-review` (approved by the product owner 2026-09-03; awaiting product-owner examination — only the product owner accepts)
+Status: `accepted` (product owner, 2026-09-03)
 
 Depends on: Phase 5 accepted
 
@@ -200,7 +200,7 @@ accepted.
 
 ### Specification 6.2 — Volunteer runs and misfire-to-golden loop
 
-Status: `in-review` (approved by the product owner 2026-09-03; volunteer-dependent acceptance criteria **awaiting product-owner pilot runs** — tooling/runbooks/instrumentation complete and proven on synthetic + scratch-participant data only; no volunteer data exists and none was fabricated)
+Status: `accepted` (product owner, 2026-09-03 — tooling, runbooks, and instrumentation accepted; the volunteer pilot itself remains an open operational activity the product owner will run)
 
 Depends on: Specification 6.1 accepted
 
@@ -349,7 +349,7 @@ demonstrations. Do not start Specification 6.3 until accepted.
 
 ### Specification 6.3 — Measured graduation decision
 
-Status: `in-review` (approved by the product owner 2026-09-03; the honest current-state decision is **REJECTED** on bucket acceptance — awaiting product-owner examination and the volunteer pilot that grows the dataset)
+Status: `accepted` (product owner, 2026-09-03 — graduation tooling accepted; the current-state verdict is honestly REJECTED on bucket acceptance and the volunteer pilot to grow that evidence remains open)
 
 Depends on: Specification 6.2 accepted
 
