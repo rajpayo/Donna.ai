@@ -296,6 +296,23 @@ describe("graduation runner v2 (Spec 6.3)", () => {
     assert.equal(report.extras.correctionTrends?.adherenceRate, 0.75);
   });
 
+  it("latency falls back to the per-case latencyMs distribution when no aggregate metric exists", () => {
+    const fullLoop = makeFullLoopEvidence();
+    fullLoop.report.aggregate.metrics = {}; // no latency.total_ms aggregate
+    fullLoop.report.cases = [
+      { caseId: "c1", scores: {}, hardFailures: [], latencyMs: 1000 },
+      { caseId: "c2", scores: {}, hardFailures: [], latencyMs: 3000 },
+      { caseId: "c3", scores: {}, hardFailures: [] },
+    ];
+    const report = buildGraduationReportV2(
+      [...PASSING_EVIDENCE.map(makeEvidence), fullLoop],
+      { snapshot: SNAPSHOT, now: FIXED_NOW },
+    );
+    assert.equal(report.latencyCost.latencyTotalMs?.n, 2);
+    assert.equal(report.latencyCost.latencyTotalMs?.mean, 2000);
+    assert.equal(report.latencyCost.latencyTotalMs?.max, 3000);
+  });
+
   it("the report hash is stable for identical content and changes with content", () => {
     const inputs = { snapshot: SNAPSHOT, now: FIXED_NOW };
     const a = buildGraduationReportV2(PASSING_EVIDENCE.map(makeEvidence), inputs);

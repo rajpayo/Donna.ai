@@ -23,6 +23,7 @@ import { readFile, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { loadReport } from "./compare.js";
 import {
+  metricStats,
   MIN_COHORT_SIZE,
   type EvalReport,
   type HardFailureKind,
@@ -417,7 +418,14 @@ export function buildGraduationReportV2(
   }
 
   const fullLoop = [...evidence].reverse().find((e) => e.report.stage === "full-loop");
-  const latency = fullLoop?.report.aggregate.metrics["latency.total_ms"] ?? null;
+  // Latency: prefer the aggregate metric; fall back to the per-case
+  // latencyMs distribution (the full-loop scorer records per-case latency
+  // in both modes).
+  const latency =
+    fullLoop?.report.aggregate.metrics["latency.total_ms"] ??
+    (fullLoop !== undefined && fullLoop.report.cases.some((c) => c.latencyMs !== undefined)
+      ? metricStats(fullLoop.report.cases.map((c) => c.latencyMs))
+      : null);
   const cost = fullLoop?.report.aggregate.metrics["cost.usd_per_accepted_loop"] ?? null;
   let promptTokens = 0;
   let completionTokens = 0;
