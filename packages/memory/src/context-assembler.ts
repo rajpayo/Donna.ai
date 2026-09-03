@@ -29,6 +29,7 @@ import type {
   ContextElement,
   ContextPacket,
   ContextAssembler as ContextAssemblerPort,
+  CorrectionEvent,
   TranscriptStore,
 } from "@donna/core";
 import { MemoryService, type Scope } from "./service.js";
@@ -38,6 +39,12 @@ export interface ContextAssemblerDeps {
   buckets: BucketStore;
   captures: CaptureStore;
   transcripts: TranscriptStore;
+  /**
+   * Spec 2.3: accepted corrections for this scope, injected as a bounded
+   * set of relevant personalized examples. Optional — omitting it simply
+   * produces packets without correction examples.
+   */
+  corrections?: { listAccepted(scope: Scope): Promise<CorrectionEvent[]> };
   budgets: ContextBudgets;
   now: () => Date;
   idGen?: () => string;
@@ -168,6 +175,54 @@ export class ContextAssembler implements ContextAssemblerPort {
       degradedReasons.push("buckets-unavailable");
     }
 
+    // --- personalized correction examples (Spec 2.3, bounded) ---
+    if (this.deps.corrections !== undefined) {
+      try {
+        const accepted = await this.deps.corrections.listAccepted(scope);
+        const ranked = accepted
+          .filter(
+            (event) =>
+              event.type === "bucket.move" &&
+              event.payload["toBucketId"] !== undefined &&
+              event.payload["thoughtSummary"] !== undefined,
+          )
+          .map((event) => ({
+            event,
+            score: relevanceScore(
+              query.text,
+              `${event.payload["thoughtSummary"]} ${event.payload["toBucketName"] ?? ""}`,
+            ),
+          }))
+          .filter((entry) => entry.score > 0)
+          .sort(
+            (a, b) =>
+              b.score - a.score ||
+              b.event.createdAt.localeCompare(a.event.createdAt) ||
+              a.event.id.localeCompare(b.event.id),
+          )
+          .slice(0, this.deps.budgets.maxCorrectionExamples);
+        for (const { event, score } of ranked) {
+          const text = `The user corrected: "${event.payload["thoughtSummary"]}" belongs in "${event.payload["toBucketName"] ?? event.payload["toBucketId"]}"`;
+          candidates.push({
+            sourceId: event.id,
+            sourceKind: "correction",
+            trust: "untrusted-retrieved",
+            text,
+            asOf: event.createdAt,
+            tokens: estimateTokens(text),
+            priorityClass: 2,
+            score,
+            correction: {
+              correctionId: event.id,
+              preferredBucketId: event.payload["toBucketId"]!,
+            },
+          });
+        }
+      } catch {
+        degradedReasons.push("corrections-unavailable");
+      }
+    }
+
     // --- recent capture excerpts (recency is the relevance) ---
     try {
       const captures = (
@@ -230,6 +285,9 @@ export class ContextAssembler implements ContextAssemblerPort {
         text: candidate.text,
         asOf: candidate.asOf,
         tokens: candidate.tokens,
+        ...(candidate.correction !== undefined
+          ? { correction: candidate.correction }
+          : {}),
       });
     }
 

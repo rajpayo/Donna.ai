@@ -16,6 +16,8 @@ import { dirname, join } from "node:path";
 import type {
   ConsentRecord,
   ConsentStore,
+  CorrectionEvent,
+  CorrectionStore,
   MemoryEvent,
   MemoryProposal,
   MemoryRecord,
@@ -241,5 +243,99 @@ export class FileConsentStore implements ConsentStore {
     userId: string,
   ): Promise<ConsentRecord[]> {
     return this.load(tenantId, userId);
+  }
+}
+
+/**
+ * Scoped file adapter for correction events (Specification 2.3):
+ * <tenant>/<user>/corrections.json with the same partition validation and
+ * fail-closed scope checks as the memory store.
+ */
+export class FileCorrectionStore implements CorrectionStore {
+  constructor(private readonly dataDir: string) {}
+
+  private fileFor(tenantId: string, userId: string): string {
+    assertPartitionId("tenant", tenantId);
+    assertPartitionId("user", userId);
+    return join(this.dataDir, tenantId, userId, "corrections.json");
+  }
+
+  private async load(tenantId: string, userId: string): Promise<CorrectionEvent[]> {
+    let raw: string;
+    try {
+      raw = await readFile(this.fileFor(tenantId, userId), "utf8");
+    } catch (error) {
+      if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+        return [];
+      }
+      throw error;
+    }
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) {
+      throw new Error("Invalid file-backed correction store data");
+    }
+    for (const record of parsed as CorrectionEvent[]) {
+      assertScope(record, tenantId, userId);
+    }
+    return parsed as CorrectionEvent[];
+  }
+
+  private async save(
+    tenantId: string,
+    userId: string,
+    records: CorrectionEvent[],
+  ): Promise<void> {
+    await writeJson0600(this.fileFor(tenantId, userId), records);
+  }
+
+  async saveCorrection(event: CorrectionEvent): Promise<void> {
+    assertRecordId("correction", event.id);
+    const records = await this.load(event.tenantId, event.userId);
+    const index = records.findIndex((candidate) => candidate.id === event.id);
+    if (index >= 0) {
+      // Lifecycle fields may be updated; payload and sources are immutable.
+      const existing = records[index]!;
+      if (
+        JSON.stringify(existing.payload) !== JSON.stringify(event.payload) ||
+        JSON.stringify(existing.sources) !== JSON.stringify(event.sources) ||
+        existing.type !== event.type
+      ) {
+        throw new Error("Correction events are immutable once recorded");
+      }
+      records[index] = event;
+    } else {
+      records.push(event);
+    }
+    await this.save(event.tenantId, event.userId, records);
+  }
+
+  async getCorrection(
+    tenantId: string,
+    userId: string,
+    correctionId: string,
+  ): Promise<CorrectionEvent | undefined> {
+    assertRecordId("correction", correctionId);
+    const records = await this.load(tenantId, userId);
+    return records.find((candidate) => candidate.id === correctionId);
+  }
+
+  async listCorrections(
+    tenantId: string,
+    userId: string,
+  ): Promise<CorrectionEvent[]> {
+    return this.load(tenantId, userId);
+  }
+
+  async deleteCorrection(
+    tenantId: string,
+    userId: string,
+    correctionId: string,
+  ): Promise<boolean> {
+    assertRecordId("correction", correctionId);
+    const records = await this.load(tenantId, userId);
+    const kept = records.filter((candidate) => candidate.id !== correctionId);
+    if (kept.length === records.length) return false;
+    await this.save(tenantId, userId, kept);
+    return true;
   }
 }

@@ -70,3 +70,4 @@ context:
   recent_captures: 3        # recent capture excerpts considered
   max_memories: 12          # confirmed-memory element cap
   max_bucket_summaries: 10  # bucket-summary element cap
+  max_correction_examples: 3  # personalized correction examples (Spec 2.3)

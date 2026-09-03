@@ -102,6 +102,18 @@ class MemStores implements CaptureStore, TranscriptStore, BucketStore {
     );
     return { removed: before - this.items.length };
   }
+  async moveItem(): Promise<void> {
+    throw new Error("not used in pipeline tests");
+  }
+  async renameBucket(): Promise<void> {
+    throw new Error("not used in pipeline tests");
+  }
+  async mergeBuckets(): Promise<void> {
+    throw new Error("not used in pipeline tests");
+  }
+  async updateItem(): Promise<void> {
+    throw new Error("not used in pipeline tests");
+  }
 }
 
 /* ---------- stub adapters ---------- */

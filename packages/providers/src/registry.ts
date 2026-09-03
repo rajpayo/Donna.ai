@@ -44,6 +44,7 @@ const configSchema = z.object({
       recent_captures: z.number().int().nonnegative(),
       max_memories: z.number().int().nonnegative(),
       max_bucket_summaries: z.number().int().nonnegative(),
+      max_correction_examples: z.number().int().nonnegative(),
     })
     .default({
       max_tokens: 1200,
@@ -51,6 +52,7 @@ const configSchema = z.object({
       recent_captures: 3,
       max_memories: 12,
       max_bucket_summaries: 10,
+      max_correction_examples: 3,
     })
     .transform((c) => ({
       maxTokens: c.max_tokens,
@@ -58,6 +60,7 @@ const configSchema = z.object({
       recentCaptures: c.recent_captures,
       maxMemories: c.max_memories,
       maxBucketSummaries: c.max_bucket_summaries,
+      maxCorrectionExamples: c.max_correction_examples,
     })),
 });
 

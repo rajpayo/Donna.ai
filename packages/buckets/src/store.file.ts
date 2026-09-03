@@ -145,21 +145,123 @@ export class FileBucketStore implements BucketStore {
     data.items = kept;
     // Repair bucket stats: exact recompute from the surviving members.
     for (const bucket of data.buckets) {
-      const members = kept.filter((item) => item.bucketId === bucket.id);
-      bucket.itemCount = members.length;
-      const embeddings = members
-        .map((item) => item.thought.embedding)
-        .filter((e): e is number[] => e !== undefined);
-      if (embeddings.length === 0) {
-        bucket.centroid = [];
-      } else {
-        const dims = embeddings[0]!.length;
-        bucket.centroid = Array.from({ length: dims }, (_, i) =>
-          embeddings.reduce((sum, e) => sum + (e[i] ?? 0), 0) / embeddings.length,
-        );
-      }
+      recomputeBucketStats(bucket, kept);
     }
     await this.save(tenantId, userId, data);
     return { removed };
+  }
+
+  async moveItem(
+    tenantId: string,
+    userId: string,
+    thoughtId: string,
+    toBucketId: string,
+  ): Promise<void> {
+    const data = await this.load(tenantId, userId);
+    const item = data.items.find((candidate) => candidate.thought.id === thoughtId);
+    if (!item) {
+      throw new Error("Thought does not exist in the requested tenant/user scope");
+    }
+    if (!data.buckets.some((bucket) => bucket.id === toBucketId)) {
+      throw new Error("Target bucket does not exist in the requested tenant/user scope");
+    }
+    if (item.bucketId === toBucketId) return; // idempotent no-op
+    item.bucketId = toBucketId;
+    for (const bucket of data.buckets) {
+      recomputeBucketStats(bucket, data.items);
+    }
+    await this.save(tenantId, userId, data);
+  }
+
+  async renameBucket(
+    tenantId: string,
+    userId: string,
+    bucketId: string,
+    newName: string,
+  ): Promise<void> {
+    if (newName.trim().length === 0) {
+      throw new Error("Bucket name must not be empty");
+    }
+    const data = await this.load(tenantId, userId);
+    const bucket = data.buckets.find((candidate) => candidate.id === bucketId);
+    if (!bucket) {
+      throw new Error("Bucket does not exist in the requested tenant/user scope");
+    }
+    bucket.name = newName.trim();
+    await this.save(tenantId, userId, data);
+  }
+
+  async mergeBuckets(
+    tenantId: string,
+    userId: string,
+    sourceBucketId: string,
+    targetBucketId: string,
+  ): Promise<void> {
+    if (sourceBucketId === targetBucketId) {
+      throw new Error("Cannot merge a bucket into itself");
+    }
+    const data = await this.load(tenantId, userId);
+    const source = data.buckets.find((candidate) => candidate.id === sourceBucketId);
+    const target = data.buckets.find((candidate) => candidate.id === targetBucketId);
+    if (!source || !target) {
+      throw new Error("Bucket does not exist in the requested tenant/user scope");
+    }
+    for (const item of data.items) {
+      if (item.bucketId === sourceBucketId) item.bucketId = targetBucketId;
+    }
+    data.buckets = data.buckets.filter((candidate) => candidate.id !== sourceBucketId);
+    recomputeBucketStats(target, data.items);
+    await this.save(tenantId, userId, data);
+  }
+
+  async updateItem(
+    tenantId: string,
+    userId: string,
+    thoughtId: string,
+    updates: {
+      text?: string;
+      summary?: string;
+      task?: Thought["task"] | null;
+      provenance?: Thought["provenance"];
+      embedding?: number[];
+    },
+  ): Promise<void> {
+    const data = await this.load(tenantId, userId);
+    const item = data.items.find((candidate) => candidate.thought.id === thoughtId);
+    if (!item) {
+      throw new Error("Thought does not exist in the requested tenant/user scope");
+    }
+    if (updates.text !== undefined) item.thought.text = updates.text;
+    if (updates.summary !== undefined) item.thought.summary = updates.summary;
+    if (updates.task !== undefined) {
+      if (updates.task === null) {
+        delete item.thought.task;
+      } else {
+        item.thought.task = updates.task;
+      }
+    }
+    if (updates.provenance !== undefined) item.thought.provenance = updates.provenance;
+    if (updates.embedding !== undefined) item.thought.embedding = updates.embedding;
+    await this.save(tenantId, userId, data);
+  }
+}
+
+/** Exact centroid/count recompute from a bucket's surviving members. */
+function recomputeBucketStats(
+  bucket: Bucket,
+  items: Array<{ thought: Thought; bucketId: string }>,
+): void {
+  const members = items.filter((item) => item.bucketId === bucket.id);
+  bucket.itemCount = members.length;
+  const embeddings = members
+    .map((item) => item.thought.embedding)
+    .filter((e): e is number[] => e !== undefined);
+  if (embeddings.length === 0) {
+    bucket.centroid = [];
+  } else {
+    const dims = embeddings[0]!.length;
+    bucket.centroid = Array.from({ length: dims }, (_, i) =>
+      embeddings.reduce((sum, e) => sum + (e[i] ?? 0), 0) / embeddings.length,
+    );
   }
 }

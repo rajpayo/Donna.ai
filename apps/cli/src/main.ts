@@ -25,6 +25,25 @@
  *       export                                 scoped memory export (JSON)
  *       events                                 lifecycle audit trail
  *   donna consent list|grant|revoke [purpose]  consent controls
+ *   donna thoughts [--user <id>]               list organized thoughts (IDs
+ *                                              for corrections)
+ *   donna correct <type> ...                   capture a correction event:
+ *       move <thought-id> --to <bucket-name>   thought is in the wrong bucket
+ *       rename <bucket-id> --name <new-name>   rename a bucket
+ *       merge <bucket-id> --into <bucket-id>   merge one bucket into another
+ *       edit-thought <thought-id> --text <t> [--summary <s>]
+ *       add-task <thought-id> --title <t>      mark a thought as a task
+ *       remove-task <thought-id>               clear a thought's task
+ *       provenance <thought-id> --segments <id,id,...>
+ *   donna corrections [--all]                  review queue (pending first)
+ *   donna corrections accept|reject <id>       review decisions; accepting
+ *                                              applies the correction safely
+ *   donna corrections delete <id>              remove an event + rebuild
+ *   donna corrections replay                   rebuild derived preferences
+ *   donna corrections stats                    correction + adherence metrics
+ *   donna corrections promote <id>             share as a de-identified
+ *                                              golden case (requires
+ *                                              `consent grant eval-sharing`)
  *
  * This is the internal demo surface: one command turns a messy voice memo
  * into organized, bucketed, provenance-linked thoughts.
@@ -35,14 +54,17 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Capture, EventSink, MemoryLayer } from "@donna/core";
 import { FileBucketStore } from "@donna/buckets";
-import { runCompatibilityCheck } from "@donna/evals";
+import { promoteCorrectionToGoldenCase, runCompatibilityCheck } from "@donna/evals";
 import {
   ContextAssembler,
+  CorrectionService,
   FileConsentStore,
+  FileCorrectionStore,
   FileMemoryStore,
   MemoryService,
 } from "@donna/memory";
 import {
+  DeterministicProvenanceVerifier,
   DonnaPipeline,
   FileCaptureStore,
   FileTranscriptStore,
@@ -87,7 +109,22 @@ const USAGE = `usage:
   donna memory events [--user <id>]
   donna consent list [--user <id>]
   donna consent grant <purpose> [--user <id>]
-  donna consent revoke <purpose> [--user <id>]`;
+  donna consent revoke <purpose> [--user <id>]
+  donna thoughts [--user <id>]
+  donna correct move <thought-id> --to <bucket-name> [--user <id>]
+  donna correct rename <bucket-id> --name <new-name> [--user <id>]
+  donna correct merge <bucket-id> --into <bucket-id> [--user <id>]
+  donna correct edit-thought <thought-id> --text <t> [--summary <s>] [--user <id>]
+  donna correct add-task <thought-id> --title <t> [--user <id>]
+  donna correct remove-task <thought-id> [--user <id>]
+  donna correct provenance <thought-id> --segments <id,id,...> [--user <id>]
+  donna corrections [--all] [--user <id>]
+  donna corrections accept <id> [--user <id>]
+  donna corrections reject <id> [--user <id>]
+  donna corrections delete <id> [--user <id>]
+  donna corrections replay [--user <id>]
+  donna corrections stats [--user <id>]
+  donna corrections promote <id> [--user <id>]`;
 
 function dataDir(): string {
   return resolve(repoRoot, process.env.DONNA_DATA_DIR ?? "data");
@@ -108,6 +145,34 @@ function buildMemoryService(): MemoryService {
   return new MemoryService({
     memories: new FileMemoryStore(dir),
     consents: new FileConsentStore(dir),
+    now: () => new Date(),
+  });
+}
+
+/**
+ * Corrections need the bucket store, transcripts, and the provenance
+ * verifier. The embedder (for thought.edit re-embedding) is wired
+ * best-effort: without gateway credentials the service still works and
+ * thought.edit acceptance fails closed with an explicit reason.
+ */
+async function buildCorrectionService(): Promise<CorrectionService> {
+  const dir = dataDir();
+  let embedder;
+  try {
+    const config = await loadModelsConfig(
+      resolve(repoRoot, process.env.DONNA_MODELS_CONFIG ?? "models.config.yaml"),
+    );
+    embedder = resolveStack(gatewayFromEnv(), config).embedder;
+  } catch {
+    embedder = undefined;
+  }
+  return new CorrectionService({
+    corrections: new FileCorrectionStore(dir),
+    buckets: new FileBucketStore(dir),
+    memory: buildMemoryService(),
+    transcripts: new FileTranscriptStore(dir),
+    verifier: new DeterministicProvenanceVerifier(),
+    ...(embedder !== undefined ? { embedder } : {}),
     now: () => new Date(),
   });
 }
@@ -174,6 +239,15 @@ async function buildPipeline(): Promise<{ pipeline: DonnaPipeline; store: FileBu
   const store = new FileBucketStore(dir);
   const captures = new FileCaptureStore(dir);
   const transcripts = new FileTranscriptStore(dir);
+  const corrections = new CorrectionService({
+    corrections: new FileCorrectionStore(dir),
+    buckets: store,
+    memory: buildMemoryService(),
+    transcripts,
+    verifier: new DeterministicProvenanceVerifier(),
+    embedder: stack.embedder,
+    now: () => new Date(),
+  });
   const pipeline = new DonnaPipeline({
     transcriber: stack.transcriber,
     organizer: stack.organizer,
@@ -188,15 +262,18 @@ async function buildPipeline(): Promise<{ pipeline: DonnaPipeline; store: FileBu
     audit: new FileAuditLog(dir),
     bucketTuning: stack.bucketTuning,
     // Spec 2.2: bounded, attributed private-memory context for the
-    // organizer, under the budgets from models.config.yaml.
+    // organizer, under the budgets from models.config.yaml. Spec 2.3:
+    // accepted corrections are injected as bounded personalized examples.
     contextAssembler: new ContextAssembler({
       memory: buildMemoryService(),
       buckets: store,
       captures,
       transcripts,
+      corrections,
       budgets: stack.contextBudgets,
       now: () => new Date(),
     }),
+    correctionObserver: corrections,
     events: consoleEvents,
   });
   return { pipeline, store };
@@ -589,6 +666,271 @@ async function main(): Promise<void> {
         await memory.revokeConsent(scope, purpose, "cli:consent revoke");
         console.log(`Consent revoked for "${purpose}".`);
       }
+      return;
+    }
+
+    console.error(USAGE);
+    process.exit(1);
+  }
+
+  if (command === "thoughts") {
+    const store = new FileBucketStore(dataDir());
+    const [items, buckets] = await Promise.all([
+      store.listItems(tenantId, userId),
+      store.listBuckets(tenantId, userId),
+    ]);
+    if (items.length === 0) {
+      console.log("No organized thoughts yet — capture something first.");
+      return;
+    }
+    const names = new Map(buckets.map((b) => [b.id, b.name]));
+    for (const item of items) {
+      const task = item.thought.task ? " [task]" : "";
+      console.log(
+        `• ${item.thought.id} [${names.get(item.bucketId) ?? "?"}]${task} ${item.thought.summary}`,
+      );
+    }
+    return;
+  }
+
+  if (command === "correct") {
+    const sub = process.argv[3];
+    const corrections = await buildCorrectionService();
+    const scope = { tenantId, userId };
+    const store = new FileBucketStore(dataDir());
+    const source = {
+      kind: "explicit-statement" as const,
+      id: `cli-${randomUUID()}`,
+      reason: "user correction via the CLI",
+    };
+
+    if (sub === "move") {
+      const thoughtId = process.argv[4];
+      const toName = arg("--to");
+      if (!thoughtId || !toName) {
+        console.error("usage: donna correct move <thought-id> --to <bucket-name> [--user <id>]");
+        process.exit(1);
+      }
+      const [items, buckets] = await Promise.all([
+        store.listItems(tenantId, userId),
+        store.listBuckets(tenantId, userId),
+      ]);
+      const item = items.find((candidate) => candidate.thought.id === thoughtId);
+      let target = buckets.find(
+        (b) => b.name.trim().toLowerCase() === toName.trim().toLowerCase(),
+      );
+      if (!item) {
+        console.error(`No thought ${thoughtId} in this scope (see: donna thoughts).`);
+        process.exit(1);
+      }
+      if (!target) {
+        // A correction can mean "this deserves its own bucket" — the user
+        // pins it into existence.
+        target = await store.createBucket({
+          id: randomUUID(),
+          tenantId,
+          userId,
+          name: toName.trim(),
+          description: `Pinned by user correction on ${new Date().toISOString().slice(0, 10)}`,
+          centroid: item.thought.embedding ?? [],
+          itemCount: 0,
+          createdAt: new Date().toISOString(),
+          origin: "pinned",
+        });
+        console.log(`Created bucket "${target.name}" (pinned).`);
+      }
+      const from = buckets.find((b) => b.id === item.bucketId);
+      const event = await corrections.submit(scope, {
+        type: "bucket.move",
+        target: { kind: "thought", id: thoughtId },
+        payload: {
+          fromBucketId: item.bucketId,
+          fromBucketName: from?.name ?? item.bucketId,
+          toBucketId: target.id,
+          toBucketName: target.name,
+          thoughtSummary: item.thought.summary,
+        },
+        sources: [
+          { kind: "thought", id: thoughtId, captureId: item.thought.provenance.captureId, reason: "the misplaced thought" },
+          source,
+        ],
+      });
+      console.log(`Correction ${event.id} queued: move "${item.thought.summary}" → ${target.name}. Review: donna corrections`);
+      return;
+    }
+
+    if (sub === "rename") {
+      const bucketId = process.argv[4];
+      const newName = arg("--name");
+      if (!bucketId || !newName) {
+        console.error("usage: donna correct rename <bucket-id> --name <new-name> [--user <id>]");
+        process.exit(1);
+      }
+      const event = await corrections.submit(scope, {
+        type: "bucket.rename",
+        target: { kind: "bucket", id: bucketId },
+        payload: { newName },
+        sources: [source],
+      });
+      console.log(`Correction ${event.id} queued: rename bucket ${bucketId} → "${newName}".`);
+      return;
+    }
+
+    if (sub === "merge") {
+      const bucketId = process.argv[4];
+      const into = arg("--into");
+      if (!bucketId || !into) {
+        console.error("usage: donna correct merge <bucket-id> --into <bucket-id> [--user <id>]");
+        process.exit(1);
+      }
+      const event = await corrections.submit(scope, {
+        type: "bucket.merge",
+        target: { kind: "bucket", id: bucketId },
+        payload: { intoBucketId: into },
+        sources: [source],
+      });
+      console.log(`Correction ${event.id} queued: merge bucket ${bucketId} into ${into}.`);
+      return;
+    }
+
+    if (sub === "edit-thought") {
+      const thoughtId = process.argv[4];
+      const text = arg("--text");
+      const summary = arg("--summary");
+      if (!thoughtId || (!text && !summary)) {
+        console.error("usage: donna correct edit-thought <thought-id> --text <t> [--summary <s>] [--user <id>]");
+        process.exit(1);
+      }
+      const event = await corrections.submit(scope, {
+        type: "thought.edit",
+        target: { kind: "thought", id: thoughtId },
+        payload: {
+          ...(text !== undefined ? { text } : {}),
+          ...(summary !== undefined ? { summary } : {}),
+        },
+        sources: [{ kind: "thought", id: thoughtId, reason: "the thought being edited" }, source],
+      });
+      console.log(`Correction ${event.id} queued: edit thought ${thoughtId}.`);
+      return;
+    }
+
+    if (sub === "add-task" || sub === "remove-task") {
+      const thoughtId = process.argv[4];
+      const title = arg("--title");
+      if (!thoughtId || (sub === "add-task" && !title)) {
+        console.error(`usage: donna correct ${sub} <thought-id>${sub === "add-task" ? " --title <t>" : ""} [--user <id>]`);
+        process.exit(1);
+      }
+      const event = await corrections.submit(scope, {
+        type: sub === "add-task" ? "task.add" : "task.remove",
+        target: { kind: "thought", id: thoughtId },
+        payload: { ...(title !== undefined ? { title } : {}) },
+        sources: [{ kind: "thought", id: thoughtId, reason: "the thought being re-classed" }, source],
+      });
+      console.log(`Correction ${event.id} queued: ${sub} on ${thoughtId}.`);
+      return;
+    }
+
+    if (sub === "provenance") {
+      const thoughtId = process.argv[4];
+      const segments = arg("--segments");
+      if (!thoughtId || !segments) {
+        console.error("usage: donna correct provenance <thought-id> --segments <id,id,...> [--user <id>]");
+        process.exit(1);
+      }
+      const event = await corrections.submit(scope, {
+        type: "provenance.correct",
+        target: { kind: "thought", id: thoughtId },
+        payload: { segmentIds: segments },
+        sources: [{ kind: "thought", id: thoughtId, reason: "the thought whose provenance is corrected" }, source],
+      });
+      console.log(`Correction ${event.id} queued: provenance fix on ${thoughtId}.`);
+      return;
+    }
+
+    console.error(USAGE);
+    process.exit(1);
+  }
+
+  if (command === "corrections") {
+    const sub = process.argv[3];
+    const corrections = await buildCorrectionService();
+    const scope = { tenantId, userId };
+
+    if (sub === undefined || sub === "--all" || sub === "--user" || sub?.startsWith("--")) {
+      const showAll = process.argv.includes("--all");
+      const events = showAll
+        ? await corrections.list(scope)
+        : await corrections.reviewQueue(scope);
+      if (events.length === 0) {
+        console.log(showAll ? "No corrections yet." : "Review queue is empty.");
+        return;
+      }
+      for (const e of events) {
+        const flags = [
+          e.status,
+          ...(e.contradictedBy !== undefined ? [`contradicted-by ${e.contradictedBy}`] : []),
+          ...(e.sharedAt !== undefined ? ["shared"] : []),
+          ...(e.followedCount + e.contradictedCount > 0
+            ? [`followed ${e.followedCount}, contradicted ${e.contradictedCount}`]
+            : []),
+        ].join(", ");
+        console.log(`• ${e.id} ${e.type} on ${e.target.kind}:${e.target.id} (${flags})`);
+        console.log(`    ${JSON.stringify(e.payload)}`);
+      }
+      return;
+    }
+
+    if (sub === "accept" || sub === "reject" || sub === "delete" || sub === "promote") {
+      const id = process.argv[4];
+      if (!id) {
+        console.error(`usage: donna corrections ${sub} <id> [--user <id>]`);
+        process.exit(1);
+      }
+      if (sub === "accept") {
+        const event = await corrections.accept(scope, id);
+        const note = event.appliedAt !== undefined ? "applied" : "recorded";
+        console.log(`Accepted and ${note}: ${event.type} (${event.id}).`);
+      } else if (sub === "reject") {
+        await corrections.reject(scope, id);
+        console.log(`Rejected ${id}. It will not influence later decisions.`);
+      } else if (sub === "delete") {
+        await corrections.deleteCorrection(scope, id);
+        console.log(`Deleted ${id} and rebuilt derived preferences.`);
+      } else {
+        const memory = buildMemoryService();
+        const result = await promoteCorrectionToGoldenCase(
+          {
+            corrections: new FileCorrectionStore(dataDir()),
+            hasConsent: (purpose) => memory.hasConsent(scope, purpose),
+            datasetPath: resolve(repoRoot, "packages/evals/datasets/golden/corrections.v1.json"),
+            now: () => new Date(),
+          },
+          scope,
+          id,
+        );
+        console.log(
+          result.alreadyShared
+            ? `${id} was already shared as a golden case.`
+            : `Shared ${id} as a de-identified golden case (corrections.v1.json).`,
+        );
+      }
+      return;
+    }
+
+    if (sub === "replay") {
+      const result = await corrections.replay(scope);
+      console.log(`Replayed the accepted event log: ${result.derived} derived preference(s) rebuilt.`);
+      return;
+    }
+
+    if (sub === "stats") {
+      const stats = await corrections.stats(scope);
+      console.log(`Corrections: ${stats.total} total (${stats.pending} pending, ${stats.accepted} accepted, ${stats.rejected} rejected)`);
+      console.log(
+        `Adherence: ${stats.followed} followed, ${stats.contradicted} contradicted` +
+          (stats.adherenceRate !== null ? ` — rate ${(stats.adherenceRate * 100).toFixed(0)}%` : " — no observations yet"),
+      );
       return;
     }
 

@@ -11,6 +11,7 @@ import type {
   CaptureStore,
   ContextAssembler,
   ContextPacket,
+  CorrectionObserver,
   Embedder,
   EventSink,
   OrganizeOutput,
@@ -78,6 +79,18 @@ class MemStores implements CaptureStore, TranscriptStore, BucketStore {
   async deleteItemsForCapture() {
     return { removed: 0 };
   }
+  async moveItem(): Promise<void> {
+    throw new Error("not used in context tests");
+  }
+  async renameBucket(): Promise<void> {
+    throw new Error("not used in context tests");
+  }
+  async mergeBuckets(): Promise<void> {
+    throw new Error("not used in context tests");
+  }
+  async updateItem(): Promise<void> {
+    throw new Error("not used in context tests");
+  }
 }
 
 const TRANSCRIPT: Transcript = {
@@ -144,6 +157,7 @@ function packet(): ContextPacket {
       recentCaptures: 3,
       maxMemories: 12,
       maxBucketSummaries: 10,
+      maxCorrectionExamples: 3,
     },
     totals: { tokens: 17, items: 2, truncated: 0 },
   };
@@ -276,6 +290,106 @@ describe("DonnaPipeline context assembly (Spec 2.2)", () => {
       const result = await pipeline.run(await makeCapture(dir));
       assert.equal(result.items.length, 1);
       assert.equal(result.context, undefined);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("reports placement adherence for injected correction examples (Spec 2.3)", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "donna-ctx-run-"));
+    try {
+      const stores = new MemStores();
+      const observations: Array<{
+        thoughtText: string;
+        placedBucketId: string;
+        examples: Array<{ correctionId: string; preferredBucketId: string; text: string }>;
+      }> = [];
+      const observer: CorrectionObserver = {
+        observePlacement: async (_scope, observation) => {
+          observations.push(observation);
+          return { followed: 1, contradicted: 0 };
+        },
+      };
+      const packetWithCorrection: ContextPacket = {
+        ...packet(),
+        elements: [
+          {
+            sourceId: "corr-1",
+            sourceKind: "correction",
+            trust: "untrusted-retrieved",
+            text: 'The user corrected: "send the deck" belongs in "Tasks"',
+            asOf: "2026-09-02T10:00:00.000Z",
+            tokens: 14,
+            correction: { correctionId: "corr-1", preferredBucketId: "bucket-tasks" },
+          },
+        ],
+      };
+      const events: string[] = [];
+      const pipeline = new DonnaPipeline({
+        transcriber: { modelId: "stub-stt", transcribe: async () => TRANSCRIPT },
+        organizer: { modelId: "stub-organizer", organize: async () => OUTPUT },
+        embedder: stubEmbedder(),
+        store: stores,
+        captures: stores,
+        transcripts: stores,
+        bucketTuning: { assign_threshold: 0.82, create_threshold: 0.65 },
+        contextAssembler: { assemble: async () => packetWithCorrection },
+        correctionObserver: observer,
+        events: { emit: (e) => events.push(e.name) },
+      });
+      const result = await pipeline.run(await makeCapture(dir));
+
+      assert.equal(observations.length, 1);
+      assert.equal(observations[0]?.thoughtText, "send the deck");
+      assert.equal(observations[0]?.examples[0]?.correctionId, "corr-1");
+      assert.equal(
+        observations[0]?.placedBucketId,
+        result.items[0]?.bucket.id,
+      );
+      assert.ok(events.includes("correction.adherence"));
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("a failing adherence observer never breaks the core loop", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "donna-ctx-run-"));
+    try {
+      const stores = new MemStores();
+      const packetWithCorrection: ContextPacket = {
+        ...packet(),
+        elements: [
+          {
+            sourceId: "corr-1",
+            sourceKind: "correction",
+            trust: "untrusted-retrieved",
+            text: "example",
+            asOf: "2026-09-02T10:00:00.000Z",
+            tokens: 2,
+            correction: { correctionId: "corr-1", preferredBucketId: "bucket-tasks" },
+          },
+        ],
+      };
+      const events: string[] = [];
+      const pipeline = new DonnaPipeline({
+        transcriber: { modelId: "stub-stt", transcribe: async () => TRANSCRIPT },
+        organizer: { modelId: "stub-organizer", organize: async () => OUTPUT },
+        embedder: stubEmbedder(),
+        store: stores,
+        captures: stores,
+        transcripts: stores,
+        bucketTuning: { assign_threshold: 0.82, create_threshold: 0.65 },
+        contextAssembler: { assemble: async () => packetWithCorrection },
+        correctionObserver: {
+          observePlacement: async () => {
+            throw new Error("observer down");
+          },
+        },
+        events: { emit: (e) => events.push(e.name) },
+      });
+      const result = await pipeline.run(await makeCapture(dir));
+      assert.equal(result.items.length, 1);
+      assert.ok(events.includes("correction.adherence.error"));
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

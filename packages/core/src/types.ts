@@ -339,6 +339,66 @@ export interface Session {
 }
 
 /* ------------------------------------------------------------------ */
+/* Specification 2.3 — correction-driven personalization               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The immutable correction event types. A correction is something the user
+ * changed by hand: it is first-class learning input and evaluation data,
+ * never a silent rewrite of history (FR-1).
+ */
+export type CorrectionType =
+  | "bucket.move"
+  | "bucket.merge"
+  | "bucket.rename"
+  | "thought.edit"
+  | "thought.split"
+  | "thought.merge"
+  | "task.add"
+  | "task.remove"
+  | "provenance.correct"
+  | "memory.decision"
+  | "retrieval.relevance";
+
+/**
+ * One immutable correction event. The payload is user-authored and always
+ * treated as untrusted content (SR-2). Events are captured `pending`,
+ * influence later decisions only after explicit acceptance (FR-3), and
+ * their application is idempotent (SR-3). `contradictedBy` records when a
+ * later accepted correction overrode this one (adherence tracking).
+ */
+export interface CorrectionEvent {
+  id: string;
+  tenantId: string;
+  userId: string;
+  type: CorrectionType;
+  createdAt: string; // ISO 8601
+  /** What the correction targets. */
+  target: {
+    kind: "thought" | "bucket" | "memory" | "proposal" | "capture" | "retrieval";
+    id: string;
+  };
+  /**
+   * Type-specific data, e.g. bucket.move: { fromBucketId, toBucketId,
+   * thoughtSummary }. String-valued only; untrusted content.
+   */
+  payload: Record<string, string>;
+  /** Source links — every correction is source-linked. */
+  sources: MemorySource[];
+  status: "pending" | "accepted" | "rejected";
+  resolvedAt?: string;
+  /** Set once the correction's effects have been applied (idempotency marker). */
+  appliedAt?: string;
+  /** Set when a later accepted correction contradicted this one. */
+  contradictedBy?: string;
+  /** Set when this correction was promoted to a shared golden case (consented). */
+  sharedAt?: string;
+  /** Adherence counters: how often the system followed/contradicted this correction. */
+  followedCount: number;
+  contradictedCount: number;
+}
+
+/* ------------------------------------------------------------------ */
 /* Specification 2.2 — context assembly                                */
 /* ------------------------------------------------------------------ */
 
@@ -356,9 +416,9 @@ export type ContextTrust = "trusted-user-settings" | "untrusted-retrieved";
  * exactly what influenced an organize request (AC-5).
  */
 export interface ContextElement {
-  /** Stable source identifier (memory ID, bucket ID, or capture ID). */
+  /** Stable source identifier (memory ID, bucket ID, capture ID, correction ID). */
   sourceId: string;
-  sourceKind: "memory" | "bucket" | "capture";
+  sourceKind: "memory" | "bucket" | "capture" | "correction";
   trust: ContextTrust;
   /** The rendered text of the element. */
   text: string;
@@ -366,6 +426,11 @@ export interface ContextElement {
   asOf: string;
   /** Deterministic token estimate (chars/4 of the rendered line). */
   tokens: number;
+  /**
+   * Present on correction-example elements (Spec 2.3): lets the pipeline
+   * measure whether placement followed or contradicted the correction.
+   */
+  correction?: { correctionId: string; preferredBucketId: string };
 }
 
 /**
@@ -383,6 +448,8 @@ export interface ContextBudgets {
   maxMemories: number;
   /** Cap on bucket-summary elements. */
   maxBucketSummaries: number;
+  /** Cap on personalized correction examples (Spec 2.3). */
+  maxCorrectionExamples: number;
 }
 
 /**

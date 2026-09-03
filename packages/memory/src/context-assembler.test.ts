@@ -26,6 +26,7 @@ const BUDGETS: ContextBudgets = {
   recentCaptures: 3,
   maxMemories: 12,
   maxBucketSummaries: 10,
+  maxCorrectionExamples: 3,
 };
 
 class StubBucketStore implements BucketStore {
@@ -49,6 +50,18 @@ class StubBucketStore implements BucketStore {
   }
   async deleteItemsForCapture(): Promise<{ removed: number }> {
     return { removed: 0 };
+  }
+  async moveItem(): Promise<void> {
+    throw new Error("not used in assembler tests");
+  }
+  async renameBucket(): Promise<void> {
+    throw new Error("not used in assembler tests");
+  }
+  async mergeBuckets(): Promise<void> {
+    throw new Error("not used in assembler tests");
+  }
+  async updateItem(): Promise<void> {
+    throw new Error("not used in assembler tests");
   }
 }
 

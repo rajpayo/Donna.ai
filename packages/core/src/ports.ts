@@ -17,6 +17,7 @@ import type {
   ConsentRecord,
   ContextPacket,
   CoreLoopResult,
+  CorrectionEvent,
   MemoryEvent,
   MemoryProposal,
   MemoryRecord,
@@ -89,6 +90,27 @@ export interface ContextAssembler {
   ): Promise<ContextPacket>;
 }
 
+/**
+ * Adherence tracking (Specification 2.3): after placement, the pipeline
+ * reports which injected correction examples the placement followed or
+ * contradicted. Implementations decide example applicability and update
+ * per-correction counters; telemetry carries IDs and counts only.
+ */
+export interface CorrectionObserver {
+  observePlacement(
+    scope: { tenantId: string; userId: string },
+    observation: {
+      thoughtText: string;
+      placedBucketId: string;
+      examples: Array<{
+        correctionId: string;
+        preferredBucketId: string;
+        text: string;
+      }>;
+    },
+  ): Promise<{ followed: number; contradicted: number }>;
+}
+
 export interface Embedder {
   readonly modelId: string;
   readonly dimensions: number;
@@ -128,6 +150,53 @@ export interface BucketStore {
     userId: string,
     captureId: string,
   ): Promise<{ removed: number }>;
+  /**
+   * Move one item to another bucket (Spec 2.3 corrections). Both buckets'
+   * stats are recomputed exactly from their surviving members. Fails
+   * closed when the item or target bucket does not exist in the scope.
+   */
+  moveItem(
+    tenantId: string,
+    userId: string,
+    thoughtId: string,
+    toBucketId: string,
+  ): Promise<void>;
+  /** Rename a bucket in scope. Fails closed on unknown bucket. */
+  renameBucket(
+    tenantId: string,
+    userId: string,
+    bucketId: string,
+    newName: string,
+  ): Promise<void>;
+  /**
+   * Merge the source bucket into the target bucket: every item moves, the
+   * target centroid is recomputed exactly, and the source bucket is
+   * removed. Fails closed on unknown buckets.
+   */
+  mergeBuckets(
+    tenantId: string,
+    userId: string,
+    sourceBucketId: string,
+    targetBucketId: string,
+  ): Promise<void>;
+  /**
+   * Update a thought's user-editable fields (Spec 2.3 corrections:
+   * thought.edit, task.add, task.remove, provenance.correct). `task: null`
+   * clears the task candidate. Embedding and bucket stats are the caller's
+   * responsibility (re-embed on text change, then recompute).
+   */
+  updateItem(
+    tenantId: string,
+    userId: string,
+    thoughtId: string,
+    updates: {
+      text?: string;
+      summary?: string;
+      task?: Thought["task"] | null;
+      provenance?: Provenance;
+      embedding?: number[];
+    },
+  ): Promise<void>;
 }
 
 /**
@@ -269,6 +338,29 @@ export interface MemoryStore {
 export interface ConsentStore {
   recordConsent(record: ConsentRecord): Promise<void>;
   listConsents(tenantId: string, userId: string): Promise<ConsentRecord[]>;
+}
+
+/**
+ * Append-only store for correction events (Specification 2.3). Scoped
+ * exactly like the memory store. Events are immutable once recorded —
+ * lifecycle fields (status, appliedAt, contradictedBy, sharedAt,
+ * adherence counters) are updated in place by the correction service;
+ * the payload and sources never change (FR-1).
+ */
+export interface CorrectionStore {
+  saveCorrection(event: CorrectionEvent): Promise<void>;
+  getCorrection(
+    tenantId: string,
+    userId: string,
+    correctionId: string,
+  ): Promise<CorrectionEvent | undefined>;
+  listCorrections(tenantId: string, userId: string): Promise<CorrectionEvent[]>;
+  /** Idempotent: returns true when a record was actually removed. */
+  deleteCorrection(
+    tenantId: string,
+    userId: string,
+    correctionId: string,
+  ): Promise<boolean>;
 }
 
 /** Outcome of checking one organizer provenance proposal. */

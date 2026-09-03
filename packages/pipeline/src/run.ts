@@ -32,6 +32,7 @@ import {
   type ContextPacket,
   type CoreLoop,
   type CoreLoopResult,
+  type CorrectionObserver,
   type DerivationVersions,
   type Embedder,
   type EventSink,
@@ -75,6 +76,12 @@ export interface PipelineDeps {
    * fails, the run continues in degraded mode with no packet (AC-4).
    */
   contextAssembler?: ContextAssembler;
+  /**
+   * When present (Spec 2.3), each placement is checked against the
+   * injected correction examples to record whether the system followed
+   * or contradicted a learned correction. IDs and counts only.
+   */
+  correctionObserver?: CorrectionObserver;
 }
 
 interface LaneOutput {
@@ -225,6 +232,7 @@ export class DonnaPipeline implements CoreLoop {
       );
       thought.bucketId = placement.bucket.id;
       await store.saveItem({ thought, bucketId: placement.bucket.id });
+      await this.observeCorrectionAdherence(capture, thought, placement.bucket.id, context);
       if (placement.created) {
         bucketsCreated.push(placement.bucket);
         currentBuckets = [...currentBuckets, placement.bucket];
@@ -267,6 +275,44 @@ export class DonnaPipeline implements CoreLoop {
         estimatedCostUsd: Number.NaN, // filled from gateway telemetry, not estimated here
       },
     };
+  }
+
+  /**
+   * Spec 2.3: when correction examples were injected into the context,
+   * record whether this placement followed or contradicted them. The
+   * observer decides applicability; telemetry carries counts only.
+   */
+  private async observeCorrectionAdherence(
+    capture: Capture,
+    thought: Thought,
+    placedBucketId: string,
+    context: ContextPacket | undefined,
+  ): Promise<void> {
+    const observer = this.deps.correctionObserver;
+    if (observer === undefined || context === undefined) return;
+    const examples = context.elements
+      .filter((e) => e.sourceKind === "correction" && e.correction !== undefined)
+      .map((e) => ({
+        correctionId: e.correction!.correctionId,
+        preferredBucketId: e.correction!.preferredBucketId,
+        text: e.text,
+      }));
+    if (examples.length === 0) return;
+    try {
+      const outcome = await observer.observePlacement(
+        { tenantId: capture.tenantId, userId: capture.userId },
+        { thoughtText: thought.text, placedBucketId, examples },
+      );
+      if (outcome.followed + outcome.contradicted > 0) {
+        this.emit("correction.adherence", capture, {
+          followed: outcome.followed,
+          contradicted: outcome.contradicted,
+        });
+      }
+    } catch {
+      // Adherence tracking must never break the core loop.
+      this.emit("correction.adherence.error", capture, {});
+    }
   }
 
   /**

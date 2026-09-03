@@ -277,7 +277,74 @@ owner reviews the exact context packet and attribution before acceptance.
 
 ### Specification 2.3 — Correction-driven personalization
 
-Status: `draft`
+Status: `in-review` (approved by product owner 2026-09-03; implementation completed 2026-09-03)
+
+> Implementation evidence (2026-09-03, implementation worker):
+>
+> - **Domain** (`packages/core`): `CorrectionEvent` + `CorrectionType`
+>   (bucket move/merge/rename, thought edit/split/merge, task add/remove,
+>   provenance correction, memory decision, retrieval relevance) —
+>   immutable payload/sources, lifecycle fields only (status, appliedAt,
+>   contradictedBy, sharedAt, adherence counters). `CorrectionStore` +
+>   `CorrectionObserver` ports; `BucketStore` gains `moveItem`,
+>   `renameBucket`, `mergeBuckets`, `updateItem` with exact centroid
+>   recomputation. `ContextElement` gains the `correction` source kind and
+>   adherence metadata.
+> - **`packages/memory/src/corrections.ts`**: `CorrectionService` —
+>   capture with exact-duplicate dedupe, review queue, accept/reject,
+>   idempotent application (SR-3), replay of the accepted log reproducing
+>   the derived procedural-preference projection (FR-2), contradiction
+>   marking (same thought summary, different target bucket — earlier
+>   events marked, never rewritten), adherence observation for injected
+>   examples, per-user stats (AC-2), deletion with projection rebuild.
+>   Application effects: bucket move/merge/rename applied with exact
+>   centroid repair; thought.edit re-embeds via the configured embedder
+>   (fails closed without one); task.add routes to Tasks (the loop's hard
+>   rule); provenance.correct re-verifies against the stored transcript
+>   and fails on invalid segments; memory.decision applies via the memory
+>   service; thought.split/thought.merge/retrieval.relevance are captured
+>   and reviewable with state application deferred (known limitation).
+> - **Personalized examples**: the context assembler injects a bounded set
+>   (`max_correction_examples` in models.config.yaml) of relevant accepted
+>   bucket.move corrections as untrusted examples; the pipeline reports
+>   followed/contradicted per placement (telemetry: counts only).
+> - **Consented de-identification** (`packages/evals/src/golden.ts`):
+>   promotion to `datasets/golden/corrections.v1.json` requires an active
+>   `eval-sharing` consent record (fail-closed), passes every text field
+>   through the SR-4 screener, and writes no tenant/user/capture/thought
+>   IDs. Default is NOT shared (AC-4).
+> - **CLI**: `donna thoughts`, `donna correct move|rename|merge|
+>   edit-thought|add-task|remove-task|provenance`, `donna corrections
+>   [--all]|accept|reject|delete|replay|stats|promote`.
+> - **Tests: 32 new (185 total green), typecheck clean.** Coverage:
+>   capture/dedupe/queue, reject-never-applies (FR-3), per-type
+>   application incl. centroid repair and re-embedding, idempotent accept
+>   (SR-3), replay determinism (FR-2), deletion rebuild, contradiction
+>   marking, adherence counters + stats, example injection bounded and
+>   relevant (FR-4), tenant isolation, store-level move/rename/merge/
+>   updateItem, golden-case consent gate/de-identification/idempotency/
+>   revocation/sensitive-content refusal/cross-scope denial, pipeline
+>   adherence observation + observer-failure isolation.
+> - **Live demo (synthetic espeak-ng audio, real gateway, temp data dir):
+>   the review gate.** Capture 1 filed "ACME vendor contract renewal…"
+>   into auto bucket `Vendor Contracts`; the user corrected it into a new
+>   pinned bucket `Negotiations` (event 52e90ff0…, full payload + sources
+>   visible in the queue); accept moved the item, repaired centroids, and
+>   derived the procedural preference sourced from the correction. Repeat
+>   capture: the correction example was injected (packet source IDs
+>   include the correction ID) and both new thoughts landed in
+>   `Negotiations` — `correction.adherence followed=2 contradicted=0`,
+>   stats rate 100%. Golden-case promotion failed closed without consent,
+>   then wrote one de-identified case after `consent grant eval-sharing`.
+> - **Known limitations:** thought.split/thought.merge/retrieval.relevance
+>   application is deferred (item cardinality changes need re-embedding
+>   policy); contradiction detection is exact normalized-summary matching,
+>   not semantic; adherence applicability uses keyword overlap. STT
+>   rendered "Acme came back" as "Club offered" on synthetic speech in the
+>   repeat capture (same synthetic-speech STT class noted in Phase 1);
+>   bucketing was unaffected.
+>
+> Awaiting product-owner examination for acceptance.
 
 Depends on: Specification 2.2 accepted
 

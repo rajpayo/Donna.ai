@@ -14,7 +14,8 @@
     "@donna/buckets": "*",
     "@donna/core": "*",
     "@donna/providers": "*",
-    "dotenv": "^17.4.2"
+    "dotenv": "^17.4.2",
+    "@donna/memory": "*"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

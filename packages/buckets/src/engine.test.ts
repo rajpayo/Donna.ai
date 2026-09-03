@@ -51,6 +51,18 @@ class MemStore implements BucketStore {
     );
     return { removed: before - this.items.length };
   }
+  async moveItem(): Promise<void> {
+    throw new Error("not used in engine tests");
+  }
+  async renameBucket(): Promise<void> {
+    throw new Error("not used in engine tests");
+  }
+  async mergeBuckets(): Promise<void> {
+    throw new Error("not used in engine tests");
+  }
+  async updateItem(): Promise<void> {
+    throw new Error("not used in engine tests");
+  }
 }
 
 function thought(embedding: number[], withTask = false): Thought {
