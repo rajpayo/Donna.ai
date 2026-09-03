@@ -14,7 +14,11 @@ import type {
   Bucket,
   Capture,
   CaptureRecord,
+  ConsentRecord,
   CoreLoopResult,
+  MemoryEvent,
+  MemoryProposal,
+  MemoryRecord,
   Provenance,
   Thought,
   Transcript,
@@ -190,6 +194,61 @@ export interface AudioStore {
 export interface AuditLog {
   append(entry: AuditEntry): Promise<void>;
   list(tenantId: string, userId: string): Promise<AuditEntry[]>;
+}
+
+/**
+ * Durable store for private memory (Specification 2.1). Every method is
+ * scoped: a record is only ever read or written inside its own tenant/user
+ * partition, and a stored record whose scope does not match its partition
+ * fails closed. There is deliberately no cross-user or cross-tenant
+ * listing — personal memory is private to the employee (SR-1/SR-2).
+ *
+ * This is a plain persistence port: all lifecycle policy (approval,
+ * supersession, expiry, source deletion) lives in the memory service.
+ */
+export interface MemoryStore {
+  saveMemory(record: MemoryRecord): Promise<void>;
+  getMemory(
+    tenantId: string,
+    userId: string,
+    memoryId: string,
+  ): Promise<MemoryRecord | undefined>;
+  /** Every memory record in the scope, any layer, any status. */
+  listMemories(tenantId: string, userId: string): Promise<MemoryRecord[]>;
+  /** Idempotent: returns true when a record was actually removed. */
+  deleteMemory(
+    tenantId: string,
+    userId: string,
+    memoryId: string,
+  ): Promise<boolean>;
+
+  saveProposal(proposal: MemoryProposal): Promise<void>;
+  getProposal(
+    tenantId: string,
+    userId: string,
+    proposalId: string,
+  ): Promise<MemoryProposal | undefined>;
+  listProposals(tenantId: string, userId: string): Promise<MemoryProposal[]>;
+  /** Idempotent: returns true when a record was actually removed. */
+  deleteProposal(
+    tenantId: string,
+    userId: string,
+    proposalId: string,
+  ): Promise<boolean>;
+
+  /** Append-only lifecycle events (FR-3). */
+  appendEvent(event: MemoryEvent): Promise<void>;
+  listEvents(tenantId: string, userId: string): Promise<MemoryEvent[]>;
+}
+
+/**
+ * Durable store for consent records (Specification 2.1). Scoped exactly
+ * like the memory store. Records are append-only; revocation is recorded
+ * on the record, never by rewriting history.
+ */
+export interface ConsentStore {
+  recordConsent(record: ConsentRecord): Promise<void>;
+  listConsents(tenantId: string, userId: string): Promise<ConsentRecord[]>;
 }
 
 /** Outcome of checking one organizer provenance proposal. */

@@ -1,6 +1,15 @@
 # Phase 2 — Private memory and personalization
 
-Status: `not-started`
+Status: `in-progress`
+
+> Product-owner directive (2026-09-03): Specifications 2.1, 2.2, 2.3, and 2.4
+> are approved and are executed in one ordered run, one specification at a
+> time, on branch `cursor/import-mvp-scaffold-b430`. Each specification still
+> moves approved → in-progress → in-review with its own evidence; the
+> per-specification acceptance gate between specifications is overridden for
+> this phase only (as was done for Phase 1). Phase 1 is accepted; its
+> persisted captures/transcripts, deterministic provenance, encrypted audio,
+> and tenant/user-scoped stores are the entry conditions for this phase.
 
 ## Objective
 
@@ -18,7 +27,58 @@ model or creating a hidden employee profile.
 
 ### Specification 2.1 — Memory domain, consent, and lifecycle
 
-Status: `draft`
+Status: `in-review` (approved by product owner 2026-09-03; implementation completed 2026-09-03)
+
+> Implementation evidence (2026-09-03, implementation worker):
+>
+> - **Domain types** (`packages/core/src/types.ts`): `MemoryRecord` (layers
+>   working/episodic/semantic/procedural; status confirmed/superseded/
+>   expired; origin explicit/approved; confidence, subject key, TTL
+>   `expiresAt`, `sessionId`, supersession fields), `MemoryProposal`
+>   (quarantined pending/approved/rejected), `MemorySource` (kind + id +
+>   optional `captureId` + reason), `ConsentRecord` (append-only,
+>   latest-decides), `Session`, `MemoryEvent` (append-only, non-content).
+> - **Ports** (`packages/core/src/ports.ts`): `MemoryStore`, `ConsentStore`
+>   — scoped persistence only; all lifecycle policy lives in the service.
+>   No cross-user/cross-tenant listing exists anywhere (SR-1/SR-2).
+> - **New package `packages/memory/`**: `FileMemoryStore` +
+>   `FileConsentStore` (`<dataDir>/<tenant>/<user>/memory.json` /
+>   `consents.json`, partition-ID validation, fail-closed scope checks on
+>   every stored record, 0700 dirs / 0600 files); `MemoryService`
+>   (stateExplicit, propose/approve/reject, supersede with conflict events,
+>   working-memory session expiry, TTL sweep, forget, export, removeSource);
+>   deterministic SR-4 screener (private keys, API tokens/JWTs, passwords,
+>   Luhn-valid card numbers, national-id patterns) that rejects
+>   model-generated proposals and reports category tokens only — never the
+>   matched text.
+> - **CLI** (`apps/cli/src/main.ts`): `donna memory list|proposals|approve|
+>   reject|remember|supersede|forget|export|events` and `donna consent
+>   list|grant|revoke`. `delete-capture` now carries a memory projection:
+>   memories sourced from the deleted capture are removed or unlinked.
+> - **Tests: 36 new (131 total green), typecheck clean.** Coverage: four
+>   layer separation (AC-1), FR-2 source/reason enforcement, propose →
+>   approve → confirmed and propose → reject → never-served (AC-3), source
+>   and confidence inspection (AC-2), conflict event without overwrite +
+>   explicit supersession (FR-3), working-memory session expiry and TTL
+>   sweep idempotency (FR-4), forget/export scoping (SR-3), SR-4 screening
+>   incl. no-secret-in-error, source-deletion propagation (AC-4), consent
+>   grant/revoke/latest-wins, cross-tenant/user denial and fail-closed
+>   partition checks (AC-5), file modes.
+> - **Live demo (synthetic espeak-ng audio, real gateway, temp data dir):**
+>   propose → approve → use → correct → forget shown for one preference
+>   ("Prefers meetings before 11am", inferred confidence 0.62) and one
+>   relationship ("Meera leads the onboarding workstream", explicit);
+>   supersession kept the old record as `superseded` history; SR-4 refused
+>   a model attempt to store a password; a live capture (1 thought →
+>   `Tasks`) was deleted via `delete-capture` and its source-linked
+>   episodic memory was removed (`source-removed … memory-deleted` event).
+> - **Known limitations:** conflict detection is deterministic
+>   (layer/kind/subject + normalized text), not embedding-semantic;
+>   proposals are created by the service API (the pipeline does not yet
+>   infer proposals — that wiring is Spec 2.2+); consent purposes are
+>   free-form strings until later specs fix the catalog.
+>
+> Awaiting product-owner examination for acceptance.
 
 Depends on: Phase 1 accepted
 
