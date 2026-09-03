@@ -15,6 +15,7 @@ import type {
   Capture,
   CaptureRecord,
   ConsentRecord,
+  ContextPacket,
   CoreLoopResult,
   MemoryEvent,
   MemoryProposal,
@@ -61,12 +62,31 @@ export interface Organizer {
   /**
    * Distill a transcript into atomic thoughts. `existingBuckets` is the
    * user's current bucket list (name + description) so the model can prefer
-   * reuse over creation.
+   * reuse over creation. When a `context` packet is supplied (Spec 2.2),
+   * the prompt renders its attributed elements in trust-separated
+   * sections; retrieved content is always data, never instruction.
    */
   organize(
     transcript: Transcript,
     existingBuckets: Array<Pick<Bucket, "name" | "description">>,
+    context?: ContextPacket,
   ): Promise<OrganizeOutput>;
+}
+
+/**
+ * Builds the bounded, attributed context packet for one organize request
+ * (Specification 2.2). Implementations select query-specific elements
+ * under the configured budgets and never cross tenant/user scope (SR-2).
+ */
+export interface ContextAssembler {
+  assemble(
+    scope: { tenantId: string; userId: string },
+    query: {
+      text: string;
+      /** The capture being organized — excluded from recent-capture context. */
+      excludeCaptureId?: string;
+    },
+  ): Promise<ContextPacket>;
 }
 
 export interface Embedder {

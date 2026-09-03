@@ -2,7 +2,13 @@
  * Organizer adapter for OpenAI-compatible chat models (gpt-5-mini, etc.)
  * using JSON-schema structured outputs.
  */
-import type { Bucket, OrganizeOutput, Organizer, Transcript } from "@donna/core";
+import type {
+  Bucket,
+  ContextPacket,
+  OrganizeOutput,
+  Organizer,
+  Transcript,
+} from "@donna/core";
 import type { GatewayClient } from "./gateway.js";
 import {
   buildOrganizePrompt,
@@ -29,11 +35,13 @@ export class OpenAiCompatibleOrganizer implements Organizer {
   async organize(
     transcript: Transcript,
     existingBuckets: Array<Pick<Bucket, "name" | "description">>,
+    context?: ContextPacket,
   ): Promise<OrganizeOutput> {
     const prompt = buildOrganizePrompt(
       transcript.text,
       transcript.segments,
       existingBuckets,
+      ...(context !== undefined ? [context] : []),
     );
 
     const res = await this.gateway.postJson<ChatCompletionsResponse>(

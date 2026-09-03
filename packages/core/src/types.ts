@@ -338,12 +338,92 @@ export interface Session {
   endedAt?: string;
 }
 
+/* ------------------------------------------------------------------ */
+/* Specification 2.2 — context assembly                                */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Trust tier of a context element. The organizer prompt renders each tier
+ * in its own clearly-labeled section: system policy (code-only) first,
+ * then trusted user settings, then untrusted retrieved content. Retrieved
+ * content is data, never executable instruction (SR-1).
+ */
+export type ContextTrust = "trusted-user-settings" | "untrusted-retrieved";
+
+/**
+ * One attributed element of an assembled context packet. Every element
+ * carries its source ID and freshness so the product owner can trace
+ * exactly what influenced an organize request (AC-5).
+ */
+export interface ContextElement {
+  /** Stable source identifier (memory ID, bucket ID, or capture ID). */
+  sourceId: string;
+  sourceKind: "memory" | "bucket" | "capture";
+  trust: ContextTrust;
+  /** The rendered text of the element. */
+  text: string;
+  /** ISO 8601 freshness of the underlying record. */
+  asOf: string;
+  /** Deterministic token estimate (chars/4 of the rendered line). */
+  tokens: number;
+}
+
+/**
+ * Configurable assembly budgets. These live in models.config.yaml, never
+ * in code, so the product can tune context size without a deploy.
+ */
+export interface ContextBudgets {
+  /** Total token budget across all elements (chars/4 estimate). */
+  maxTokens: number;
+  /** Total element cap. */
+  maxItems: number;
+  /** How many recent captures may contribute excerpts. */
+  recentCaptures: number;
+  /** Cap on confirmed-memory elements. */
+  maxMemories: number;
+  /** Cap on bucket-summary elements. */
+  maxBucketSummaries: number;
+}
+
+/**
+ * The bounded, attributed context handed to the organizer for one capture.
+ * Selection is query-specific (FR-1); truncation under budget is
+ * deterministic with source priority (FR-2); a packet built while a store
+ * was unavailable is marked degraded with machine-readable reasons.
+ */
+export interface ContextPacket {
+  id: string;
+  tenantId: string;
+  userId: string;
+  createdAt: string; // ISO 8601
+  degraded: boolean;
+  /** Machine-readable reason tokens, e.g. "memories-unavailable". */
+  degradedReasons: string[];
+  elements: ContextElement[];
+  budgets: ContextBudgets;
+  totals: {
+    tokens: number;
+    items: number;
+    /** Elements dropped by budget truncation. */
+    truncated: number;
+  };
+}
+
 /** End-to-end result of one capture through the loop. */
 export interface CoreLoopResult {
   capture: Capture;
   transcript: Transcript;
   items: OrganizedItem[];
   bucketsCreated: Bucket[];
+  /**
+   * Which assembled context influenced the organize request (Spec 2.2
+   * FR-4): packet ID and source IDs only — never content.
+   */
+  context?: {
+    packetId: string;
+    sourceIds: string[];
+    degraded: boolean;
+  };
   metrics: {
     sttLatencyMs: number;
     organizeLatencyMs: number;

@@ -36,6 +36,29 @@ const configSchema = z.object({
       create_threshold: z.number().default(0.65),
     })
     .default({ assign_threshold: 0.82, create_threshold: 0.65 }),
+  // Spec 2.2: context assembly budgets — configurable here, never in code.
+  context: z
+    .object({
+      max_tokens: z.number().int().positive(),
+      max_items: z.number().int().positive(),
+      recent_captures: z.number().int().nonnegative(),
+      max_memories: z.number().int().nonnegative(),
+      max_bucket_summaries: z.number().int().nonnegative(),
+    })
+    .default({
+      max_tokens: 1200,
+      max_items: 24,
+      recent_captures: 3,
+      max_memories: 12,
+      max_bucket_summaries: 10,
+    })
+    .transform((c) => ({
+      maxTokens: c.max_tokens,
+      maxItems: c.max_items,
+      recentCaptures: c.recent_captures,
+      maxMemories: c.max_memories,
+      maxBucketSummaries: c.max_bucket_summaries,
+    })),
 });
 
 export type ModelsConfig = z.infer<typeof configSchema>;
@@ -52,6 +75,8 @@ export interface ResolvedStack {
   escalationOrganizer?: Organizer;
   embedder: Embedder;
   bucketTuning: ModelsConfig["buckets"];
+  /** Spec 2.2 context assembly budgets from models.config.yaml. */
+  contextBudgets: ModelsConfig["context"];
 }
 
 function makeOrganizer(gateway: GatewayClient, lane: Lane): Organizer {
@@ -78,5 +103,6 @@ export function resolveStack(
       : {}),
     embedder: new OpenAiCompatibleEmbedder(gateway, e.model, e.params),
     bucketTuning: config.buckets,
+    contextBudgets: config.context,
   };
 }

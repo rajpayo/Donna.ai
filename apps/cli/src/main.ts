@@ -37,6 +37,7 @@ import type { Capture, EventSink, MemoryLayer } from "@donna/core";
 import { FileBucketStore } from "@donna/buckets";
 import { runCompatibilityCheck } from "@donna/evals";
 import {
+  ContextAssembler,
   FileConsentStore,
   FileMemoryStore,
   MemoryService,
@@ -171,6 +172,8 @@ async function buildPipeline(): Promise<{ pipeline: DonnaPipeline; store: FileBu
   const config = await loadModelsConfig(configPath);
   const stack = resolveStack(gatewayFromEnv(), config);
   const store = new FileBucketStore(dir);
+  const captures = new FileCaptureStore(dir);
+  const transcripts = new FileTranscriptStore(dir);
   const pipeline = new DonnaPipeline({
     transcriber: stack.transcriber,
     organizer: stack.organizer,
@@ -179,11 +182,21 @@ async function buildPipeline(): Promise<{ pipeline: DonnaPipeline; store: FileBu
       : {}),
     embedder: stack.embedder,
     store,
-    captures: new FileCaptureStore(dir),
-    transcripts: new FileTranscriptStore(dir),
+    captures,
+    transcripts,
     audio: buildAudioStore(),
     audit: new FileAuditLog(dir),
     bucketTuning: stack.bucketTuning,
+    // Spec 2.2: bounded, attributed private-memory context for the
+    // organizer, under the budgets from models.config.yaml.
+    contextAssembler: new ContextAssembler({
+      memory: buildMemoryService(),
+      buckets: store,
+      captures,
+      transcripts,
+      budgets: stack.contextBudgets,
+      now: () => new Date(),
+    }),
     events: consoleEvents,
   });
   return { pipeline, store };
@@ -263,6 +276,15 @@ async function main(): Promise<void> {
       for (const b of result.bucketsCreated) {
         console.log(`+ ${b.name} — ${b.description}`);
       }
+    }
+    if (result.context !== undefined) {
+      const degraded = result.context.degraded ? " (degraded)" : "";
+      console.log(
+        `\n=== Context that influenced this organization${degraded} ===`,
+      );
+      console.log(
+        `packet ${result.context.packetId}: ${result.context.sourceIds.length} source(s)${result.context.sourceIds.length > 0 ? ` — ${result.context.sourceIds.join(", ")}` : ""}`,
+      );
     }
     console.log(
       `\n${result.items.length} thoughts, ${result.bucketsCreated.length} new buckets, ${(result.metrics.totalLatencyMs / 1000).toFixed(1)}s total`,

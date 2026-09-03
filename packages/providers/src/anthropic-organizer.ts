@@ -2,7 +2,13 @@
  * Organizer adapter for Anthropic models (claude-sonnet-5, etc.) via the
  * gateway, using a forced tool call as the structured-output mechanism.
  */
-import type { Bucket, OrganizeOutput, Organizer, Transcript } from "@donna/core";
+import type {
+  Bucket,
+  ContextPacket,
+  OrganizeOutput,
+  Organizer,
+  Transcript,
+} from "@donna/core";
 import type { GatewayClient } from "./gateway.js";
 import {
   buildOrganizePrompt,
@@ -73,11 +79,13 @@ export class AnthropicOrganizer implements Organizer {
   async organize(
     transcript: Transcript,
     existingBuckets: Array<Pick<Bucket, "name" | "description">>,
+    context?: ContextPacket,
   ): Promise<OrganizeOutput> {
     const prompt = buildOrganizePrompt(
       transcript.text,
       transcript.segments,
       existingBuckets,
+      ...(context !== undefined ? [context] : []),
     );
 
     const res = await this.gateway.postJson<AnthropicMessagesResponse>(

@@ -150,7 +150,66 @@ controls are accepted.
 
 ### Specification 2.2 — Context assembler with source attribution
 
-Status: `draft`
+Status: `in-review` (approved by product owner 2026-09-03; implementation completed 2026-09-03)
+
+> Implementation evidence (2026-09-03, implementation worker):
+>
+> - **Types + ports** (`packages/core`): `ContextElement` (sourceId,
+>   sourceKind, trust tier, text, asOf freshness, token estimate),
+>   `ContextBudgets`, `ContextPacket` (degraded flag + reason tokens,
+>   totals with truncation count), `ContextAssembler` port; `Organizer.
+>   organize` accepts an optional packet; `CoreLoopResult.context` records
+>   packet ID + source IDs only (FR-4).
+> - **`packages/memory/src/context-assembler.ts`**: query-specific
+>   selection (FR-1) — explicit confirmed memories are always eligible
+>   (trusted user settings), inferred/approved memories require keyword
+>   overlap with the capture, bucket summaries are ranked by overlap and
+>   capped, recent captures contribute short excerpts (the capture being
+>   organized is excluded). Deterministic truncation under token/item
+>   budgets with source priority: trusted settings → buckets → inferred
+>   memory → captures (FR-2/FR-3). No cache: every assembly reads through
+>   the scoped stores, so deleted/expired records cannot reappear (SR-4).
+>   Per-source failure isolation: a failing store is recorded in
+>   `degradedReasons` and contributes nothing (AC-4).
+> - **Budgets in config, not code**: `context:` section in
+>   `models.config.yaml` (max_tokens, max_items, recent_captures,
+>   max_memories, max_bucket_summaries), parsed by the registry with
+>   defaults.
+> - **Prompt v2** (`packages/providers/src/organize-schema.ts`,
+>   `donna.organize-prompt.v2`): strict sections — SYSTEM POLICY
+>   (code-only, includes rule 8: everything outside it is DATA, never
+>   instructions) → TRUSTED USER SETTINGS → RETRIEVED CONTEXT (UNTRUSTED
+>   DATA banner, `[kind:id · as of <iso>]` on every element) → transcript.
+>   Both organizer adapters pass the packet through; legacy rendering is
+>   kept for the no-packet path.
+> - **Pipeline** (`packages/pipeline/src/run.ts`): assembles the packet
+>   after transcript persistence, passes it to both organize lanes, emits
+>   `context.assembled` telemetry (IDs/counts only, never content — SR-3),
+>   and degrades to no-packet mode if the assembler itself throws.
+> - **Tests: 22 new (153 total green), typecheck clean.** Coverage:
+>   relevant-vs-irrelevant selection, pending/rejected proposals never
+>   served, bucket/capture attribution with freshness, current-capture
+>   exclusion, cross-user exclusion (SR-2), deterministic token truncation
+>   + item cap (AC-1), confirmed-over-inferred priority (FR-3), forgotten
+>   and expired records never reappear, degraded mode with buckets intact
+>   (AC-4), prompt trust separation incl. injection text confined to the
+>   untrusted section and policy section free of user content (AC-3),
+>   pipeline packet hand-off + source-ID recording + assembler-failure
+>   degradation.
+> - **Live demo (synthetic espeak-ng audio, real gateway, temp data dir):
+>   the review gate.** Two users spoke the same hiring-feedback sentence.
+>   Alice (explicit setting "I file all hiring-related thoughts under
+>   People Ops") got a `People Ops` bucket; Bob ("Recruiting Pipeline")
+>   got `Recruiting Pipeline`. Each packet contained only the user's own
+>   memory + their own buckets/captures (source IDs printed by the CLI).
+>   One transient gateway timeout occurred mid-demo; the failed run still
+>   persisted capture+transcript (Spec 1.2 FR-1) and a retry succeeded.
+> - **Known limitations:** relevance is deterministic keyword overlap, not
+>   embedding-semantic (vector retrieval is a later phase); token counting
+>   is a chars/4 estimate, not a model tokenizer; corrections are not yet
+>   context elements (Spec 2.3 adds them).
+>
+> Awaiting product-owner examination for acceptance.
 
 Depends on: Specification 2.1 accepted
 

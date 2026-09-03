@@ -28,6 +28,8 @@ import {
   type BucketStore,
   type Capture,
   type CaptureStore,
+  type ContextAssembler,
+  type ContextPacket,
   type CoreLoop,
   type CoreLoopResult,
   type DerivationVersions,
@@ -67,6 +69,12 @@ export interface PipelineDeps {
    */
   audio?: AudioStore;
   audit?: AuditLog;
+  /**
+   * When present, an attributed context packet (Spec 2.2) is assembled
+   * before organization and handed to the organizer. If assembly itself
+   * fails, the run continues in degraded mode with no packet (AC-4).
+   */
+  contextAssembler?: ContextAssembler;
 }
 
 interface LaneOutput {
@@ -156,10 +164,12 @@ export class DonnaPipeline implements CoreLoop {
 
     const tOrg = Date.now();
     const buckets = await store.listBuckets(capture.tenantId, capture.userId);
+    const context = await this.assembleContext(capture, transcript.text);
     const organized = await this.organizeVerified(
       transcriptRecord,
       transcript,
       buckets,
+      context,
     );
     const organizeLatencyMs = Date.now() - tOrg;
     this.emit("stage.organize", capture, {
@@ -238,6 +248,17 @@ export class DonnaPipeline implements CoreLoop {
       transcript,
       items,
       bucketsCreated,
+      // FR-4 (Spec 2.2): record which context influenced this organize
+      // request — packet ID and source IDs only, never content.
+      ...(context !== undefined
+        ? {
+            context: {
+              packetId: context.id,
+              sourceIds: context.elements.map((e) => e.sourceId),
+              degraded: context.degraded,
+            },
+          }
+        : {}),
       metrics: {
         sttLatencyMs,
         organizeLatencyMs,
@@ -249,6 +270,41 @@ export class DonnaPipeline implements CoreLoop {
   }
 
   /**
+   * Assemble the bounded context packet for this organize request. A
+   * failing assembler degrades the run to no-packet mode (the organizer
+   * falls back to its legacy prompt) — organization still works (AC-4).
+   * Telemetry carries IDs and counts only, never content (SR-3).
+   */
+  private async assembleContext(
+    capture: Capture,
+    transcriptText: string,
+  ): Promise<ContextPacket | undefined> {
+    const assembler = this.deps.contextAssembler;
+    if (assembler === undefined) return undefined;
+    try {
+      const packet = await assembler.assemble(
+        { tenantId: capture.tenantId, userId: capture.userId },
+        { text: transcriptText, excludeCaptureId: capture.id },
+      );
+      this.emit("context.assembled", capture, {
+        packetId: packet.id,
+        elements: packet.totals.items,
+        tokens: packet.totals.tokens,
+        truncated: packet.totals.truncated,
+        degraded: packet.degraded,
+        ...(packet.degradedReasons.length > 0
+          ? { degradedReasons: packet.degradedReasons.join(",") }
+          : {}),
+        sourceIds: packet.elements.map((e) => e.sourceId).join(","),
+      });
+      return packet;
+    } catch {
+      this.emit("context.degraded", capture, { reason: "assembler-failed" });
+      return undefined;
+    }
+  }
+
+  /**
    * Run the default lane, escalate at most once (schema failure, all
    * low-confidence, or invalid provenance), then fail closed if provenance
    * is still invalid.
@@ -257,8 +313,9 @@ export class DonnaPipeline implements CoreLoop {
     transcriptRecord: TranscriptRecord,
     transcript: Parameters<Organizer["organize"]>[0],
     buckets: Parameters<Organizer["organize"]>[1],
+    context?: ContextPacket,
   ): Promise<LaneOutput & { provenance: Provenance[] }> {
-    let lane = await this.organizeWithEscalation(transcript, buckets);
+    let lane = await this.organizeWithEscalation(transcript, buckets, context);
     let provenance = this.verifyAll(transcriptRecord, lane.output);
     if (
       !provenance.ok &&
@@ -270,6 +327,7 @@ export class DonnaPipeline implements CoreLoop {
         output: await this.deps.escalationOrganizer.organize(
           transcript,
           buckets,
+          ...(context !== undefined ? [context] : []),
         ),
         lane: this.deps.escalationOrganizer,
         escalationUsed: true,
@@ -286,16 +344,22 @@ export class DonnaPipeline implements CoreLoop {
   private async organizeWithEscalation(
     transcript: Parameters<Organizer["organize"]>[0],
     buckets: Parameters<Organizer["organize"]>[1],
+    context?: ContextPacket,
   ): Promise<LaneOutput> {
     const { organizer, escalationOrganizer } = this.deps;
+    const args = [
+      transcript,
+      buckets,
+      ...(context !== undefined ? [context] : []),
+    ] as const;
     try {
-      const out = await organizer.organize(transcript, buckets);
+      const out = await organizer.organize(...args);
       const anyConfident = out.thoughts.some(
         (t) => t.confidence >= ESCALATION_CONFIDENCE_FLOOR,
       );
       if (!anyConfident && escalationOrganizer && out.thoughts.length > 0) {
         return {
-          output: await escalationOrganizer.organize(transcript, buckets),
+          output: await escalationOrganizer.organize(...args),
           lane: escalationOrganizer,
           escalationUsed: true,
         };
@@ -304,7 +368,7 @@ export class DonnaPipeline implements CoreLoop {
     } catch (err) {
       if (!escalationOrganizer) throw err;
       return {
-        output: await escalationOrganizer.organize(transcript, buckets),
+        output: await escalationOrganizer.organize(...args),
         lane: escalationOrganizer,
         escalationUsed: true,
       };

@@ -59,3 +59,14 @@ buckets:
   assign_threshold: 0.82    # cosine sim ≥ this → join existing bucket
   create_threshold: 0.65    # below this → propose a new bucket
   # between the two: assign to best match but flag low-confidence for review
+
+# Context assembly budgets (Spec 2.2) — how much private memory may enter an
+# organize prompt. Selection is query-specific; truncation is deterministic
+# with source priority (trusted user settings → buckets → inferred memory →
+# recent captures). Tokens are estimated as chars/4.
+context:
+  max_tokens: 1200          # total across all context elements
+  max_items: 24             # total element cap
+  recent_captures: 3        # recent capture excerpts considered
+  max_memories: 12          # confirmed-memory element cap
+  max_bucket_summaries: 10  # bucket-summary element cap
