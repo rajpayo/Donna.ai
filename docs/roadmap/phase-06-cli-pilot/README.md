@@ -349,7 +349,7 @@ demonstrations. Do not start Specification 6.3 until accepted.
 
 ### Specification 6.3 — Measured graduation decision
 
-Status: `draft`
+Status: `in-progress` (approved by the product owner 2026-09-03)
 
 Depends on: Specification 6.2 accepted
 

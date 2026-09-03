@@ -1,10 +1,12 @@
 /**
- * Graduation gate tests (Specification 4.3: AC-1, AC-2, AC-3, AC-4, AC-5).
+ * Graduation gate tests (Specification 4.3: AC-1, AC-2, AC-3, AC-4, AC-5)
+ * and the measured graduation decision runner (Specification 6.3).
  */
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { buildGraduationReport } from "./graduation.js";
+import { buildGraduationReport, buildGraduationReportV2, renderGraduationMarkdownV2 } from "./graduation.js";
 import type { CaseOutcome, EvalReport } from "./report.js";
+import type { ConfigSnapshot } from "./snapshot.js";
 
 interface EvidenceSpec {
   stage: string;
@@ -168,5 +170,162 @@ describe("graduation gates (AC-3, AC-4)", () => {
       { stage: "retrieval", metrics: { "retrieval.hit_at_k": 0.8 } },
     ];
     assert.equal(buildGraduationReport(justBelow.map(makeEvidence)).allGatesPassed, false);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Specification 6.3 — measured graduation decision runner             */
+/* ------------------------------------------------------------------ */
+
+const SNAPSHOT: ConfigSnapshot = {
+  schema: "donna.config-snapshot.v1",
+  commit: "d".repeat(40),
+  branch: "pilot",
+  dirty: false,
+  modelsConfig: { path: "models.config.yaml", sha256: "e".repeat(64) },
+  dataset: { name: "x", version: 1, sha256: "a".repeat(64) },
+  versions: { organizePrompt: "p1", organizeSchema: "s1", answerPrompt: "a1", emotionAnalyzer: "e1" },
+  ranking: { rankingVersion: "v", weights: {}, recencyHalfLifeDays: 30, candidateLimit: 100, minScore: 0.2 },
+  memoryPolicy: { contextBudgets: {}, adherenceSemanticThreshold: 0.5 },
+  bucketTuning: { assignThreshold: 0.82, createThreshold: 0.65 },
+  environment: { node: "v22", platform: "linux", arch: "x64", ci: true },
+  capturedAt: "2026-09-03T00:00:00.000Z",
+};
+
+const FIXED_NOW = () => new Date("2026-09-04T00:00:00.000Z");
+
+function makeFullLoopEvidence(): { path: string; report: EvalReport } {
+  const base = makeEvidence({
+    stage: "full-loop",
+    metrics: { "latency.total_ms": 42000 },
+  });
+  base.report.cases = [
+    { caseId: "c1", scores: {}, hardFailures: [], tokens: { prompt: 100, completion: 40 } },
+    { caseId: "c2", scores: {}, hardFailures: [], tokens: { prompt: 120, completion: 60 } },
+  ];
+  return base;
+}
+
+describe("graduation runner v2 (Spec 6.3)", () => {
+  it("eligible-for-signoff only when every gate passes and no blocker exists", () => {
+    const report = buildGraduationReportV2(
+      [...PASSING_EVIDENCE.map(makeEvidence), makeFullLoopEvidence()],
+      { snapshot: SNAPSHOT, now: FIXED_NOW },
+    );
+    assert.equal(report.decision.verdict, "eligible-for-signoff");
+    assert.deepEqual(report.decision.reasons, []);
+    assert.equal(report.decision.productOwnerSignOff, "pending");
+    assert.equal(report.allGatesPassed, true);
+  });
+
+  it("the freeze records commit, config hash, prompt versions, datasets, cohort window", () => {
+    const report = buildGraduationReportV2(PASSING_EVIDENCE.map(makeEvidence), {
+      snapshot: SNAPSHOT,
+      cohortWindow: { start: "2026-09-07", end: "2026-09-18" },
+      now: FIXED_NOW,
+    });
+    assert.equal(report.freeze.commit, "d".repeat(40));
+    assert.equal(report.freeze.modelsConfigSha256, "e".repeat(64));
+    assert.equal(report.freeze.promptVersions.organizePrompt, "p1");
+    assert.equal(report.freeze.datasets.length, 3);
+    assert.deepEqual(report.freeze.cohortWindow, { start: "2026-09-07", end: "2026-09-18" });
+    assert.equal(report.generatedAt, "2026-09-04T00:00:00.000Z");
+  });
+
+  it("failing gates force rejection with named reasons", () => {
+    const regressed = PASSING_EVIDENCE.map((e) =>
+      e.stage === "organize"
+        ? { ...e, metrics: { ...e.metrics, "organize.thought_coverage": 0.88 } }
+        : e,
+    );
+    const report = buildGraduationReportV2(regressed.map(makeEvidence), { snapshot: SNAPSHOT, now: FIXED_NOW });
+    assert.equal(report.decision.verdict, "rejected");
+    assert.ok(report.decision.reasons.some((r) => r.includes("coverage") && r.includes("0.88")));
+  });
+
+  it("SR-1: hard failures force rejection even with perfect metrics", () => {
+    const evidence = [
+      ...PASSING_EVIDENCE,
+      { stage: "adversarial", metrics: { "adversarial.blocked": 1 }, hardFailures: [{ kind: "unapproved-write" as const, detail: "seeded" }] },
+    ];
+    const report = buildGraduationReportV2(evidence.map(makeEvidence), { snapshot: SNAPSHOT, now: FIXED_NOW });
+    assert.equal(report.decision.verdict, "rejected");
+    assert.ok(report.decision.reasons.some((r) => r.includes("unapproved-write")));
+  });
+
+  it("pilot extras blockers force rejection: misfire blockers, privacy incidents, retention violations", () => {
+    const withBlocker = buildGraduationReportV2(PASSING_EVIDENCE.map(makeEvidence), {
+      snapshot: SNAPSHOT,
+      now: FIXED_NOW,
+      extras: { misfireBoard: { total: 3, byCategory: {}, byDisposition: {}, unresolved: 1, blocksGraduation: 1, promotedGoldenCases: 0 } },
+    });
+    assert.equal(withBlocker.decision.verdict, "rejected");
+    assert.ok(withBlocker.decision.reasons.some((r) => r.includes("blocks") || r.includes("blocking")));
+
+    const withIncident = buildGraduationReportV2(PASSING_EVIDENCE.map(makeEvidence), {
+      snapshot: SNAPSHOT,
+      now: FIXED_NOW,
+      extras: { privacyIncidents: { count: 1, notes: ["possible cross-scope read"] } },
+    });
+    assert.equal(withIncident.decision.verdict, "rejected");
+    assert.ok(withIncident.decision.reasons.some((r) => r.includes("privacy")));
+
+    const withRetentionViolation = buildGraduationReportV2(PASSING_EVIDENCE.map(makeEvidence), {
+      snapshot: SNAPSHOT,
+      now: FIXED_NOW,
+      extras: { retention: { verifiedAt: "2026-09-04", scopes: 1, capturesScanned: 5, audioRetained: 2, transcriptOnly: 3, policyViolations: 1 } },
+    });
+    assert.equal(withRetentionViolation.decision.verdict, "rejected");
+    assert.ok(withRetentionViolation.decision.reasons.some((r) => r.includes("retention")));
+  });
+
+  it("quality distributions, cohorts, latency/cost, and limitations are carried into the report", () => {
+    const evidence = [...PASSING_EVIDENCE.map(makeEvidence), makeFullLoopEvidence()];
+    const report = buildGraduationReportV2(evidence, {
+      snapshot: SNAPSHOT,
+      now: FIXED_NOW,
+      extras: {
+        limitations: ["STT timestamps are chunk-window approximations — affects provenance review for all pilot users"],
+        correctionTrends: { scopes: 1, total: 4, pending: 1, accepted: 2, rejected: 1, followed: 3, contradicted: 1, adherenceRate: 0.75 },
+      },
+    });
+    assert.ok(report.quality["organize"]?.["organize.thought_coverage"] !== undefined);
+    assert.equal(report.latencyCost.latencyTotalMs?.mean, 42000);
+    assert.deepEqual(report.latencyCost.totalTokens, { prompt: 220, completion: 100 });
+    assert.equal(report.extras.limitations?.length, 1);
+    assert.equal(report.extras.correctionTrends?.adherenceRate, 0.75);
+  });
+
+  it("the report hash is stable for identical content and changes with content", () => {
+    const inputs = { snapshot: SNAPSHOT, now: FIXED_NOW };
+    const a = buildGraduationReportV2(PASSING_EVIDENCE.map(makeEvidence), inputs);
+    // makeEvidence increments a counter, changing paths/fingerprints — so
+    // re-use the SAME evidence entries for the stability check.
+    const sameEvidence = PASSING_EVIDENCE.map(makeEvidence);
+    const b = buildGraduationReportV2(sameEvidence, inputs);
+    const b2 = buildGraduationReportV2(sameEvidence, inputs);
+    assert.match(a.reportHash, /^[0-9a-f]{64}$/);
+    assert.equal(b.reportHash, b2.reportHash);
+    const c = buildGraduationReportV2(sameEvidence, {
+      snapshot: { ...SNAPSHOT, commit: "f".repeat(40) },
+      now: FIXED_NOW,
+    });
+    assert.notEqual(b.reportHash, c.reportHash);
+  });
+
+  it("the markdown rendering links evidence, states reasons, and keeps sign-off manual", () => {
+    const regressed = PASSING_EVIDENCE.map((e) =>
+      e.stage === "organize"
+        ? { ...e, metrics: { ...e.metrics, "organize.bucket_acceptance": 0.8 } }
+        : e,
+    );
+    const report = buildGraduationReportV2(regressed.map(makeEvidence), { snapshot: SNAPSHOT, now: FIXED_NOW });
+    const md = renderGraduationMarkdownV2(report);
+    assert.match(md, /NOT ALL PASS/);
+    assert.match(md, /REJECTED/);
+    assert.match(md, /bucket acceptance/);
+    assert.match(md, /PENDING/);
+    assert.match(md, /reports\/organize\//);
+    assert.match(md, /held-out/);
   });
 });

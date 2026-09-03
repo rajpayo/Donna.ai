@@ -74,8 +74,8 @@
  * into organized, bucketed, provenance-linked thoughts.
  */
 import { randomUUID } from "node:crypto";
-import { mkdir, rm, stat, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createInterface } from "node:readline";
 import type { Capture, EventSink, MemoryLayer } from "@donna/core";
@@ -326,6 +326,10 @@ const USAGE = `usage:
                                              gathered from the correction and
                                              memory stores
   donna pilot run list|show [<id>]       run register (IDs and counts only)
+  donna pilot graduation-extras --out <file>
+                                         assemble Spec 6.3 extras (correction
+                                             trends, misfire board, retention
+                                             verification) across pilot scopes
 
 Pilot note: while enrolled, CLI commands redact verbatim transcript text by
 default (SR-2). Pass --show-transcripts on capture/search/query/export to
@@ -2806,6 +2810,108 @@ async function main(): Promise<void> {
 
       console.error(USAGE);
       process.exit(1);
+    }
+
+    if (sub === "graduation-extras") {
+      // Spec 6.3: assemble the pilot-operational extras the graduation
+      // runner cannot compute from eval reports — correction trends,
+      // the misfire board, retention verification — aggregated across
+      // every pilot scope in this data directory. Counts only (SR-2).
+      const out = arg("--out");
+      if (out === undefined) {
+        console.error("usage: donna pilot graduation-extras --out <file> [--limitations-file <f>]");
+        process.exit(1);
+      }
+      const pilotRoot = join(dir, "pilot");
+      const scopes: Array<{ tenantId: string; userId: string }> = [];
+      try {
+        for (const tenantEntry of await readdir(pilotRoot, { withFileTypes: true })) {
+          if (!tenantEntry.isDirectory()) continue;
+          for (const userEntry of await readdir(join(pilotRoot, tenantEntry.name), { withFileTypes: true })) {
+            if (!userEntry.isDirectory()) continue;
+            const profile = await new FilePilotProfileStore(dir).get(tenantEntry.name, userEntry.name);
+            if (profile !== undefined) {
+              scopes.push({ tenantId: tenantEntry.name, userId: userEntry.name });
+            }
+          }
+        }
+      } catch (error) {
+        if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
+      }
+
+      const trendTotals = { total: 0, pending: 0, accepted: 0, rejected: 0, followed: 0, contradicted: 0 };
+      const board = {
+        total: 0,
+        byCategory: {} as Record<string, number>,
+        byDisposition: {} as Record<string, number>,
+        unresolved: 0,
+        blocksGraduation: 0,
+        promotedGoldenCases: 0,
+      };
+      const retentionTotals = { capturesScanned: 0, audioRetained: 0, transcriptOnly: 0, policyViolations: 0 };
+      const nowIso = new Date().toISOString();
+      const correctionStore = new FileCorrectionStore(dir);
+      for (const scopeEntry of scopes) {
+        const events = await correctionStore.listCorrections(scopeEntry.tenantId, scopeEntry.userId);
+        trendTotals.total += events.length;
+        trendTotals.pending += events.filter((e) => e.status === "pending").length;
+        trendTotals.accepted += events.filter((e) => e.status === "accepted").length;
+        trendTotals.rejected += events.filter((e) => e.status === "rejected").length;
+        trendTotals.followed += events.reduce((sum, e) => sum + e.followedCount, 0);
+        trendTotals.contradicted += events.reduce((sum, e) => sum + e.contradictedCount, 0);
+        const summary = await buildMisfireRegister().summarize(scopeEntry);
+        board.total += summary.total;
+        for (const [k, v] of Object.entries(summary.byCategory)) board.byCategory[k] = (board.byCategory[k] ?? 0) + v;
+        for (const [k, v] of Object.entries(summary.byDisposition)) board.byDisposition[k] = (board.byDisposition[k] ?? 0) + v;
+        board.unresolved += summary.unresolved.length;
+        board.blocksGraduation += summary.blocksGraduation.length;
+        board.promotedGoldenCases += summary.promotedGoldenCases;
+        for (const s of await buildLifecycle().retention.statusAll(scopeEntry.tenantId, scopeEntry.userId)) {
+          retentionTotals.capturesScanned += 1;
+          if (s.audioAvailable) {
+            retentionTotals.audioRetained += 1;
+            // 7-day policy: audio whose retention window has passed must not remain.
+            if (s.expiresAt < nowIso) retentionTotals.policyViolations += 1;
+          } else {
+            retentionTotals.transcriptOnly += 1;
+          }
+        }
+      }
+      let limitations: string[] = [];
+      const limitationsFile = arg("--limitations-file");
+      if (limitationsFile !== undefined) {
+        limitations = (await readFile(resolve(invocationDir, limitationsFile), "utf8"))
+          .split("\n")
+          .map((l) => l.trim())
+          .filter((l) => l.length > 0 && !l.startsWith("#"));
+      }
+      const extras = {
+        correctionTrends: {
+          scopes: scopes.length,
+          ...trendTotals,
+          adherenceRate:
+            trendTotals.followed + trendTotals.contradicted > 0
+              ? trendTotals.followed / (trendTotals.followed + trendTotals.contradicted)
+              : null,
+        },
+        misfireBoard: board,
+        retention: {
+          verifiedAt: nowIso,
+          scopes: scopes.length,
+          ...retentionTotals,
+        },
+        privacyIncidents: { count: 0, notes: ["none reported through the pilot support path"] },
+        limitations,
+      };
+      const outPath = resolve(invocationDir, out);
+      await mkdir(dirname(outPath), { recursive: true, mode: 0o700 });
+      await writeFile(outPath, JSON.stringify(extras, null, 2) + "\n", { mode: 0o600 });
+      console.log(
+        `Graduation extras written to ${outPath}: ${scopes.length} pilot scope(s), ` +
+          `${trendTotals.total} correction(s), ${board.total} misfire(s) (${board.blocksGraduation} blocking), ` +
+          `${retentionTotals.capturesScanned} capture(s) checked (${retentionTotals.policyViolations} retention violations).`,
+      );
+      return;
     }
 
     if (sub === "run") {

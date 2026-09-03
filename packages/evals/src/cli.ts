@@ -23,7 +23,7 @@ import {
   type ModelsConfig,
   type ResolvedStack,
 } from "@donna/providers";
-import { copyFile, mkdir } from "node:fs/promises";
+import { copyFile, mkdir, readFile } from "node:fs/promises";
 import { loadDataset } from "./datasets.js";
 import { runEval, type StageScorer } from "./harness.js";
 import { adversarialScorer } from "./adversarial.js";
@@ -34,8 +34,11 @@ import {
   renderComparisonMarkdown,
 } from "./compare.js";
 import {
+  buildGraduationReportV2,
   graduationFromPaths,
   writeGraduationReport,
+  writeGraduationReportV2,
+  type GraduationExtras,
 } from "./graduation.js";
 import { MeteredGatewayClient } from "./scripted.js";
 import { createSttScorer } from "./scorers/stt.js";
@@ -321,7 +324,7 @@ async function main(): Promise<void> {
 
   // Spec 4.3: graduation report from a set of evidence reports.
   if (command === "graduation") {
-    const paths = process.argv.slice(3);
+    const paths = process.argv.slice(3).filter((p) => !p.startsWith("--"));
     if (paths.length === 0) {
       throw new Error("usage: cli.ts graduation <report.json> [more reports...]");
     }
@@ -336,6 +339,67 @@ async function main(): Promise<void> {
     console.log(`Report: ${jsonPath}`);
     console.log(`        ${markdownPath}`);
     process.exit(report.allGatesPassed ? 0 : 1);
+  }
+
+  // Spec 6.3: the measured graduation decision. Freezes the candidate
+  // (commit + config + prompts + dataset versions + cohort window) and
+  // produces the signed-by-hash, evidence-linked v2 report. Extras JSON
+  // (correction trends, misfire board, retention, privacy incidents,
+  // limitations) comes from `donna pilot graduation-extras`.
+  if (command === "graduation-run") {
+    const paths: string[] = [];
+    let extrasPath: string | undefined;
+    let cohortWindow: { start: string; end: string } | undefined;
+    const args = process.argv.slice(3);
+    for (let i = 0; i < args.length; i++) {
+      const a = args[i]!;
+      if (a === "--extras") {
+        extrasPath = args[++i];
+      } else if (a === "--cohort-window") {
+        const [start, end] = (args[++i] ?? "").split("..");
+        if (start === undefined || end === undefined || start === "" || end === "") {
+          throw new Error("--cohort-window expects <isoStart>..<isoEnd>");
+        }
+        cohortWindow = { start, end };
+      } else if (!a.startsWith("--")) {
+        paths.push(a);
+      }
+    }
+    if (paths.length === 0) {
+      throw new Error(
+        "usage: cli.ts graduation-run <report.json> [more reports...] [--extras extras.json] [--cohort-window <start>..<end>]",
+      );
+    }
+    const evidence = [];
+    for (const path of paths) {
+      evidence.push({ path: resolve(path), report: await loadReport(resolve(path)) });
+    }
+    let extras: GraduationExtras | undefined;
+    if (extrasPath !== undefined) {
+      extras = JSON.parse(await readFile(resolve(extrasPath), "utf8")) as GraduationExtras;
+    }
+    const snapshot = await captureSnapshot({
+      repoRoot,
+      configPath: configPath(),
+      dataset: { name: "(graduation-run)", version: 0, sha256: "0".repeat(64) },
+    });
+    const report = buildGraduationReportV2(evidence, {
+      snapshot,
+      ...(cohortWindow !== undefined ? { cohortWindow } : {}),
+      ...(extras !== undefined ? { extras } : {}),
+    });
+    const { jsonPath, markdownPath } = await writeGraduationReportV2(
+      report,
+      join(evalsDir, "reports", "graduation"),
+    );
+    console.log(
+      `Graduation decision: ${report.decision.verdict === "eligible-for-signoff" ? "ELIGIBLE FOR SIGN-OFF" : "REJECTED"} — gates ${report.allGatesPassed ? "ALL PASS" : "NOT ALL PASS"} — sign-off: PENDING (manual)`,
+    );
+    for (const reason of report.decision.reasons) console.log(`  - ${reason}`);
+    console.log(`Report hash: ${report.reportHash}`);
+    console.log(`Report: ${jsonPath}`);
+    console.log(`        ${markdownPath}`);
+    process.exit(report.decision.verdict === "eligible-for-signoff" ? 0 : 1);
   }
 
   console.error("usage: cli.ts validate | snapshot | run <stage> [--mode …] | baseline <stage> | compare <stage> <report> | graduation <reports…>");
