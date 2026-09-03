@@ -66,8 +66,9 @@ flowchart LR
    Measure the complete loop, personalization improvement, privacy, latency,
    and cost with regression gates.
 5. [Phase 5 — Microsoft 365 grounding](./phase-05-microsoft-365/README.md)
-   Bind Entra identity, add scoped read context, and implement reviewed
-   Microsoft destinations, including OneNote when its API is available.
+   Use the TrueFoundry-managed M365 MCP for identity and scoped read context,
+   and publish reviewed destinations to OneDrive Markdown (OneNote deferred
+   until the managed MCP exposes page tools).
 6. [Phase 6 — Controlled CLI pilot](./phase-06-cli-pilot/README.md)
    Run a consented volunteer pilot and graduate only when measured quality
    gates pass.

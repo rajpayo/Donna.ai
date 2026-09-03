@@ -2,6 +2,21 @@
 
 Status: `not-started`
 
+> **Approved revision (product owner, 2026-09-03):** this phase runs on the
+> **TrueFoundry-managed Microsoft 365 MCP**, not a Donna-registered Entra
+> application. The product owner cannot obtain app-registration permission
+> (intern account), and the managed MCP makes it unnecessary: TrueFoundry owns
+> the Entra app, OAuth configuration, token storage, and refresh; each
+> employee authorizes their own Microsoft account via Connect Now. Verified
+> live 2026-09-03 against
+> `https://eu.gateway.truefoundry.ai/payoneer-corp/mcp/microsoft-365/server`:
+> direct MCP initialize (HTTP 200, `m365-mcp-server`), tools/list (48 tools:
+> 25 read, 23 write/draft), and an authenticated `list_calendars` call all
+> succeed with the existing TrueFoundry API key. **OneNote is deferred** — the
+> managed MCP exposes no OneNote page API; the knowledge destination is
+> **OneDrive Markdown** in a dedicated `Donna` folder until TrueFoundry adds
+> page tools. Donna's own desktop UI (Phase 9) remains the primary experience.
+
 ## Objective
 
 Ground Donna in explicitly selected corporate context while preserving source
@@ -12,73 +27,93 @@ content and trusted instructions.
 
 - Phases 1–4 are accepted.
 - Identity, memory, retrieval, deletion, and evaluation contracts exist.
-- The internal pilot has an approved Entra application and least-privilege
-  scope plan.
+- The TrueFoundry-managed M365 MCP is connected and reachable with the
+  existing gateway credential (verified 2026-09-03).
 
 ## Specification order
 
-### Specification 5.1 — Entra identity, consent, and token boundary
+### Specification 5.1 — Managed-MCP identity, consent, and connection boundary
 
 Status: `draft`
 
 Depends on: Phase 4 accepted
 
+> Revised 2026-09-03: replaces the Donna-registered Entra application with
+> the TrueFoundry-managed M365 MCP. Donna never sees Microsoft tokens; the
+> platform owns OAuth, storage, and refresh.
+
 #### Outcome
 
-Every Microsoft 365 read or destination request is bound to an authenticated
-employee and company tenant with explicit source consent and securely managed
-delegated credentials.
+Every Microsoft 365 read or destination request runs through a governed MCP
+connection bound to the authenticated employee's own Microsoft authorization,
+with Donna-side source consent records and a fail-closed connection boundary.
 
 #### Scope
 
-- Add Entra authentication for the post-CLI service boundary while preserving
-  a clearly marked single-user local mode.
-- Derive `tenantId` and `userId` from validated identity claims, never body,
-  query, or caller-selected headers.
-- Validate issuer, audience, expiry, signing algorithm, and required claims.
-- Define source-level consent for calendar, selected mail, selected Teams
-  threads, OneDrive/SharePoint files, and future destinations.
-- Store delegated refresh material encrypted in an approved secret/token store.
-- Support revoke, re-consent, expiry, and employee data disconnection.
+- Add an `McpClient` transport in `packages/integrations-m365/` speaking
+  JSON-RPC over HTTP to the TrueFoundry MCP endpoint (initialize →
+  tools/list → tools/call), authenticated with the existing gateway
+  credential from runtime secrets.
+- Derive the Donna tenant/user scope from the authenticated CLI/session
+  context as today; the MCP's per-user Microsoft authorization is the
+  downstream identity. Document that the pilot runs under the connector
+  owner's Microsoft identity until TrueFoundry per-user OAuth is exercised
+  per volunteer.
+- Define Donna-side source-level consent records (calendar, selected mail,
+  selected Teams threads, OneDrive/SharePoint files, destinations) in the
+  existing `ConsentStore` — independent of Microsoft-side OAuth consent.
+- Connection health command: initialize, tool discovery, and one read-only
+  probe, reporting stage-level failures without token or content leakage.
+- Support disconnect: Donna stops calling the MCP and purges cached source
+  snippets.
 
 #### Non-goals
 
-- Blanket tenant-wide ingestion, application permissions where delegated
-  permissions suffice, or employer browsing of personal Donna memory.
+- Donna-owned Entra app registration, Microsoft token handling, blanket
+  tenant-wide ingestion, or employer browsing of personal Donna memory.
 
 #### Expected repository changes
 
-- `packages/identity/`
-- `packages/privacy/`
-- [`packages/core/src/types.ts`](../../../packages/core/src/types.ts)
-- service composition/auth middleware introduced by the approved deployment
-  specification
+- `packages/integrations-m365/` (new: MCP client + connection boundary)
+- [`packages/core/src/ports.ts`](../../../packages/core/src/ports.ts)
+  (`ContextSource` / connection ports)
+- [`apps/cli/src/main.ts`](../../../apps/cli/src/main.ts) (`m365 status`,
+  `m365 connect-info`, `m365 disconnect`)
 
 #### Requirements
 
-- `FR-1`: Authenticated claims establish the only accepted tenant/user scope.
-- `FR-2`: Consent records name resource type, granted scopes, time, and
-  revocation state.
-- `FR-3`: Revocation stops new reads and invalidates source caches.
-- `SR-1`: Tokens and client secrets never enter logs, model prompts, or source
-  control.
-- `SR-2`: TLS validation is mandatory.
-- `SR-3`: Least-privilege delegated scopes are documented and tested.
-- `SR-4`: Session IDs rotate after authentication state changes.
+- `FR-1`: MCP calls happen only inside an established Donna tenant/user scope.
+- `FR-2`: Donna-side consent records name resource type, time, and revocation
+  state; revocation stops new reads and invalidates cached snippets.
+- `FR-3`: Connection failures are reported by stage (gateway auth, MCP
+  initialize, downstream Microsoft authorization) with redacted detail.
+- `SR-1`: Gateway credentials and MCP session identifiers never enter logs,
+  model prompts, or source control.
+- `SR-2`: TLS validation is mandatory; the endpoint is pinned to the
+  configured gateway host.
+- `SR-3`: Tool allowlisting is enforced client-side: the context layer may
+  invoke read tools only; write/draft tools are reachable solely through the
+  Phase 5.4 approval path.
+- `SR-4`: MCP tool results are untrusted content — they can never alter
+  system policy or grant new capabilities.
 
 #### Acceptance criteria
 
-- `AC-1`: Valid, expired, wrong-audience, wrong-issuer, and tampered-token tests
-  behave correctly.
-- `AC-2`: Caller-supplied tenant/user values cannot override authenticated
-  identity.
-- `AC-3`: Consent revoke prevents retrieval and purges cached projections.
-- `AC-4`: Security review confirms tokens cannot be exposed to LLM adapters.
+- `AC-1`: `m365 status` succeeds end-to-end with the real managed MCP
+  (initialize, tools/list, one read probe) and fails closed with actionable
+  stage-level errors when credentials/authorization are missing.
+- `AC-2`: Donna-side consent revoke prevents further MCP reads and purges
+  cached snippets.
+- `AC-3`: A context-layer attempt to call a write/draft tool is denied by the
+  client-side allowlist.
+- `AC-4`: No credential, token, or Microsoft content appears in logs or
+  telemetry (verified by test).
 
 #### Review gate
 
-Demonstrate login, scoped consent, token refresh, revocation, and a blocked
-cross-tenant attempt. Do not start Specification 5.2 until accepted.
+Demonstrate `m365 status` live, consent grant/revoke behavior, and a blocked
+write-tool attempt from the context layer. Do not start Specification 5.2
+until accepted.
 
 ---
 
@@ -96,11 +131,12 @@ employee's entire Microsoft 365 history.
 
 #### Scope
 
-- Add a `ContextSource` port and Microsoft 365 adapter.
+- Add a `ContextSource` port and Microsoft 365 adapter built on the managed
+  M365 MCP from Specification 5.1 (no direct Graph calls).
 - Fetch calendar context for the relevant time window.
 - Fetch only resources explicitly selected by the employee or directly linked
   from the active workflow.
-- Normalize Graph/MCP responses into minimal `ContextSnippet` records with
+- Normalize MCP tool responses into minimal `ContextSnippet` records with
   source URI/ID, permission scope, owner, timestamp, excerpt, and TTL.
 - Apply source ACL filtering before memory/retrieval ranking.
 - Keep snippets in a TTL cache; promotion to durable memory is a separate
@@ -148,65 +184,82 @@ followed by revocation. Do not start Specification 5.3 until accepted.
 
 ---
 
-### Specification 5.3 — OneNote capability and destination adapter
+### Specification 5.3 — OneDrive Markdown destination adapter (OneNote deferred)
 
 Status: `draft`
 
 Depends on: Specification 5.2 accepted
 
+> Revised 2026-09-03 (product owner): the managed M365 MCP exposes no OneNote
+> page API, so the knowledge destination is OneDrive Markdown in a dedicated
+> `Donna` folder. OneNote is an optional future integration pending
+> TrueFoundry page tools. Donna's own desktop UI (Phase 9) is the primary
+> experience; this destination is an export surface, never the source of
+> truth.
+
 #### Outcome
 
-Approved organized content can be previewed and idempotently published to the
-employee's chosen OneNote destination with provenance and write-back state.
+Approved organized content can be previewed and idempotently published as
+Markdown documents in the employee's OneDrive `Donna/` folder — one document
+per bucket — with provenance and write-back state.
 
 #### Scope
 
-- First perform a capability spike against the actual Microsoft integration.
-- Confirm notebook/section/page discovery, page creation, content append/update,
-  supported HTML, identity/scopes, and stable returned links.
-- The currently connected Microsoft 365 MCP exposes no OneNote page operation;
-  either add that capability or approve a delegated Microsoft Graph adapter.
-- Define a generic `Destination` preview/commit contract.
-- Render bucket pages with item IDs, source timestamps, task status, and
-  update markers.
-- Use idempotency keys so retries cannot duplicate pages or entries.
+- Define a generic `Destination` preview/commit contract in core.
+- Implement `OneDriveMarkdownDestination` on the managed MCP:
+  `create_folder` (ensure `Donna/`), `upload_file` (create/overwrite
+  per-bucket `.md`), `list_files`/`get_file` for state, `share_file`
+  (organization-scoped link only) for the write-back link.
+- Render bucket documents with item summaries, task status, source capture
+  timestamps, and stable Donna item IDs as HTML comments for idempotent
+  re-render.
+- Idempotency: document content is a deterministic function of bucket state;
+  re-publishing the same state produces the same document (no duplicates,
+  no append drift). Overwrite-in-place, never append-copies.
 - Write destination status/link/error back to Donna's scoped record.
 
 #### Non-goals
 
-- Treating OneNote as Donna's authoritative database or publishing without
-  employee approval.
+- Claiming OneNote support, treating OneDrive as Donna's authoritative
+  database, anonymous sharing links, or publishing without employee approval.
 
 #### Expected repository changes
 
 - `packages/destinations/`
-- `packages/integrations-m365/src/onenote.ts`
+- `packages/integrations-m365/src/onedrive-markdown.ts`
 - [`packages/core/src/ports.ts`](../../../packages/core/src/ports.ts)
-- OneNote contract and sandbox integration tests
+- destination contract and sandbox integration tests
 
 #### Requirements
 
-- `FR-1`: Preview shows the exact target and rendered changes before commit.
-- `FR-2`: Repeating a commit with the same idempotency key creates no duplicate.
-- `FR-3`: Donna remains source of truth and records the external link/version.
-- `SR-1`: Writes require active delegated consent and explicit approval.
-- `SR-2`: Notebook/page selection is constrained to the authenticated user.
-- `SR-3`: Untrusted content is encoded safely; scripts and unsafe HTML are
-  rejected.
-- `SR-4`: OneNote errors are redacted and do not leak page content.
+- `FR-1`: Preview shows the exact target folder, document name, and rendered
+  diff before commit.
+- `FR-2`: Re-publishing unchanged state is a byte-identical no-op; republishing
+  after changes updates in place; no duplicate files ever.
+- `FR-3`: Donna remains source of truth and records the external item ID,
+  link, and content hash.
+- `SR-1`: Writes require active Donna-side destination consent and explicit
+  approval.
+- `SR-2`: Folder/file selection is constrained to the authenticated user's
+  own drive root `Donna/` folder.
+- `SR-3`: Untrusted content is rendered as Markdown with embedded HTML
+  escaped; no scripts or active content.
+- `SR-4`: MCP errors are redacted and do not leak file content.
 
 #### Acceptance criteria
 
-- `AC-1`: The capability report proves a supported real page-write path.
-- `AC-2`: Preview, approve, create/update, retry, and write-back tests pass.
-- `AC-3`: Cross-user target selection and unsafe-content tests fail closed.
-- `AC-4`: The product owner inspects the resulting page and source links.
+- `AC-1`: Preview, approve, publish, re-publish (no-op), and changed
+  re-publish (in-place update) all pass against the real MCP.
+- `AC-2`: The product owner opens the OneDrive `Donna/` folder and inspects a
+  rendered bucket document with provenance.
+- `AC-3`: Cross-scope target selection and unsafe-content tests fail closed.
+- `AC-4`: Share links default to organization scope; anonymous links are
+  impossible through this adapter.
 
 #### Review gate
 
-If no supported OneNote API is available, mark this specification `blocked`;
-do not replace it with a file upload labeled as OneNote support. Do not start
-Specification 5.4 until the real destination is accepted.
+Demonstrate the full preview → approve → publish → idempotent re-publish
+cycle live against OneDrive. Do not start Specification 5.4 until accepted.
 
 ---
 

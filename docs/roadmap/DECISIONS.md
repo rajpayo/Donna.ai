@@ -40,6 +40,21 @@ decision and an update to this file.
   Teams threads, and files.
 - Donna does not continuously ingest the full mailbox, Teams history,
   OneDrive, or SharePoint estate.
+- **Microsoft 365 integration runs through the TrueFoundry-managed M365 MCP
+  (product owner, 2026-09-03):** the platform owns the Entra application,
+  OAuth configuration, token storage, and refresh; each employee authorizes
+  their own Microsoft account via Connect Now. Donna never registers its own
+  Entra app for the internal pilot and never handles Microsoft tokens
+  directly. Verified live 2026-09-03: direct MCP initialize + tools/list (48
+  tools) + authenticated calendar read all succeed with the existing
+  TrueFoundry credential.
+- **Knowledge destination is OneDrive Markdown temporarily (product owner,
+  2026-09-03):** the managed MCP exposes no OneNote page API, so approved
+  bucket content publishes as Markdown files in a dedicated OneDrive `Donna`
+  folder. OneNote is an optional future integration, pending TrueFoundry
+  adding page tools. Donna's own desktop UI (Phase 9) is the primary
+  experience; OneNote/OneDrive are export surfaces, never the source of
+  truth.
 - Durable personal memory may include explicit facts, preferences,
   relationships, vocabulary, recurring themes, corrections, and organization
   patterns.
