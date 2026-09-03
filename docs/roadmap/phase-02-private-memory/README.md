@@ -1,6 +1,6 @@
 # Phase 2 — Private memory and personalization
 
-Status: `in-progress`
+Status: `in-review` (all four specifications implemented and verified; awaiting product-owner examination)
 
 > Product-owner directive (2026-09-03): Specifications 2.1, 2.2, 2.3, and 2.4
 > are approved and are executed in one ordered run, one specification at a
