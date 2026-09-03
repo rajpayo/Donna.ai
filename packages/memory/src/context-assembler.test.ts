@@ -48,6 +48,15 @@ class StubBucketStore implements BucketStore {
   async listItems(): Promise<Array<{ thought: never; bucketId: string }>> {
     return [];
   }
+  async getItem(): Promise<undefined> {
+    return undefined;
+  }
+  async listItemsByBucket(): Promise<Array<{ thought: never; bucketId: string }>> {
+    return [];
+  }
+  async listItemsInRange(): Promise<Array<{ thought: never; bucketId: string }>> {
+    return [];
+  }
   async deleteItemsForCapture(): Promise<{ removed: number }> {
     return { removed: 0 };
   }

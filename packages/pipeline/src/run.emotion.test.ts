@@ -73,6 +73,25 @@ class MemStores implements CaptureStore, TranscriptStore, BucketStore {
   async listItems() {
     return this.items;
   }
+  async getItem(_t: string, _u: string, thoughtId: string) {
+    return this.items.find((item) => item.thought.id === thoughtId);
+  }
+  async listItemsByBucket(_t: string, _u: string, bucketId: string) {
+    return this.items.filter((item) => item.bucketId === bucketId);
+  }
+  async listItemsInRange(
+    _t: string,
+    _u: string,
+    range: { from?: string; to?: string },
+  ) {
+    return this.items.filter((item) => {
+      const createdAt = item.thought.createdAt;
+      if (createdAt === undefined) return false;
+      if (range.from !== undefined && createdAt < range.from) return false;
+      if (range.to !== undefined && createdAt > range.to) return false;
+      return true;
+    });
+  }
   async deleteItemsForCapture() {
     return { removed: 0 };
   }

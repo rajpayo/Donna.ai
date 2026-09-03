@@ -1,6 +1,22 @@
 # Phase 3 — Retrieval and production storage
 
-Status: `not-started`
+Status: `in-progress`
+
+> Product-owner directive (2026-09-03): Specifications 3.1, 3.2, and 3.3
+> are approved and are executed in one ordered run, one specification at a
+> time, on branch `cursor/import-mvp-scaffold-b430`. Each specification still
+> moves approved → in-progress → in-review with its own evidence; the
+> per-specification acceptance gate between specifications is overridden for
+> this phase only (as was done for Phases 1-2). Phase 2 is accepted; its
+> memory layers, consent, corrections, and context assembly are the entry
+> conditions for this phase.
+>
+> Product-owner-reported defect to fix in Specification 3.3: correction
+> adherence applicability uses keyword overlap and undercounts paraphrases
+> (a correction about "test removing email verification" was not matched to
+> a later "try one-click signup" placement). The applicability check must
+> become semantic (embedding similarity, documented threshold) with the
+> deterministic keyword path kept as fallback when no embedder is available.
 
 ## Objective
 
@@ -18,7 +34,77 @@ transactional, tenant-isolated store.
 
 ### Specification 3.1 — Read model and deterministic local retrieval
 
-Status: `draft`
+Status: `in-review`
+
+> Implementation evidence (2026-09-03, implementation worker):
+>
+> - **Scoped read ops** (`packages/core/src/ports.ts`,
+>   `packages/buckets/src/store.file.ts`): `BucketStore` gains `getItem`,
+>   `listItemsByBucket`, and `listItemsInRange` (time-filtered; ISO
+>   inclusive bounds). `Thought` gains an optional `createdAt` (set by the
+>   pipeline on every new thought). Items persisted before this spec lack
+>   `createdAt`; time-filtered reads fail closed and exclude them
+>   (documented ambiguity resolution — conservative option). All test
+>   MemStores implement the new ops.
+> - **Core types** (`packages/core/src/types.ts`): `RetrievalQuery`
+>   (tenant/user scope + text and/or embedding + filters + limit),
+>   `RetrievalFilters` (bucketIds, createdFrom/To, hasTask, people,
+>   memoryIds — all ANDed), `RetrievalHit` (thought + bucket + score
+>   components + scoreVersion; provenance carried on the thought, FR-2),
+>   and the `RetrievalIndex` port (indexItem / removeThought /
+>   removeCapture / search / rebuild).
+> - **New package `packages/retrieval/`**: `LocalRetrievalIndex` — a
+>   deterministic file-backed read model at
+>   `<dataDir>/<tenant>/<user>/retrieval-index.v1.json` (0600/0700,
+>   partition-ID validation, per-entry scope check on load — fail closed).
+>   Scoring is versioned (`donna.local-retrieval.v1`): text = normalized
+>   token overlap |Q∩T|/|Q| over summary+text; semantic = clamped cosine
+>   over the stored thought embeddings; combined = 0.5/0.5 when both
+>   signals present, the single signal otherwise; ranking is combined
+>   desc → createdAt desc → thoughtId asc. Entries denormalize the full
+>   thought (text, summary, embedding, provenance refs) plus bucket,
+>   creation time, people hints (task assignee), and memory links
+>   (memories whose sources name the thought). `indexItem` is an
+>   idempotent upsert; `rebuild` reads ONLY the scoped source-of-truth
+>   bucket store and writes a byte-identical file for unchanged sources
+>   (FR-3); corrupt index files fail closed with a rebuild instruction
+>   (SR-3). No logging of query/result text anywhere (SR-2).
+> - **Pipeline** (`packages/pipeline/src/run.ts`): optional
+>   `retrievalIndex` dep indexes each placed item as it persists; an
+>   indexing failure emits `retrieval.index.error` (counts only) and the
+>   run continues — the projection is rebuildable (SR-3).
+> - **CLI** (`apps/cli/src/main.ts`): `donna items --bucket <name>` (list
+>   bucket contents with provenance), `donna search <text> [--bucket]
+>   [--from] [--to] [--task] [--person] [--semantic] [--limit]` (semantic
+>   mode embeds the query via the configured embedder), `donna reindex`.
+>   Capture deletion carries a retrieval-index projection, so deleted
+>   records disappear from search (FR-4).
+> - **Tests: 21 new (227 total green), typecheck clean.** Coverage: text
+>   and semantic retrieval on fixtures (AC-1), deterministic ranking,
+>   bucket/time/task/person/memory-link filters (AC-2), removeThought /
+>   removeCapture / duplicate-index idempotency / rebuild determinism
+>   (byte-identical) / corrupt-index recovery (AC-3, FR-3, FR-4, SR-3),
+>   cross-tenant and cross-user denial incl. path-traversal IDs and
+>   foreign-entry fail-closed load (SR-1), browse mode, limits, the new
+>   store read ops (in-scope, fail-closed, undated-excluded), pipeline
+>   indexing + index-failure degradation.
+> - **Live demo (synthetic espeak-ng audio, real gateway, temp data
+>   dir):** captured "Remind me to review the vendor contract renewal
+>   with Priya before Thursday. Also, the onboarding checklist…" → 2
+>   thoughts into `Tasks`. `donna items --bucket Tasks` listed both with
+>   capture/segment/audio-window provenance (AC-4). `donna search
+>   "vendor contract"` returned the exact thought (score 1.000) with full
+>   transcript provenance. `donna search "paperwork for the new joiner"
+>   --semantic` (live text-embedding-3-large@1024) ranked the onboarding
+>   thought first (0.559) despite near-zero keyword overlap. `donna
+>   reindex` rebuilt 2 items; `delete-capture` removed the capture and
+>   the same search then returned 0 hits (FR-4 end-to-end).
+> - **Known limitations:** people filtering is deterministic hint/text
+>   matching (semantic person matching is Spec 3.3); the local index is
+>   whole-file JSON — the transactional store is Spec 3.2; ranking
+>   weights are the fixed v1 pair (versioned hybrid ranking is Spec 3.3).
+>
+> Awaiting product-owner examination for acceptance.
 
 Depends on: Phase 2 accepted
 

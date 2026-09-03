@@ -131,6 +131,45 @@ export class FileBucketStore implements BucketStore {
     return (await this.load(tenantId, userId)).items;
   }
 
+  async getItem(
+    tenantId: string,
+    userId: string,
+    thoughtId: string,
+  ): Promise<{ thought: Thought; bucketId: string } | undefined> {
+    return (await this.load(tenantId, userId)).items.find(
+      (item) => item.thought.id === thoughtId,
+    );
+  }
+
+  async listItemsByBucket(
+    tenantId: string,
+    userId: string,
+    bucketId: string,
+  ): Promise<Array<{ thought: Thought; bucketId: string }>> {
+    const data = await this.load(tenantId, userId);
+    if (!data.buckets.some((bucket) => bucket.id === bucketId)) {
+      throw new Error("Bucket does not exist in the requested tenant/user scope");
+    }
+    return data.items.filter((item) => item.bucketId === bucketId);
+  }
+
+  async listItemsInRange(
+    tenantId: string,
+    userId: string,
+    range: { from?: string; to?: string },
+  ): Promise<Array<{ thought: Thought; bucketId: string }>> {
+    const items = (await this.load(tenantId, userId)).items;
+    return items.filter((item) => {
+      const createdAt = item.thought.createdAt;
+      // Fail closed: a thought without a creation time cannot be proven
+      // to be inside the requested window.
+      if (createdAt === undefined) return false;
+      if (range.from !== undefined && createdAt < range.from) return false;
+      if (range.to !== undefined && createdAt > range.to) return false;
+      return true;
+    });
+  }
+
   async deleteItemsForCapture(
     tenantId: string,
     userId: string,

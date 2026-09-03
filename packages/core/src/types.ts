@@ -130,6 +130,13 @@ export interface Thought {
   embedding?: number[];
   /** Filled by the bucket engine. */
   bucketId?: string;
+  /**
+   * ISO 8601 creation time of this thought record (Specification 3.1):
+   * the basis for time-filtered reads and recency ranking. Records
+   * persisted before Specification 3.1 may lack it; time-filtered reads
+   * fail closed and exclude them.
+   */
+  createdAt?: string;
 }
 
 /**
@@ -566,6 +573,75 @@ export interface SessionContext {
  * and uncertainty handling — never placement, access, or actions).
  */
 export const REVIEW_PRIORITY_THRESHOLD = 0.5;
+
+/* ------------------------------------------------------------------ */
+/* Specification 3.1 — read model and deterministic local retrieval    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Filters that narrow a retrieval query (Specification 3.1). Every filter
+ * is ANDed; every query is tenant/user scoped before any filter runs
+ * (SR-1 — filters can only ever narrow the caller's own partition).
+ */
+export interface RetrievalFilters {
+  /** Restrict to these bucket IDs. */
+  bucketIds?: string[];
+  /** Only thoughts created at or after this ISO 8601 time. */
+  createdFrom?: string;
+  /** Only thoughts created at or before this ISO 8601 time. */
+  createdTo?: string;
+  /** Restrict to thoughts carrying a task candidate. */
+  hasTask?: boolean;
+  /**
+   * Restrict to thoughts mentioning one of these people hints
+   * (case-insensitive substring over the task assignee hint, summary, and
+   * text). Deterministic in 3.1; semantic person matching is 3.3 work.
+   */
+  people?: string[];
+  /** Restrict to thoughts linked to one of these memory record IDs. */
+  memoryIds?: string[];
+}
+
+/**
+ * A scoped retrieval query (FR-1). At least one of `text` or `embedding`
+ * should be present for scored retrieval; with neither, the result is a
+ * deterministic recency-ordered listing of the filtered partition (browse
+ * mode, used by the CLI bucket-contents view).
+ */
+export interface RetrievalQuery {
+  tenantId: string;
+  userId: string;
+  /** Free-text query for full-text matching. */
+  text?: string;
+  /** Query embedding from the configured embedder for cosine similarity. */
+  embedding?: number[];
+  filters?: RetrievalFilters;
+  /** Maximum hits to return (adapter default applies when omitted). */
+  limit?: number;
+}
+
+/**
+ * One scored retrieval result (FR-2): the matched thought with its bucket,
+ * the deterministic score components that produced the ranking, and the
+ * exact transcript provenance (carried on the thought) so every hit can be
+ * traced back to the spoken words.
+ */
+export interface RetrievalHit {
+  thought: Thought;
+  bucketId: string;
+  bucketName: string;
+  /** Deterministic score components — always exposed, never hidden. */
+  scores: {
+    /** Normalized full-text overlap 0..1 (0 when no text query). */
+    text: number;
+    /** Cosine similarity 0..1 (0 when either embedding is missing). */
+    semantic: number;
+    /** The combined score the ranking ordered by. */
+    combined: number;
+  };
+  /** Scoring algorithm version that produced `scores`. */
+  scoreVersion: string;
+}
 
 /** End-to-end result of one capture through the loop. */
 export interface CoreLoopResult {

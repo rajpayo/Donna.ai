@@ -202,3 +202,127 @@ describe("FileBucketStore correction operations (Spec 2.3)", () => {
     }
   });
 });
+
+describe("FileBucketStore scoped read operations (Spec 3.1)", () => {
+  function thought(
+    id: string,
+    createdAt: string | undefined,
+    withTask = false,
+  ): Thought {
+    return {
+      id,
+      tenantId: "tenant-a",
+      userId: "user-1",
+      summary: `summary ${id}`,
+      text: `text ${id}`,
+      confidence: 0.9,
+      ...(withTask ? { task: { title: `task ${id}` } } : {}),
+      provenance: {
+        captureId: "cap-1",
+        segmentIds: ["seg-0"],
+        sourceText: `text ${id}`,
+        startSec: 0,
+        endSec: 1,
+      },
+      versions: {
+        organizerModel: "test",
+        organizeSchemaVersion: "s",
+        organizePromptVersion: "p",
+      },
+      embedding: [1, 0],
+      ...(createdAt !== undefined ? { createdAt } : {}),
+    };
+  }
+
+  it("getItem returns the scoped item and nothing else", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "donna-store-"));
+    try {
+      const store = new FileBucketStore(dataDir);
+      await store.createBucket({ ...bucket("tenant-a", "user-1", "b-a"), name: "A" });
+      await store.saveItem({ thought: thought("th-1", "2026-09-01T10:00:00.000Z"), bucketId: "b-a" });
+
+      const found = await store.getItem("tenant-a", "user-1", "th-1");
+      assert.equal(found?.thought.id, "th-1");
+      assert.equal(found?.bucketId, "b-a");
+
+      // Unknown ID and cross-scope reads return undefined, never data.
+      assert.equal(await store.getItem("tenant-a", "user-1", "nope"), undefined);
+      assert.equal(await store.getItem("tenant-a", "user-2", "th-1"), undefined);
+      assert.equal(await store.getItem("tenant-b", "user-1", "th-1"), undefined);
+    } finally {
+      await rm(dataDir, { recursive: true, force: true });
+    }
+  });
+
+  it("listItemsByBucket returns only that bucket's items and fails closed on unknown buckets", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "donna-store-"));
+    try {
+      const store = new FileBucketStore(dataDir);
+      await store.createBucket({ ...bucket("tenant-a", "user-1", "b-a"), name: "A" });
+      await store.createBucket({ ...bucket("tenant-a", "user-1", "b-b"), name: "B" });
+      await store.saveItem({ thought: thought("th-1", "2026-09-01T10:00:00.000Z"), bucketId: "b-a" });
+      await store.saveItem({ thought: thought("th-2", "2026-09-01T11:00:00.000Z"), bucketId: "b-a" });
+      await store.saveItem({ thought: thought("th-3", "2026-09-01T12:00:00.000Z"), bucketId: "b-b" });
+
+      const items = await store.listItemsByBucket("tenant-a", "user-1", "b-a");
+      assert.deepEqual(items.map((i) => i.thought.id).sort(), ["th-1", "th-2"]);
+
+      await assert.rejects(
+        store.listItemsByBucket("tenant-a", "user-1", "no-such-bucket"),
+        /Bucket does not exist/,
+      );
+      // A bucket that exists only in another scope is not visible here.
+      await assert.rejects(
+        store.listItemsByBucket("tenant-b", "user-1", "b-a"),
+        /Bucket does not exist/,
+      );
+    } finally {
+      await rm(dataDir, { recursive: true, force: true });
+    }
+  });
+
+  it("listItemsInRange filters by createdAt and excludes undated items (fail closed)", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "donna-store-"));
+    try {
+      const store = new FileBucketStore(dataDir);
+      await store.createBucket({ ...bucket("tenant-a", "user-1", "b-a"), name: "A" });
+      await store.saveItem({ thought: thought("th-old", "2026-08-01T10:00:00.000Z"), bucketId: "b-a" });
+      await store.saveItem({ thought: thought("th-mid", "2026-09-01T10:00:00.000Z"), bucketId: "b-a" });
+      await store.saveItem({ thought: thought("th-new", "2026-09-03T10:00:00.000Z"), bucketId: "b-a" });
+      await store.saveItem({ thought: thought("th-undated", undefined), bucketId: "b-a" });
+
+      // Bounded window: inclusive bounds.
+      const windowed = await store.listItemsInRange("tenant-a", "user-1", {
+        from: "2026-09-01T00:00:00.000Z",
+        to: "2026-09-01T23:59:59.000Z",
+      });
+      assert.deepEqual(windowed.map((i) => i.thought.id), ["th-mid"]);
+
+      // Open bounds.
+      const since = await store.listItemsInRange("tenant-a", "user-1", {
+        from: "2026-09-02T00:00:00.000Z",
+      });
+      assert.deepEqual(since.map((i) => i.thought.id), ["th-new"]);
+      const until = await store.listItemsInRange("tenant-a", "user-1", {
+        to: "2026-08-31T23:59:59.000Z",
+      });
+      assert.deepEqual(until.map((i) => i.thought.id), ["th-old"]);
+
+      // Undated items are excluded even with no bounds proven — a range
+      // read must never return an item it cannot place in time.
+      const all = await store.listItemsInRange("tenant-a", "user-1", {});
+      assert.deepEqual(
+        all.map((i) => i.thought.id).sort(),
+        ["th-mid", "th-new", "th-old"],
+      );
+
+      // Cross-scope range reads see nothing.
+      assert.equal(
+        (await store.listItemsInRange("tenant-b", "user-1", {})).length,
+        0,
+      );
+    } finally {
+      await rm(dataDir, { recursive: true, force: true });
+    }
+  });
+});

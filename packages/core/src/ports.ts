@@ -22,6 +22,8 @@ import type {
   MemoryProposal,
   MemoryRecord,
   Provenance,
+  RetrievalHit,
+  RetrievalQuery,
   SessionContext,
   Thought,
   Transcript,
@@ -140,6 +142,37 @@ export interface BucketStore {
   listItems(
     tenantId: string,
     userId: string,
+  ): Promise<Array<{ thought: Thought; bucketId: string }>>;
+  /**
+   * Fetch one item by thought ID in scope (Specification 3.1). Returns
+   * undefined when the thought does not exist in this partition — never
+   * another partition's item (SR-1).
+   */
+  getItem(
+    tenantId: string,
+    userId: string,
+    thoughtId: string,
+  ): Promise<{ thought: Thought; bucketId: string } | undefined>;
+  /**
+   * Every persisted item in one bucket, in scope (Specification 3.1).
+   * Fails closed when the bucket does not exist in this partition.
+   */
+  listItemsByBucket(
+    tenantId: string,
+    userId: string,
+    bucketId: string,
+  ): Promise<Array<{ thought: Thought; bucketId: string }>>;
+  /**
+   * Time-filtered read (Specification 3.1): items whose thought
+   * `createdAt` falls within [from, to] (ISO 8601, inclusive bounds;
+   * either bound may be omitted). Items without a `createdAt` (persisted
+   * before Specification 3.1) cannot be proven in-range and are excluded
+   * — fail closed.
+   */
+  listItemsInRange(
+    tenantId: string,
+    userId: string,
+    range: { from?: string; to?: string },
   ): Promise<Array<{ thought: Thought; bucketId: string }>>;
   /**
    * Remove every item whose thought derives from the given capture and
@@ -417,6 +450,55 @@ export interface EventSink {
     userId: string;
     attrs?: Record<string, string | number | boolean>;
   }): void;
+}
+
+/**
+ * Retrieval read model (Specification 3.1): a scoped, rebuildable
+ * projection of organized items for deterministic full-text and vector
+ * retrieval. The bucket store remains the source of truth; the index is
+ * derived state that can be discarded and rebuilt at any time (SR-3).
+ *
+ * Every method is tenant/user scoped. There is deliberately no
+ * cross-scope operation (SR-1).
+ */
+export interface RetrievalIndex {
+  /**
+   * Index one organized item. Idempotent per thought ID: re-indexing the
+   * same thought replaces its entry (duplicate-index safety).
+   */
+  indexItem(
+    item: { thought: Thought; bucketId: string },
+    bucket: Bucket,
+  ): Promise<void>;
+  /** Remove one thought from the index. Idempotent. */
+  removeThought(
+    tenantId: string,
+    userId: string,
+    thoughtId: string,
+  ): Promise<boolean>;
+  /**
+   * Remove every entry derived from a capture (deletion propagation,
+   * FR-4). Idempotent.
+   */
+  removeCapture(
+    tenantId: string,
+    userId: string,
+    captureId: string,
+  ): Promise<{ removed: number }>;
+  /**
+   * Run a scoped query. Filters can only narrow the caller's own
+   * partition (SR-1). Hits carry score components and provenance (FR-2).
+   */
+  search(query: RetrievalQuery): Promise<RetrievalHit[]>;
+  /**
+   * Discard the current index state and rebuild it from the scoped
+   * source-of-truth records (SR-3). Deterministic and idempotent (FR-3):
+   * rebuilding twice over the same source records yields the same index.
+   */
+  rebuild(
+    tenantId: string,
+    userId: string,
+  ): Promise<{ indexed: number }>;
 }
 
 /** The composed pipeline itself. */

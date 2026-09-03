@@ -26,6 +26,7 @@ import {
   sha256Hex,
   type AudioStore,
   type AuditLog,
+  type Bucket,
   type BucketStore,
   type Capture,
   type CaptureStore,
@@ -42,6 +43,7 @@ import {
   type Organizer,
   type Provenance,
   type ProvenanceVerifier,
+  type RetrievalIndex,
   type SessionContext,
   type Thought,
   type Transcriber,
@@ -94,6 +96,13 @@ export interface PipelineDeps {
    * no emotional context; the core loop is unaffected (AC-4).
    */
   emotionalContext?: EmotionalContext;
+  /**
+   * When present (Specification 3.1), each placed item is indexed for
+   * retrieval as it is persisted. The index is a rebuildable projection:
+   * an indexing failure is reported via telemetry and the run continues —
+   * `rebuild` from the source-of-truth store recovers it (SR-3).
+   */
+  retrievalIndex?: RetrievalIndex;
 }
 
 interface LaneOutput {
@@ -248,6 +257,7 @@ export class DonnaPipeline implements CoreLoop {
       );
       thought.bucketId = placement.bucket.id;
       await store.saveItem({ thought, bucketId: placement.bucket.id });
+      await this.indexForRetrieval(capture, thought, placement.bucket);
       await this.observeCorrectionAdherence(capture, thought, placement.bucket.id, context);
       // Spec 2.4: emotional context may bias review priority ONLY — never
       // placement, access, or actions (SR-2).
@@ -296,6 +306,26 @@ export class DonnaPipeline implements CoreLoop {
         estimatedCostUsd: Number.NaN, // filled from gateway telemetry, not estimated here
       },
     };
+  }
+
+  /**
+   * Spec 3.1: keep the retrieval projection in step with the source of
+   * truth as items are placed. A failing index never breaks the core
+   * loop — the projection is rebuildable from the bucket store (SR-3).
+   * Telemetry carries counts only, never content (SR-2).
+   */
+  private async indexForRetrieval(
+    capture: Capture,
+    thought: Thought,
+    bucket: Bucket,
+  ): Promise<void> {
+    const index = this.deps.retrievalIndex;
+    if (index === undefined) return;
+    try {
+      await index.indexItem({ thought, bucketId: bucket.id }, bucket);
+    } catch {
+      this.emit("retrieval.index.error", capture, {});
+    }
   }
 
   /**
@@ -536,6 +566,7 @@ export class DonnaPipeline implements CoreLoop {
       ...(output.task !== undefined ? { task: output.task } : {}),
       provenance,
       versions,
+      createdAt: new Date().toISOString(),
     };
   }
 

@@ -53,6 +53,13 @@
  *                                              (durable persistence needs a
  *                                              separate `consent grant
  *                                              emotion.persist`)
+ *   donna items --bucket <name>                list one bucket's contents
+ *   donna search <text> [filters]              deterministic local retrieval
+ *                                              (full-text; --semantic adds
+ *                                              vector similarity via the
+ *                                              configured embedder)
+ *   donna reindex                              rebuild the retrieval index
+ *                                              from the source-of-truth store
  *
  * This is the internal demo surface: one command turns a messy voice memo
  * into organized, bucketed, provenance-linked thoughts.
@@ -80,6 +87,7 @@ import {
   FileCaptureStore,
   FileTranscriptStore,
 } from "@donna/pipeline";
+import { LocalRetrievalIndex } from "@donna/retrieval";
 import {
   AudioKeyError,
   CaptureLifecycleService,
@@ -136,6 +144,10 @@ const USAGE = `usage:
   donna corrections replay [--user <id>]
   donna corrections stats [--user <id>]
   donna corrections promote <id> [--user <id>]
+  donna items --bucket <name> [--user <id>]
+  donna search <text> [--bucket <name>] [--from <iso>] [--to <iso>]
+       [--task] [--person <name>] [--semantic] [--limit <n>] [--user <id>]
+  donna reindex [--user <id>]
   donna session start [--ttl-sec <n>] [--user <id>]
   donna session end <session-id> [--user <id>]
   donna session list [--user <id>]
@@ -206,12 +218,27 @@ async function buildCorrectionService(): Promise<CorrectionService> {
   });
 }
 
+/**
+ * The deterministic local retrieval index (Spec 3.1): a rebuildable
+ * projection over the bucket store, with memory links indexed from the
+ * memory store.
+ */
+function buildRetrievalIndex(): LocalRetrievalIndex {
+  const dir = dataDir();
+  return new LocalRetrievalIndex({
+    dataDir: dir,
+    store: new FileBucketStore(dir),
+    memories: new FileMemoryStore(dir),
+  });
+}
+
 function buildLifecycle(): {
   lifecycle: CaptureLifecycleService;
   retention: RetentionService;
 } {
   const dir = dataDir();
   const memory = buildMemoryService();
+  const retrieval = buildRetrievalIndex();
   const deps = {
     audio: buildAudioStore(),
     captures: new FileCaptureStore(dir),
@@ -233,6 +260,17 @@ function buildLifecycle(): {
             { tenantId, userId },
             { kind: "capture", id: captureId, captureId },
           );
+        },
+      },
+      // Spec 3.1 FR-4: deleted records disappear from search.
+      {
+        name: "retrieval-index",
+        deleteForCapture: async (
+          tenantId: string,
+          userId: string,
+          captureId: string,
+        ) => {
+          await retrieval.removeCapture(tenantId, userId, captureId);
         },
       },
     ],
@@ -306,6 +344,8 @@ async function buildPipeline(): Promise<{ pipeline: DonnaPipeline; store: FileBu
     // Spec 2.4: tentative session emotion/intent context (session-scoped,
     // user-correctable, never durable without explicit opt-in).
     emotionalContext: buildEmotionService(),
+    // Spec 3.1: placed items are indexed for retrieval as they persist.
+    retrievalIndex: buildRetrievalIndex(),
     events: consoleEvents,
   });
   return { pipeline, store };
@@ -430,6 +470,125 @@ async function main(): Promise<void> {
     }
     for (const b of buckets) {
       console.log(`• ${b.name} (${b.itemCount} items, ${b.origin}) — ${b.description}`);
+    }
+    return;
+  }
+
+  if (command === "items") {
+    const bucketName = arg("--bucket");
+    if (!bucketName) {
+      console.error("usage: donna items --bucket <name> [--user <id>]");
+      process.exit(1);
+    }
+    const store = new FileBucketStore(dataDir());
+    const bucket = await store.getBucketByName(tenantId, userId, bucketName);
+    if (bucket === undefined) {
+      console.error(`No bucket "${bucketName}" in this scope (see: donna buckets).`);
+      process.exit(1);
+    }
+    const items = await store.listItemsByBucket(tenantId, userId, bucket.id);
+    if (items.length === 0) {
+      console.log(`Bucket "${bucket.name}" is empty.`);
+      return;
+    }
+    console.log(`${bucket.name} — ${items.length} item(s):`);
+    for (const item of items) {
+      const task = item.thought.task ? " [task]" : "";
+      console.log(`• ${item.thought.id}${task} ${item.thought.summary}`);
+      console.log(
+        `    ↳ source: capture ${item.thought.provenance.captureId}, ` +
+          `${item.thought.provenance.startSec.toFixed(1)}–${item.thought.provenance.endSec.toFixed(1)}s, ` +
+          `segments ${item.thought.provenance.segmentIds.join(", ")}`,
+      );
+    }
+    return;
+  }
+
+  if (command === "search" || command === "reindex") {
+    const index = buildRetrievalIndex();
+    if (command === "reindex") {
+      const result = await index.rebuild(tenantId, userId);
+      console.log(
+        `Rebuilt the retrieval index from the source-of-truth store: ${result.indexed} item(s) indexed.`,
+      );
+      return;
+    }
+
+    const text = process.argv[3];
+    if (!text || text.startsWith("--")) {
+      console.error(
+        "usage: donna search <text> [--bucket <name>] [--from <iso>] [--to <iso>] [--task] [--person <name>] [--semantic] [--limit <n>] [--user <id>]",
+      );
+      process.exit(1);
+    }
+
+    const filters: NonNullable<Parameters<typeof index.search>[0]["filters"]> = {};
+    const bucketName = arg("--bucket");
+    if (bucketName !== undefined) {
+      const store = new FileBucketStore(dataDir());
+      const bucket = await store.getBucketByName(tenantId, userId, bucketName);
+      if (bucket === undefined) {
+        console.error(`No bucket "${bucketName}" in this scope (see: donna buckets).`);
+        process.exit(1);
+      }
+      filters.bucketIds = [bucket.id];
+    }
+    const from = arg("--from");
+    const to = arg("--to");
+    if (from !== undefined) filters.createdFrom = from;
+    if (to !== undefined) filters.createdTo = to;
+    if (process.argv.includes("--task")) filters.hasTask = true;
+    const person = arg("--person");
+    if (person !== undefined) filters.people = [person];
+    const limitArg = arg("--limit");
+    const limit = limitArg !== undefined ? Number(limitArg) : undefined;
+
+    // --semantic: embed the query with the configured embedder so cosine
+    // similarity over the stored thought embeddings joins the ranking.
+    let embedding: number[] | undefined;
+    if (process.argv.includes("--semantic")) {
+      try {
+        const config = await loadModelsConfig(
+          resolve(repoRoot, process.env.DONNA_MODELS_CONFIG ?? "models.config.yaml"),
+        );
+        const embedder = resolveStack(gatewayFromEnv(), config).embedder;
+        [embedding] = await embedder.embed([text]);
+      } catch (error) {
+        console.error(
+          `Cannot embed the query (--semantic needs live gateway credentials): ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+        process.exit(1);
+      }
+    }
+
+    const started = Date.now();
+    const hits = await index.search({
+      tenantId,
+      userId,
+      text,
+      ...(embedding !== undefined ? { embedding } : {}),
+      ...(Object.keys(filters).length > 0 ? { filters } : {}),
+      ...(limit !== undefined ? { limit } : {}),
+    });
+    // SR-2: search logs carry timing and counts, never query/result text.
+    console.error(`[telemetry] retrieval.search ms=${Date.now() - started} hits=${hits.length}`);
+
+    if (hits.length === 0) {
+      console.log("No matching thoughts.");
+      return;
+    }
+    for (const hit of hits) {
+      const p = hit.thought.provenance;
+      console.log(
+        `• [${hit.bucketName}] ${hit.thought.summary}  (score ${hit.scores.combined.toFixed(3)}: text ${hit.scores.text.toFixed(3)}, semantic ${hit.scores.semantic.toFixed(3)})`,
+      );
+      console.log(`    thought ${hit.thought.id} · captured in ${p.captureId}`);
+      console.log(
+        `    ↳ provenance: segments ${p.segmentIds.join(", ")}, audio ${p.startSec.toFixed(1)}–${p.endSec.toFixed(1)}s`,
+      );
+      console.log(`    ↳ source: "${p.sourceText}"`);
     }
     return;
   }

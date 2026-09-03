@@ -15,6 +15,7 @@ import type {
   Embedder,
   OrganizeOutput,
   Organizer,
+  RetrievalIndex,
   Thought,
   Transcriber,
   Transcript,
@@ -94,6 +95,25 @@ class MemStores implements CaptureStore, TranscriptStore, BucketStore {
   }
   async listItems() {
     return this.items;
+  }
+  async getItem(_t: string, _u: string, thoughtId: string) {
+    return this.items.find((item) => item.thought.id === thoughtId);
+  }
+  async listItemsByBucket(_t: string, _u: string, bucketId: string) {
+    return this.items.filter((item) => item.bucketId === bucketId);
+  }
+  async listItemsInRange(
+    _t: string,
+    _u: string,
+    range: { from?: string; to?: string },
+  ) {
+    return this.items.filter((item) => {
+      const createdAt = item.thought.createdAt;
+      if (createdAt === undefined) return false;
+      if (range.from !== undefined && createdAt < range.from) return false;
+      if (range.to !== undefined && createdAt > range.to) return false;
+      return true;
+    });
   }
   async deleteItemsForCapture(_t: string, _u: string, captureId: string) {
     const before = this.items.length;
@@ -528,5 +548,89 @@ describe("DonnaPipeline persistence and provenance (Spec 1.2)", () => {
       },
       { defaultOutputs: [crossCapture], escalationOutputs: [crossCapture] },
     );
+  });
+});
+
+describe("DonnaPipeline retrieval indexing (Spec 3.1)", () => {
+  function stubIndex(state: {
+    indexed: Array<{ thoughtId: string; bucketId: string }>;
+    fail?: boolean;
+  }): RetrievalIndex {
+    return {
+      indexItem: async (item, bucket) => {
+        if (state.fail === true) throw new Error("index unavailable");
+        state.indexed.push({ thoughtId: item.thought.id, bucketId: bucket.id });
+      },
+      removeThought: async () => false,
+      removeCapture: async () => ({ removed: 0 }),
+      search: async () => [],
+      rebuild: async () => ({ indexed: 0 }),
+    };
+  }
+
+  it("indexes every placed item as it is persisted", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "donna-run-"));
+    try {
+      const stores = new MemStores();
+      const state = { indexed: [] as Array<{ thoughtId: string; bucketId: string }> };
+      const pipeline = new DonnaPipeline({
+        transcriber: stubTranscriber(),
+        organizer: organizerReturning([validOutput()]),
+        embedder: stubEmbedder(),
+        store: stores,
+        captures: stores,
+        transcripts: stores,
+        bucketTuning: TUNING,
+        retrievalIndex: stubIndex(state),
+      });
+      const capture = await makeCapture(dir);
+      const result = await pipeline.run(capture);
+      assert.equal(state.indexed.length, result.items.length);
+      for (const item of result.items) {
+        assert.ok(
+          state.indexed.some(
+            (entry) =>
+              entry.thoughtId === item.thought.id &&
+              entry.bucketId === item.bucket.id,
+          ),
+        );
+      }
+      // Thoughts carry a creation time for time-filtered reads.
+      for (const { thought } of stores.items) {
+        assert.ok(thought.createdAt !== undefined);
+      }
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("an index failure degrades without breaking the core loop", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "donna-run-"));
+    try {
+      const stores = new MemStores();
+      const events: string[] = [];
+      const pipeline = new DonnaPipeline({
+        transcriber: stubTranscriber(),
+        organizer: organizerReturning([validOutput()]),
+        embedder: stubEmbedder(),
+        store: stores,
+        captures: stores,
+        transcripts: stores,
+        bucketTuning: TUNING,
+        retrievalIndex: stubIndex({ indexed: [], fail: true }),
+        events: {
+          emit: (e) => {
+            events.push(e.name);
+          },
+        },
+      });
+      const capture = await makeCapture(dir);
+      const result = await pipeline.run(capture);
+      assert.equal(result.items.length, 2);
+      assert.equal(stores.items.length, 2);
+      assert.ok(events.includes("retrieval.index.error"));
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });

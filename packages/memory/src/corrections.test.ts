@@ -54,6 +54,36 @@ class MemBucketStore implements BucketStore {
       (item) => item.thought.tenantId === t && item.thought.userId === u,
     );
   }
+  async getItem(t: string, u: string, thoughtId: string) {
+    return this.items.find(
+      (item) =>
+        item.thought.tenantId === t &&
+        item.thought.userId === u &&
+        item.thought.id === thoughtId,
+    );
+  }
+  async listItemsByBucket(t: string, u: string, bucketId: string) {
+    return this.items.filter(
+      (item) =>
+        item.thought.tenantId === t &&
+        item.thought.userId === u &&
+        item.bucketId === bucketId,
+    );
+  }
+  async listItemsInRange(
+    t: string,
+    u: string,
+    range: { from?: string; to?: string },
+  ) {
+    return this.items.filter((item) => {
+      if (item.thought.tenantId !== t || item.thought.userId !== u) return false;
+      const createdAt = item.thought.createdAt;
+      if (createdAt === undefined) return false;
+      if (range.from !== undefined && createdAt < range.from) return false;
+      if (range.to !== undefined && createdAt > range.to) return false;
+      return true;
+    });
+  }
   async deleteItemsForCapture() {
     return { removed: 0 };
   }

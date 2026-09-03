@@ -15,6 +15,7 @@
     "@donna/pipeline": "*",
     "@donna/privacy": "*",
     "@donna/providers": "*",
+    "@donna/retrieval": "*",
     "dotenv": "^17.4.2"
   },
   "devDependencies": {
