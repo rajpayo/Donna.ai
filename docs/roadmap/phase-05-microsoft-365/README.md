@@ -1,6 +1,6 @@
 # Phase 5 — Microsoft 365 grounding and destinations
 
-Status: `in-review` (all four specifications implemented and verified;
+Status: `accepted` (product owner, 2026-09-03)
 awaiting product-owner examination — only the product owner accepts)
 
 > Product-owner directive (2026-09-03): the REVISED Specifications 5.1, 5.2,
@@ -44,7 +44,7 @@ content and trusted instructions.
 
 ### Specification 5.1 — Managed-MCP identity, consent, and connection boundary
 
-Status: `in-review` (approved by product owner 2026-09-03)
+Status: `accepted` (product owner, 2026-09-03)
 
 Depends on: Phase 4 accepted
 
@@ -195,7 +195,7 @@ until accepted.
 
 ### Specification 5.2 — Scoped Microsoft 365 read context
 
-Status: `in-review` (approved by product owner 2026-09-03)
+Status: `accepted` (product owner, 2026-09-03)
 
 Depends on: Specification 5.1 accepted
 
@@ -338,7 +338,7 @@ followed by revocation. Do not start Specification 5.3 until accepted.
 
 ### Specification 5.3 — OneDrive Markdown destination adapter (OneNote deferred)
 
-Status: `in-review` (approved by product owner 2026-09-03)
+Status: `accepted` (product owner, 2026-09-03)
 
 Depends on: Specification 5.2 accepted
 
@@ -480,7 +480,7 @@ cycle live against OneDrive. Do not start Specification 5.4 until accepted.
 
 ### Specification 5.4 — Approval-ready Microsoft action drafts
 
-Status: `in-review` (approved by product owner 2026-09-03)
+Status: `accepted` (product owner, 2026-09-03)
 
 Depends on: Specification 5.3 accepted
 
