@@ -71,6 +71,7 @@ context:
   max_memories: 12          # confirmed-memory element cap
   max_bucket_summaries: 10  # bucket-summary element cap
   max_correction_examples: 3  # personalized correction examples (Spec 2.3)
+  max_external_snippets: 6  # external M365 snippet cap per packet (Spec 5.2)
 
 # Hybrid retrieval ranking (Spec 3.3) — versioned, explainable features and
 # weights. Every query result can report exactly why it ranked (FR-3).

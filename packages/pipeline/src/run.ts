@@ -418,7 +418,12 @@ export class DonnaPipeline implements CoreLoop {
     try {
       const packet = await assembler.assemble(
         { tenantId: capture.tenantId, userId: capture.userId },
-        { text: transcriptText, excludeCaptureId: capture.id },
+        {
+          text: transcriptText,
+          excludeCaptureId: capture.id,
+          // Spec 5.2: anchors the consent-gated M365 calendar window.
+          capturedAt: capture.capturedAt,
+        },
       );
       this.emit("context.assembled", capture, {
         packetId: packet.id,

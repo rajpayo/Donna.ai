@@ -17,6 +17,7 @@ const BUDGETS = {
   maxMemories: 12,
   maxBucketSummaries: 10,
   maxCorrectionExamples: 3,
+      maxExternalSnippets: 6,
 };
 
 function packet(elements: ContextPacket["elements"]): ContextPacket {

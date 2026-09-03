@@ -46,6 +46,8 @@ const configSchema = z.object({
       max_memories: z.number().int().nonnegative(),
       max_bucket_summaries: z.number().int().nonnegative(),
       max_correction_examples: z.number().int().nonnegative(),
+      // Spec 5.2: cap on external M365 context snippets per packet.
+      max_external_snippets: z.number().int().nonnegative(),
     })
     .default({
       max_tokens: 1200,
@@ -54,6 +56,7 @@ const configSchema = z.object({
       max_memories: 12,
       max_bucket_summaries: 10,
       max_correction_examples: 3,
+      max_external_snippets: 6,
     })
     .transform((c) => ({
       maxTokens: c.max_tokens,
@@ -62,6 +65,7 @@ const configSchema = z.object({
       maxMemories: c.max_memories,
       maxBucketSummaries: c.max_bucket_summaries,
       maxCorrectionExamples: c.max_correction_examples,
+      maxExternalSnippets: c.max_external_snippets,
     })),
   // Spec 3.3: hybrid retrieval ranking — versioned features/weights,
   // tunable here, never in code.

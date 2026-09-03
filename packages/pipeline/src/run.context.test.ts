@@ -177,6 +177,7 @@ function packet(): ContextPacket {
       maxMemories: 12,
       maxBucketSummaries: 10,
       maxCorrectionExamples: 3,
+      maxExternalSnippets: 6,
     },
     totals: { tokens: 17, items: 2, truncated: 0 },
   };

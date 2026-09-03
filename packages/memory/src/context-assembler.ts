@@ -32,6 +32,7 @@ import type {
   ContextAssembler as ContextAssemblerPort,
   CorrectionEvent,
   Embedder,
+  ExternalContextCollector,
   TranscriptStore,
 } from "@donna/core";
 import { MemoryService, type Scope } from "./service.js";
@@ -41,6 +42,13 @@ export interface ContextAssemblerDeps {
   buckets: BucketStore;
   captures: CaptureStore;
   transcripts: TranscriptStore;
+  /**
+   * Spec 5.2: external untrusted context (M365 snippets). Optional —
+   * omitting it produces packets without external context. Snippets are
+   * always rendered in the untrusted-retrieved section, scope-checked,
+   * TTL-checked, and capped by budgets.maxExternalSnippets.
+   */
+  externalContext?: ExternalContextCollector;
   /**
    * Spec 2.3: accepted corrections for this scope, injected as a bounded
    * set of relevant personalized examples. Optional — omitting it simply
@@ -106,7 +114,7 @@ export class ContextAssembler implements ContextAssemblerPort {
 
   async assemble(
     scope: Scope,
-    query: { text: string; excludeCaptureId?: string },
+    query: { text: string; excludeCaptureId?: string; capturedAt?: string },
   ): Promise<ContextPacket> {
     const degradedReasons: string[] = [];
     const candidates: Candidate[] = [];
@@ -235,6 +243,54 @@ export class ContextAssembler implements ContextAssemblerPort {
         }
       } catch {
         degradedReasons.push("corrections-unavailable");
+      }
+    }
+
+    // --- external M365 snippets (Spec 5.2, always untrusted) ---
+    if (this.deps.externalContext !== undefined) {
+      try {
+        const { snippets, degraded } = await this.deps.externalContext.collect(
+          scope,
+          {
+            text: query.text,
+            ...(query.capturedAt !== undefined
+              ? { capturedAt: query.capturedAt }
+              : {}),
+          },
+        );
+        degradedReasons.push(...degraded);
+        const nowIso = this.deps.now().toISOString();
+        let snippetCount = 0;
+        for (const snippet of snippets) {
+          if (snippetCount >= this.deps.budgets.maxExternalSnippets) break;
+          // SR-2 defense in depth: a snippet scoped to another partition,
+          // or past its TTL, is never served — even if the source erred.
+          if (
+            snippet.tenantId !== scope.tenantId ||
+            snippet.userId !== scope.userId ||
+            snippet.expiresAt <= nowIso
+          ) {
+            continue;
+          }
+          snippetCount += 1;
+          // Attribution travels with the element: every snippet line names
+          // its resource type and source ID (AC-4).
+          const text = `[M365 ${snippet.source.resourceType} ${snippet.id}] ${snippet.excerpt}`;
+          candidates.push({
+            sourceId: snippet.id,
+            sourceKind: "m365-snippet",
+            trust: "untrusted-retrieved",
+            text,
+            asOf: snippet.fetchedAt,
+            tokens: estimateTokens(text),
+            // Explicitly selected / window-matched resources are strong
+            // relevance signals — ranked with bucket summaries.
+            priorityClass: 1,
+            score: relevanceScore(query.text, snippet.excerpt),
+          });
+        }
+      } catch {
+        degradedReasons.push("external-context-unavailable");
       }
     }
 

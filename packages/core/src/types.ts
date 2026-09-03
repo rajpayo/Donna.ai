@@ -429,9 +429,9 @@ export type ContextTrust = "trusted-user-settings" | "untrusted-retrieved";
  * exactly what influenced an organize request (AC-5).
  */
 export interface ContextElement {
-  /** Stable source identifier (memory ID, bucket ID, capture ID, correction ID). */
+  /** Stable source identifier (memory ID, bucket ID, capture ID, correction ID, snippet ID). */
   sourceId: string;
-  sourceKind: "memory" | "bucket" | "capture" | "correction";
+  sourceKind: "memory" | "bucket" | "capture" | "correction" | "m365-snippet";
   trust: ContextTrust;
   /** The rendered text of the element. */
   text: string;
@@ -463,6 +463,8 @@ export interface ContextBudgets {
   maxBucketSummaries: number;
   /** Cap on personalized correction examples (Spec 2.3). */
   maxCorrectionExamples: number;
+  /** Cap on external (M365) context snippets (Spec 5.2). */
+  maxExternalSnippets: number;
 }
 
 /**

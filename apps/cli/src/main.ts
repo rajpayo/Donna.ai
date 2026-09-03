@@ -113,9 +113,17 @@ import {
 import {
   checkM365Connection,
   disconnectM365,
+  inspectM365McpEnv,
   M365_IDENTITY_NOTE,
+  M365ContextSource,
   m365EndpointFromEnv,
+  m365McpEnvProblems,
+  m365ReadOnlyClient,
+  m365SelectionPlan,
+  M365SelectionStore,
+  M365SnippetCache,
   parseM365Endpoint,
+  type M365SelectionType,
 } from "@donna/integrations-m365";
 import { M365_CONSENT_PURPOSES } from "@donna/core";
 import { config as loadEnv } from "dotenv";
@@ -192,7 +200,15 @@ const USAGE = `usage:
   donna m365 connect-info [--user <id>]  identity model + Donna-side
                                              consent state per source type
   donna m365 disconnect [--user <id>]    revoke all m365.* consents and
-                                             purge cached source snippets`;
+                                             purge cached source snippets
+  donna m365 select <email|event|teams-chat|teams-channel|file|sharepoint> <id>
+                                         explicitly select one resource as
+                                             context (needs the matching
+                                             m365.read.* consent)
+  donna m365 selected [--user <id>]      list selected resources
+  donna m365 unselect <id> [--user <id>] remove a selection
+  donna m365 snippets [--user <id>]      cached context snippets (IDs,
+                                             source, TTL — never content)`;
 
 function dataDir(): string {
   return resolve(repoRoot, process.env.DONNA_DATA_DIR ?? "data");
@@ -427,6 +443,28 @@ function arg(flag: string): string | undefined {
   return i >= 0 ? process.argv[i + 1] : undefined;
 }
 
+/**
+ * The Spec 5.2 context source, or undefined when the managed MCP is not
+ * configured (missing credential/endpoint) — organization then proceeds
+ * without external context. Reads are consent-gated per call, so wiring
+ * is unconditional once credentials exist.
+ */
+function buildM365ContextSource(): M365ContextSource | undefined {
+  try {
+    if (m365McpEnvProblems(inspectM365McpEnv()).length > 0) return undefined;
+    return new M365ContextSource({
+      connection: m365ReadOnlyClient({
+        endpointUrl: m365EndpointFromEnv(),
+        apiKey: process.env.TRUEFOUNDRY_API_KEY!,
+      }),
+      consents: buildMemoryService(),
+      dataDir: dataDir(),
+    });
+  } catch {
+    return undefined;
+  }
+}
+
 async function buildPipeline(): Promise<{ pipeline: DonnaPipeline; store: FileBucketStore }> {
   const configPath = resolve(
     repoRoot,
@@ -436,6 +474,7 @@ async function buildPipeline(): Promise<{ pipeline: DonnaPipeline; store: FileBu
   const config = await loadModelsConfig(configPath);
   const stack = resolveStack(gatewayFromEnv(), config);
   const store = new FileBucketStore(dir);
+  const m365Context = buildM365ContextSource();
   const captures = new FileCaptureStore(dir);
   const transcripts = new FileTranscriptStore(dir);
   const corrections = new CorrectionService({
@@ -472,6 +511,10 @@ async function buildPipeline(): Promise<{ pipeline: DonnaPipeline; store: FileBu
       transcripts,
       corrections,
       budgets: stack.contextBudgets,
+      // Spec 5.2: consent-gated M365 snippets in the untrusted section.
+      // Without MCP credentials the source is omitted entirely and
+      // organization proceeds unchanged.
+      ...(m365Context !== undefined ? { externalContext: m365Context } : {}),
       // Spec 3.3: semantic correction-example selection — without the
       // embedder the assembler silently falls back to keyword overlap and
       // paraphrased captures never surface the user's corrections.
@@ -1678,6 +1721,102 @@ async function main(): Promise<void> {
           `; cached source snippets ${result.purgedCache ? "purged" : "none cached"}.`,
       );
       console.log("Donna will make no further Microsoft 365 calls until you re-grant consent.");
+      return;
+    }
+
+    if (sub === "select") {
+      // Spec 5.2: only explicitly selected resources are ever fetched.
+      // Selection itself requires the matching Donna-side consent grant.
+      const typeArg = process.argv[4];
+      const resourceId = process.argv[5];
+      const typeMap: Record<string, M365SelectionType> = {
+        email: "email",
+        event: "calendar-event",
+        "teams-chat": "teams-chat",
+        "teams-channel": "teams-channel",
+        file: "file",
+        sharepoint: "sharepoint-item",
+      };
+      const type = typeArg !== undefined ? typeMap[typeArg] : undefined;
+      if (type === undefined || resourceId === undefined || resourceId.startsWith("--")) {
+        console.error(
+          "usage: donna m365 select <email|event|teams-chat|teams-channel|file|sharepoint> <id> [--user <id>]",
+        );
+        process.exit(1);
+      }
+      let plan;
+      try {
+        plan = m365SelectionPlan(type, resourceId);
+      } catch (error) {
+        console.error(error instanceof Error ? error.message : String(error));
+        process.exit(1);
+      }
+      const memory = buildMemoryService();
+      if (!(await memory.hasConsent(scope, plan.consentPurpose))) {
+        console.error(
+          `Cannot select — this needs an active Donna-side consent: donna consent grant ${plan.consentPurpose}`,
+        );
+        process.exit(1);
+      }
+      const selection = await new M365SelectionStore(dataDir()).select(
+        scope,
+        type,
+        resourceId,
+      );
+      console.log(
+        `Selected ${selection.type} ${selection.resourceId} (consent ${selection.consentPurpose}; fetched via ${selection.fetch.tool}). ` +
+          `It joins capture context on the next capture. Undo: donna m365 unselect ${selection.resourceId}`,
+      );
+      return;
+    }
+
+    if (sub === "selected") {
+      const selections = await new M365SelectionStore(dataDir()).list(scope);
+      if (selections.length === 0) {
+        console.log("No Microsoft 365 resources selected. Calendar context (consent-gated) still applies per capture window.");
+        return;
+      }
+      const memory = buildMemoryService();
+      for (const s of selections) {
+        const consent = (await memory.hasConsent(scope, s.consentPurpose))
+          ? "consent active"
+          : "CONSENT REVOKED — not read";
+        console.log(`• ${s.type} ${s.resourceId} — selected ${s.selectedAt}, ${consent}`);
+      }
+      return;
+    }
+
+    if (sub === "unselect") {
+      const resourceId = process.argv[4];
+      if (resourceId === undefined || resourceId.startsWith("--")) {
+        console.error("usage: donna m365 unselect <id> [--user <id>]");
+        process.exit(1);
+      }
+      const removed = await new M365SelectionStore(dataDir()).unselect(scope, resourceId);
+      console.log(
+        removed
+          ? `Unselected ${resourceId}. It will not be fetched again; cached snippets expire with their TTL.`
+          : `No selection for ${resourceId} in this scope.`,
+      );
+      return;
+    }
+
+    if (sub === "snippets") {
+      // Visibility (FR-2): identifiers, source, and TTL only — excerpts
+      // (Microsoft content) are never printed here.
+      const snippets = await new M365SnippetCache(dataDir()).list(scope);
+      if (snippets.length === 0) {
+        console.log("No cached snippets. Snippets appear after a capture reads consented M365 context and expire with their TTL.");
+        return;
+      }
+      for (const s of snippets) {
+        console.log(
+          `• ${s.id} — ${s.source.resourceType} ${s.source.resourceId} via ${s.source.tool}`,
+        );
+        console.log(
+          `    ↳ consent ${s.consentPurpose}; fetched ${s.fetchedAt}; expires ${s.expiresAt}; excerpt ${s.excerpt.length} chars`,
+        );
+      }
       return;
     }
 

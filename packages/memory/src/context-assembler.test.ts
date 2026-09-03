@@ -27,6 +27,7 @@ const BUDGETS: ContextBudgets = {
   maxMemories: 12,
   maxBucketSummaries: 10,
   maxCorrectionExamples: 3,
+      maxExternalSnippets: 6,
 };
 
 class StubBucketStore implements BucketStore {

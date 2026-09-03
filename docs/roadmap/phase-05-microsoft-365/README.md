@@ -194,9 +194,85 @@ until accepted.
 
 ### Specification 5.2 — Scoped Microsoft 365 read context
 
-Status: `draft`
+Status: `in-review` (approved by product owner 2026-09-03)
 
 Depends on: Specification 5.1 accepted
+
+> Implementation evidence (2026-09-03, implementation worker):
+>
+> - **ContextSource adapter** (`packages/integrations-m365/src/context-source.ts`):
+>   `M365ContextSource` implements the core `ContextSource` and
+>   `ExternalContextCollector` ports over the read-only MCP connection.
+>   Calendar context comes from a consent-gated `list_events` call
+>   filtered to the capture window client-side (the managed MCP exposes
+>   no window parameters — verified in its inputSchema; defaults −4h/+12h,
+>   top 25 pre-filter). Selected resources fetch by ID via the selection's
+>   recorded fetch plan (get_email / get_event / get_file / get_item /
+>   get_chat_messages / get_channel_messages). Per-selection and
+>   per-calendar failure domains degrade to machine-readable tokens
+>   (FR-4).
+> - **Normalization** (`src/snippets.ts`): Graph-shaped payloads → minimal
+>   `ContextSnippet` records (deterministic ID `m365-<type>-<hash>`,
+>   source URI/ID, owner hint, tool, consent purpose, ISO source
+>   timestamp, fetched/expires). Excerpts capped at 280 chars (SR-3);
+>   Graph no-zone dateTimes re-parsed to canonical ISO so window
+>   comparisons are reliable; HTML stripped from Teams bodies.
+> - **Selection registry** (`src/selections.ts`): scoped
+>   `selections.json`; selection requires the matching active Donna-side
+>   consent at selection time; composite IDs for teams-channel
+>   (`team/channel`) and sharepoint (`site/list/item`) validated;
+>   re-selection is idempotent.
+> - **TTL cache** (`src/snippet-cache.ts`): scoped per-snippet files
+>   (15-minute default TTL) + per-thread selection markers; cache-first
+>   reads; embedded scope re-verified on read (a planted cross-scope
+>   entry is evicted, never served); expiry evicts; source deletion
+>   (isError) evicts on next fetch (FR-3). `m365 disconnect` purges the
+>   whole partition.
+> - **Assembler trust boundary** (`packages/memory/src/context-assembler.ts`):
+>   optional `ExternalContextCollector` dep; snippets render only as
+>   `untrusted-retrieved` `m365-snippet` elements with attribution
+>   (`[M365 <type> <snippet-id>] …`), scope- and TTL-re-checked before
+>   inclusion, capped by the new `max_external_snippets` budget (default
+>   6, set in models.config.yaml — never code). Degraded tokens merge
+>   into the packet's degradedReasons. The organizer prompt's existing
+>   trust-separated sections carry them as data (organize-prompt v2
+>   unchanged).
+> - **Pipeline** (`packages/pipeline/src/run.ts`): `capturedAt` anchors
+>   the calendar window in the assemble query.
+> - **CLI**: `m365 select <email|event|teams-chat|teams-channel|file|
+>   sharepoint> <id>` (consent-gated), `m365 selected` (shows consent
+>   state), `m365 unselect <id>`, `m365 snippets` (IDs, tool, consent,
+>   TTL, excerpt length — never content). The capture pipeline wires the
+>   source only when MCP credentials are configured.
+> - **Live verification (2026-09-03, real managed MCP, scratch user
+>   `m365-spec52-probe`):** granted `m365.read.calendar` + `m365.read.mail`;
+>   selected one real calendar event and one real email (IDs only). A
+>   generated voice note (espeak-ng) captured through the live loop:
+>   context packet carried exactly the 2 selected M365 snippet IDs
+>   (`m365-email-…`, `m365-calendar-event-…`) — AC-1. `m365 snippets`
+>   showed both cached with 15-min TTLs. After `consent revoke
+>   m365.read.mail`, a second capture's packet excluded the email snippet
+>   and reported degraded (mail selection not consented); `m365 selected`
+>   showed "CONSENT REVOKED — not read" — AC-2/AC-3. No Microsoft content
+>   was printed in any evidence (IDs/counts/stages only).
+> - **Tests: 19 new (388 total green with Postgres live, typecheck
+>   clean).** Coverage: per-type normalization (fields, capping, HTML
+>   strip, ISO normalization, fail-closed on unparseable), consent denial
+>   with zero MCP calls, unselected-never-fetched (AC-2), window
+>   filtering, TTL cache hit/refetch, revocation cache-bypass (AC-3),
+>   source-deletion eviction, independent degradation (FR-4),
+>   prompt-injection confinement (injected excerpt stays inert data; no
+>   consent/capability change), cross-scope cache refusal (SR-2),
+>   malformed composite IDs; assembler: untrusted-section rendering with
+>   attribution (AC-4), cross-scope/expired drop, budget cap, degraded
+>   merge, injection-invariance.
+> - **Known limitations:** calendar context refetches the top-N event list
+>   per capture (window filter is client-side — the MCP has no window
+>   parameters); the per-event snippet cache dedupes storage, not the
+>   list call. Teams selection is thread-level (chat/channel), not
+>   single-message — the managed MCP exposes no get-message tool.
+>
+> Awaiting product-owner examination for acceptance.
 
 #### Outcome
 

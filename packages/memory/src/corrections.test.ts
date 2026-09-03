@@ -779,6 +779,7 @@ describe("personalized examples in context assembly (FR-4)", () => {
     maxMemories: 12,
     maxBucketSummaries: 10,
     maxCorrectionExamples: 3,
+      maxExternalSnippets: 6,
   };
 
   it("injects bounded relevant accepted corrections as untrusted examples", async () => {

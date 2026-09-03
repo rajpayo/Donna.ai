@@ -91,6 +91,12 @@ export interface ContextAssembler {
       text: string;
       /** The capture being organized — excluded from recent-capture context. */
       excludeCaptureId?: string;
+      /**
+       * ISO 8601 capture time (Spec 5.2): anchors the calendar context
+       * window for external context sources. Omitted ⇒ no windowed
+       * calendar fetch.
+       */
+      capturedAt?: string;
     },
   ): Promise<ContextPacket>;
 }
@@ -599,9 +605,11 @@ export interface ContextSource {
   /** Stable source kind, e.g. "m365". */
   readonly kind: string;
   /**
-   * Fetch minimized snippets for the explicitly requested resources.
-   * Implementations must apply ACL/scope checks and TTL caching, and must
-   * degrade independently per resource type (SR-2, FR-4).
+   * Fetch minimized snippets for explicitly requested resources or a
+   * calendar time window. Implementations must check the Donna-side
+   * consent grant BEFORE any external call, apply ACL/scope checks and
+   * TTL caching, and degrade independently per resource type
+   * (FR-2/FR-4, SR-2).
    */
   fetchSnippets(
     scope: { tenantId: string; userId: string },
@@ -609,7 +617,27 @@ export interface ContextSource {
       /** The consent purpose authorizing this read. */
       consentPurpose: string;
       /** Stable resource identifiers the employee selected. */
-      resourceIds: string[];
+      resourceIds?: string[];
+      /** Calendar window (ISO 8601, inclusive) for event context. */
+      window?: { from: string; to: string };
     },
   ): Promise<ContextSnippet[]>;
+}
+
+/**
+ * Collects external untrusted context snippets for one capture
+ * (Specification 5.2). The ContextAssembler renders whatever it returns
+ * in the untrusted-retrieved section only; a failing source contributes
+ * machine-readable degraded reasons instead of snippets (FR-4), never an
+ * exception that breaks organization.
+ */
+export interface ExternalContextCollector {
+  collect(
+    scope: { tenantId: string; userId: string },
+    query: {
+      text: string;
+      /** ISO 8601 capture time; anchors the calendar window. */
+      capturedAt?: string;
+    },
+  ): Promise<{ snippets: ContextSnippet[]; degraded: string[] }>;
 }
