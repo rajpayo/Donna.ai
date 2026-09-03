@@ -116,12 +116,15 @@ import {
   inspectM365McpEnv,
   M365_IDENTITY_NOTE,
   M365ContextSource,
+  m365ApprovalPathClient,
   m365EndpointFromEnv,
   m365McpEnvProblems,
   m365ReadOnlyClient,
   m365SelectionPlan,
   M365SelectionStore,
   M365SnippetCache,
+  ONEDRIVE_DESTINATION_TOOLS,
+  OneDriveMarkdownDestination,
   parseM365Endpoint,
   type M365SelectionType,
 } from "@donna/integrations-m365";
@@ -208,7 +211,14 @@ const USAGE = `usage:
   donna m365 selected [--user <id>]      list selected resources
   donna m365 unselect <id> [--user <id>] remove a selection
   donna m365 snippets [--user <id>]      cached context snippets (IDs,
-                                             source, TTL — never content)`;
+                                             source, TTL — never content)
+  donna publish <bucket-name> [--show-content]
+                                         preview the OneDrive Markdown
+                                         publication for a bucket (no write)
+  donna publish <bucket-name> --approve  commit EXACTLY the pending preview
+                                             (needs m365.destination.onedrive
+                                             consent); byte-identical state
+                                             is a no-op`;
 
 function dataDir(): string {
   return resolve(repoRoot, process.env.DONNA_DATA_DIR ?? "data");
@@ -458,6 +468,31 @@ function buildM365ContextSource(): M365ContextSource | undefined {
         apiKey: process.env.TRUEFOUNDRY_API_KEY!,
       }),
       consents: buildMemoryService(),
+      dataDir: dataDir(),
+    });
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The Spec 5.3 OneDrive destination, or undefined when the managed MCP is
+ * not configured. Uses an approval-path client allowlisted to exactly the
+ * destination tools; every call is consent-gated per invocation.
+ */
+function buildOneDriveDestination(): OneDriveMarkdownDestination | undefined {
+  try {
+    if (m365McpEnvProblems(inspectM365McpEnv()).length > 0) return undefined;
+    return new OneDriveMarkdownDestination({
+      connection: m365ApprovalPathClient(
+        {
+          endpointUrl: m365EndpointFromEnv(),
+          apiKey: process.env.TRUEFOUNDRY_API_KEY!,
+        },
+        ONEDRIVE_DESTINATION_TOOLS,
+      ),
+      consents: buildMemoryService(),
+      buckets: new FileBucketStore(dataDir()),
       dataDir: dataDir(),
     });
   } catch {
@@ -1824,8 +1859,97 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  if (command === "publish") {
+    // Spec 5.3: preview → explicit --approve → commit. No auto-publish.
+    const bucketName = process.argv[3];
+    if (bucketName === undefined || bucketName.startsWith("--")) {
+      console.error("usage: donna publish <bucket-name> [--approve] [--show-content] [--user <id>]");
+      process.exit(1);
+    }
+    const destination = buildOneDriveDestination();
+    if (destination === undefined) {
+      console.error("The managed MCP is not configured (TRUEFOUNDRY_API_KEY / DONNA_M365_MCP_URL).");
+      process.exit(1);
+    }
+    const store = new FileBucketStore(dataDir());
+    const bucket = await store.getBucketByName(tenantId, userId, bucketName);
+    if (bucket === undefined) {
+      console.error(`No bucket "${bucketName}" in this scope (see: donna buckets).`);
+      process.exit(1);
+    }
+
+    if (!process.argv.includes("--approve")) {
+      // Preview only — nothing is written externally.
+      let preview;
+      try {
+        preview = await destination.preview(scope0(tenantId, userId), bucket.id);
+      } catch (error) {
+        console.error(error instanceof Error ? error.message : String(error));
+        process.exit(1);
+      }
+      await destination.savePendingPreview(scope0(tenantId, userId), bucket.id, preview);
+      const items = await store.listItemsByBucket(tenantId, userId, bucket.id);
+      console.log(`Preview: ${preview.target.folder}${preview.target.documentName}`);
+      console.log(`  ${items.length} item(s); content sha256 ${preview.contentHash.slice(0, 16)}… (${preview.content.length} bytes)`);
+      console.log(
+        preview.noOp
+          ? "  Remote already holds exactly this content — committing is a no-op."
+          : preview.existingHash !== undefined
+            ? `  Remote holds different content (${preview.existingHash.slice(0, 16)}…) — committing overwrites it in place.`
+            : "  No remote document yet — committing creates the folder/file as needed.",
+      );
+      const prior = await destination.state(scope0(tenantId, userId), bucket.id);
+      if (prior !== undefined) {
+        console.log(
+          `  Last published: ${prior.publishedAt ?? "unknown"} (item ${prior.itemId ?? "?"}, hash ${prior.contentHash?.slice(0, 16) ?? "?"}…${prior.link !== undefined ? ", organization link recorded" : ""})`,
+        );
+      }
+      if (process.argv.includes("--show-content")) {
+        console.log("\n--- rendered document ---\n" + preview.content + "--- end ---");
+      }
+      console.log(`\nTo publish exactly this, run: donna publish ${bucketName} --approve`);
+      return;
+    }
+
+    // Commit exactly the pending preview.
+    const pending = await destination.loadPendingPreview(scope0(tenantId, userId), bucket.id);
+    if (pending === undefined) {
+      console.error(`No pending preview for "${bucketName}". Run: donna publish ${bucketName}`);
+      process.exit(1);
+    }
+    try {
+      const commit = await destination.commit(scope0(tenantId, userId), pending.preview);
+      await destination.recordCommit(
+        scope0(tenantId, userId),
+        bucket.id,
+        bucket.name,
+        pending.preview.target.documentName,
+        commit,
+      );
+      console.log(
+        commit.noOp
+          ? `No-op: ${pending.preview.target.folder}${pending.preview.target.documentName} already holds exactly this content (item ${commit.itemId}).`
+          : `Published ${pending.preview.target.folder}${pending.preview.target.documentName} (item ${commit.itemId}, hash ${commit.contentHash.slice(0, 16)}…${commit.link !== undefined ? ", organization-scoped link recorded" : ""}).`,
+      );
+    } catch (error) {
+      const name = error instanceof Error ? error.name : "";
+      const message = error instanceof Error ? error.message : String(error);
+      if (name === "PreviewStaleError") {
+        console.error(`${message}`);
+      } else {
+        console.error(`Publish failed: ${message}`);
+      }
+      process.exit(1);
+    }
+    return;
+  }
+
   console.error(USAGE);
   process.exit(1);
+}
+
+function scope0(tenantId: string, userId: string): { tenantId: string; userId: string } {
+  return { tenantId, userId };
 }
 
 main().catch((err) => {

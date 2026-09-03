@@ -337,9 +337,72 @@ followed by revocation. Do not start Specification 5.3 until accepted.
 
 ### Specification 5.3 — OneDrive Markdown destination adapter (OneNote deferred)
 
-Status: `draft`
+Status: `in-review` (approved by product owner 2026-09-03)
 
 Depends on: Specification 5.2 accepted
+
+> Implementation evidence (2026-09-03, implementation worker):
+>
+> - **Destination contract** (`packages/core/src/ports.ts`): generic
+>   `Destination` preview/commit port — every external write is preview →
+>   explicit approval → commit; `DestinationPreview` carries the exact
+>   target, exact content, SHA-256 hash, and no-op detection;
+>   `DestinationCommit` carries item ID, link, hash (FR-3 write-back).
+> - **Renderer** (`packages/destinations/src/markdown.ts`, new
+>   `@donna/destinations` package): `renderBucketMarkdown` is a pure
+>   function of bucket state — items sorted by thought ID, no render
+>   timestamps, byte-identical re-render (hash-tested, FR-2). Documents
+>   carry bucket name, per-item summaries, task status, source capture
+>   timestamps/audio windows, and stable Donna item IDs as HTML comments
+>   (`<!-- donna:item <id> -->`). All untrusted fields are HTML-escaped
+>   and whitespace-collapsed (SR-3). Document names are
+>   `<slug>-<bucketIdHash8>.md` — stable and collision-free.
+> - **OneDriveMarkdownDestination**
+>   (`packages/integrations-m365/src/onedrive-markdown.ts`): ensure-folder
+>   lists root first and creates `Donna/` only when missing (verified
+>   live: create_folder renames on conflict — a naive ensure would
+>   duplicate). Preview downloads and hashes the remote document for true
+>   byte-level no-op detection. Commit re-renders live state and refuses
+>   stale approvals (`PreviewStaleError`), uploads with
+>   overwrite-in-place semantics (verified live: same item ID), and
+>   creates an organization-scoped share link whose RESPONSE scope is
+>   verified — non-organization fails closed and is never recorded
+>   (AC-4). Write-back state + pending-preview records live under the
+>   scoped `data/m365/<tenant>/<user>/destinations/` partition (purged by
+>   `m365 disconnect`). MCP errors surface as redacted stage tokens
+>   (SR-4). The adapter runs on an approval-path MCP connection
+>   allowlisted to exactly {list_files, get_file, download_file,
+>   create_folder, upload_file, share_file} (SR-3 of 5.1).
+> - **CLI**: `donna publish <bucket>` (preview + pending record; prior
+>   publication state shown; `--show-content` prints the render),
+>   `donna publish <bucket> --approve` (commits EXACTLY the pending
+>   preview; no pending preview → refusal). Target folder is pinned;
+>   there is no cross-scope target selection API (SR-2, tested).
+> - **Live verification (2026-09-03, real managed MCP + real OneDrive,
+>   scratch user `m365-spec52-probe`, bucket `Tasks`):** preview
+>   (`Donna/tasks-01675030.md`, 3 items, hash fff38f3c…) → approve →
+>   published (item 01JGFRGN6ZODGTF25GRZBZ2LJ3Z3SDKUCJ, organization
+>   link) → re-preview detected byte-identical remote → re-approve was a
+>   no-op (same item, no upload) → new capture added a 4th item →
+>   preview showed hash change → approve overwrote IN PLACE (same item
+>   ID, hash 6cb8ff36…). AC-1 complete. AC-2 (product owner opens
+>   `Donna/tasks-01675030.md` in OneDrive) is the owner's manual step.
+> - **Tests: 15 new (403 total green with Postgres live, typecheck
+>   clean).** Renderer: byte-identity, order independence, HTML escaping,
+>   task/provenance rendering, name stability/collisions. Adapter:
+>   consent fail-closed with zero MCP calls, full publish cycle, no-op
+>   re-publish (no second upload), changed re-publish in place, stale
+>   preview refusal, non-organization share scope fails closed, redacted
+>   tool errors, folder pinning, cross-scope invisibility, folder reuse.
+> - **Known limitations:** root listing is read with top=200 before
+>   folder creation (a drive root with >200 items and the Donna folder
+>   paged out would mis-create; the connector-owner pilot drive has 19).
+>   Bucket rename changes the document slug, leaving the old file behind
+>   (documented; Donna remains source of truth). Probe-folders created
+>   during capability verification were deleted (delete_file) the same
+>   day.
+>
+> Awaiting product-owner examination for acceptance.
 
 > Revised 2026-09-03 (product owner): the managed M365 MCP exposes no OneNote
 > page API, so the knowledge destination is OneDrive Markdown in a dedicated

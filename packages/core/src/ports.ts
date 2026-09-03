@@ -641,3 +641,65 @@ export interface ExternalContextCollector {
     },
   ): Promise<{ snippets: ContextSnippet[]; degraded: string[] }>;
 }
+
+/* ------------------------------------------------------------------ */
+/* Specification 5.3 — destination preview/commit contract             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * What an external write WOULD do (Specification 5.3, FR-1). The exact
+ * target and the exact bytes, hashed — the employee approves this, and
+ * commit re-verifies the hash before anything is written.
+ */
+export interface DestinationPreview {
+  /** Destination kind, e.g. "onedrive-markdown". */
+  kind: string;
+  /** Human-inspectable target description. */
+  target: { folder: string; documentName: string };
+  /** Exact content that would be published (UTF-8). */
+  content: string;
+  /** SHA-256 of content, hex. */
+  contentHash: string;
+  /** True when the destination already holds exactly this content. */
+  noOp: boolean;
+  /** Hash of the current remote content, when it exists. */
+  existingHash?: string;
+}
+
+/** Result of a committed publication (FR-3 write-back payload). */
+export interface DestinationCommit {
+  /** External item ID assigned by the destination. */
+  itemId: string;
+  /** Organization-scoped share link, when the destination provides one. */
+  link?: string;
+  contentHash: string;
+  committedAt: string; // ISO 8601
+  /** True when the destination already held exactly this content. */
+  noOp: boolean;
+}
+
+/**
+ * Generic destination contract (Specification 5.3). EVERY external write
+ * is preview → explicit approval → commit; there is no auto-publish path.
+ * Implementations must: constrain targets to the authenticated user's own
+ * approved locations (SR-2), escape untrusted content (SR-3), redact MCP
+ * errors (SR-4), and make re-publishing unchanged state a byte-identical
+ * no-op (FR-2). Donna remains the source of truth and records the
+ * external item ID, link, and content hash (FR-3).
+ */
+export interface Destination {
+  readonly kind: string;
+  /** Build the exact preview for one bucket publication. */
+  preview(
+    scope: { tenantId: string; userId: string },
+    bucketId: string,
+  ): Promise<DestinationPreview>;
+  /**
+   * Commit EXACTLY what was previewed. Implementations re-render from
+   * live state and refuse when it no longer matches the approved preview.
+   */
+  commit(
+    scope: { tenantId: string; userId: string },
+    preview: DestinationPreview,
+  ): Promise<DestinationCommit>;
+}
