@@ -169,8 +169,14 @@ ${transcriptText}`;
   const retrieved = context.elements.filter(
     (e) => e.trust === "untrusted-retrieved",
   );
+  // Source IDs are deliberately NOT rendered into the prompt: the output
+  // schema has no context-citation field, so a raw "bucket:<uuid>" label
+  // is pure noise — and the model may parrot it as a bucket NAME (observed
+  // live 2026-09-03: a bucket literally named "bucket:45ce0675-…" was
+  // minted). Attribution lives in the packet structure; the pipeline
+  // records it. The model sees kind + freshness only.
   const renderElement = (e: ContextPacket["elements"][number]) =>
-    `- [${e.sourceKind}:${e.sourceId} · as of ${e.asOf}] ${e.text}`;
+    `- [${e.sourceKind} · as of ${e.asOf}] ${e.text}`;
 
   const degradedNote = context.degraded
     ? `\n(note: context is partially unavailable — ${context.degradedReasons.join(", ")} — organize from the transcript alone where unsure)`

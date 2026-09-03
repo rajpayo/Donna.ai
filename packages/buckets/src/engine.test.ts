@@ -193,6 +193,41 @@ describe("BucketEngine", () => {
     assert.equal(store.buckets[0]!.itemCount, 2);
   });
 
+  it("resolves a parroted 'bucket:<id>' label to the referenced bucket instead of minting", async () => {
+    const store = new MemStore();
+    const engine = new BucketEngine(store, TUNING);
+    const first = await engine.place(
+      thought([1, 0, 0]),
+      { newBucketName: "Onboarding improvements" },
+      [],
+    );
+
+    // The organizer echoes the context label "bucket:<uuid>" (observed live)
+    // with a dissimilar embedding — must join the referenced bucket.
+    const placement = await engine.place(
+      thought([0.3, 0.9, 0]),
+      { newBucketName: `bucket:${first.bucket.id}` },
+      store.buckets,
+    );
+    assert.equal(placement.created, false);
+    assert.equal(placement.bucket.id, first.bucket.id);
+    assert.equal(placement.needsReview, true);
+    assert.equal(store.buckets.length, 1);
+  });
+
+  it("falls back to a summary name for a 'bucket:<id>' label that references nothing", async () => {
+    const store = new MemStore();
+    const engine = new BucketEngine(store, TUNING);
+    const placement = await engine.place(
+      thought([0.3, 0.9, 0]),
+      { newBucketName: "bucket:00000000-0000-0000-0000-000000000000" },
+      [],
+    );
+    assert.equal(placement.created, true);
+    assert.equal(placement.bucket.name, "Test Thought");
+    assert.equal(store.buckets.length, 1);
+  });
+
   it("still mints a new bucket when the proposed name does not collide", async () => {
     const store = new MemStore();
     const engine = new BucketEngine(store, TUNING);

@@ -144,8 +144,14 @@ describe("buildOrganizePrompt trust separation (Spec 2.2 SR-1)", () => {
         },
       ]),
     );
-    assert.ok(prompt.includes("[memory:mem-1 · as of 2026-09-01T10:00:00.000Z]"));
-    assert.ok(prompt.includes("[bucket:bucket-9 · as of 2026-09-02T10:00:00.000Z]"));
+    // Source kind and freshness are rendered; raw source IDs are NOT —
+    // the model parroted a "bucket:<uuid>" label as a bucket name in a
+    // live capture (2026-09-03). Attribution lives in the packet
+    // structure; the pipeline records it, the model never sees it.
+    assert.ok(prompt.includes("[memory · as of 2026-09-01T10:00:00.000Z]"));
+    assert.ok(prompt.includes("[bucket · as of 2026-09-02T10:00:00.000Z]"));
+    assert.ok(!prompt.includes("mem-1"));
+    assert.ok(!prompt.includes("bucket-9"));
   });
 
   it("marks degraded packets explicitly", () => {

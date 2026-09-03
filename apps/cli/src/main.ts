@@ -456,6 +456,11 @@ async function buildPipeline(): Promise<{ pipeline: DonnaPipeline; store: FileBu
       transcripts,
       corrections,
       budgets: stack.contextBudgets,
+      // Spec 3.3: semantic correction-example selection — without the
+      // embedder the assembler silently falls back to keyword overlap and
+      // paraphrased captures never surface the user's corrections.
+      embedder: stack.embedder,
+      similarityThreshold: stack.corrections.adherenceSemanticThreshold,
       now: () => new Date(),
     }),
     correctionObserver: corrections,

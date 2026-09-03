@@ -105,11 +105,31 @@ export class BucketEngine {
     // already exists, that is strong evidence of intent even when geometry
     // fell below the create threshold. Join it (flagged for review) instead
     // of minting a duplicate with the same name.
+    //
+    // Label-parroting defense: a proposal of the form "bucket:<id>" is the
+    // model echoing a context source label, not a name. Resolve the ID
+    // reference to the real bucket; never mint a bucket with that name.
     const proposedName = suggestion.newBucketName ?? suggestion.suggestedBucket;
     if (proposedName) {
-      const collision = this.findByName(buckets, proposedName);
+      const idRef = /^bucket:([0-9a-f-]{36})$/i.exec(proposedName.trim());
+      const referenced = idRef
+        ? buckets.find((b) => b.id.toLowerCase() === idRef[1]!.toLowerCase())
+        : undefined;
+      const collision = referenced ?? this.findByName(buckets, proposedName);
       if (collision) {
         return this.joinBucket(collision, thought, true);
+      }
+      if (idRef) {
+        // Reference to a bucket that no longer exists — treat as no
+        // proposal rather than minting a bucket named after a raw ID.
+        const fallback = await this.fallbackName(thought);
+        const created = await this.createBucket(thought, {
+          name: fallback,
+          description: `Auto-created from: "${thought.summary}"`,
+          origin: "auto",
+        });
+        const placement = await this.joinBucket(created, thought, false);
+        return { ...placement, created: true };
       }
     }
 
