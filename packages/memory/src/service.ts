@@ -116,6 +116,28 @@ export class MemoryService {
   }
 
   /**
+   * Record an explicit denial for a purpose (e.g. the user disables a
+   * feature). Append-only like every consent decision.
+   */
+  async denyConsent(
+    scope: Scope,
+    purpose: string,
+    channel: string,
+  ): Promise<ConsentRecord> {
+    const record: ConsentRecord = {
+      id: this.idGen(),
+      tenantId: scope.tenantId,
+      userId: scope.userId,
+      purpose,
+      granted: false,
+      grantedAt: this.deps.now().toISOString(),
+      channel,
+    };
+    await this.deps.consents.recordConsent(record);
+    return record;
+  }
+
+  /**
    * Revoke the active grant for a purpose, if any. Idempotent. Revocation
    * is itself an append-only record: "as of grantedAt, consent is not
    * granted" — history is never rewritten.

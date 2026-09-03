@@ -22,6 +22,7 @@ import type {
   MemoryProposal,
   MemoryRecord,
   Provenance,
+  SessionContext,
   Thought,
   Transcript,
   TranscriptRecord,
@@ -71,6 +72,7 @@ export interface Organizer {
     transcript: Transcript,
     existingBuckets: Array<Pick<Bucket, "name" | "description">>,
     context?: ContextPacket,
+    session?: SessionContext,
   ): Promise<OrganizeOutput>;
 }
 
@@ -379,6 +381,32 @@ export interface ProvenanceVerifier {
     transcript: TranscriptRecord,
     proposal: { captureId: string; segmentIds: string[] },
   ): ProvenanceVerification;
+}
+
+/**
+ * Session emotion/intent context (Specification 2.4). The pipeline calls
+ * this after transcription when the capture is bound to a session. The
+ * result may ONLY adjust tone (a tentative prompt note), review priority,
+ * and uncertainty handling — never access, permissions, or external
+ * actions (SR-2). Returning undefined means no inference (disabled or
+ * abstained) and the core loop proceeds unchanged (AC-4).
+ */
+export interface EmotionalContext {
+  analyzeAndStore(
+    scope: { tenantId: string; userId: string },
+    session: { id: string; expiresAt: string },
+    transcript: Transcript,
+  ): Promise<
+    | {
+        /** Tentative, user-correctable note for the organizer prompt. */
+        note?: string;
+        /** 0..1 — used only to bias review priority. */
+        reviewPriority: number;
+        /** True when the analyzer declined to infer. */
+        abstained: boolean;
+      }
+    | undefined
+  >;
 }
 
 /** Telemetry sink — cost/latency per stage, for cost-per-successful-loop. */

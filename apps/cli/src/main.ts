@@ -44,6 +44,15 @@
  *   donna corrections promote <id>             share as a de-identified
  *                                              golden case (requires
  *                                              `consent grant eval-sharing`)
+ *   donna session start|end|list               session lifecycle; working
+ *                                              memory and emotion die with
+ *                                              the session
+ *   donna emotion [--session <id>]             view tentative inferences
+ *   donna emotion correct|confirm|delete ...   user control over inferences
+ *   donna emotion disable|enable               opt out of / into inference
+ *                                              (durable persistence needs a
+ *                                              separate `consent grant
+ *                                              emotion.persist`)
  *
  * This is the internal demo surface: one command turns a messy voice memo
  * into organized, bucketed, provenance-linked thoughts.
@@ -58,9 +67,11 @@ import { promoteCorrectionToGoldenCase, runCompatibilityCheck } from "@donna/eva
 import {
   ContextAssembler,
   CorrectionService,
+  EmotionalContextService,
   FileConsentStore,
   FileCorrectionStore,
   FileMemoryStore,
+  FileSessionStore,
   MemoryService,
 } from "@donna/memory";
 import {
@@ -124,7 +135,16 @@ const USAGE = `usage:
   donna corrections delete <id> [--user <id>]
   donna corrections replay [--user <id>]
   donna corrections stats [--user <id>]
-  donna corrections promote <id> [--user <id>]`;
+  donna corrections promote <id> [--user <id>]
+  donna session start [--ttl-sec <n>] [--user <id>]
+  donna session end <session-id> [--user <id>]
+  donna session list [--user <id>]
+  donna emotion [--session <id>] [--user <id>]
+  donna emotion correct <snapshot-id> --labels <label:conf,...> | --none [--user <id>]
+  donna emotion confirm <snapshot-id> [--user <id>]
+  donna emotion delete <snapshot-id> [--user <id>]
+  donna emotion disable [--user <id>]
+  donna emotion enable [--user <id>]`;
 
 function dataDir(): string {
   return resolve(repoRoot, process.env.DONNA_DATA_DIR ?? "data");
@@ -145,6 +165,15 @@ function buildMemoryService(): MemoryService {
   return new MemoryService({
     memories: new FileMemoryStore(dir),
     consents: new FileConsentStore(dir),
+    now: () => new Date(),
+  });
+}
+
+function buildEmotionService(): EmotionalContextService {
+  const dir = dataDir();
+  return new EmotionalContextService({
+    sessions: new FileSessionStore(dir),
+    memory: buildMemoryService(),
     now: () => new Date(),
   });
 }
@@ -274,6 +303,9 @@ async function buildPipeline(): Promise<{ pipeline: DonnaPipeline; store: FileBu
       now: () => new Date(),
     }),
     correctionObserver: corrections,
+    // Spec 2.4: tentative session emotion/intent context (session-scoped,
+    // user-correctable, never durable without explicit opt-in).
+    emotionalContext: buildEmotionService(),
     events: consoleEvents,
   });
   return { pipeline, store };
@@ -325,6 +357,25 @@ async function main(): Promise<void> {
       );
       process.exit(1);
     }
+    // Spec 2.4: optional session binding enables tentative session
+    // emotion/intent context for this capture.
+    const sessionId = arg("--session");
+    let session: Capture["session"];
+    if (sessionId !== undefined) {
+      const sessions = new FileSessionStore(dataDir());
+      const record = await sessions.getSession(tenantId, userId, sessionId);
+      if (record === undefined) {
+        console.error(
+          `No session ${sessionId} in this scope. Start one with: donna session start`,
+        );
+        process.exit(1);
+      }
+      if (record.expiresAt <= new Date().toISOString()) {
+        console.error(`Session ${sessionId} has expired. Start a new one.`);
+        process.exit(1);
+      }
+      session = { id: record.id, expiresAt: record.expiresAt };
+    }
     const { pipeline } = await buildPipeline();
     const capture: Capture = {
       id: randomUUID(),
@@ -332,6 +383,7 @@ async function main(): Promise<void> {
       userId,
       audioPath,
       capturedAt: new Date().toISOString(),
+      ...(session !== undefined ? { session } : {}),
     };
     const result = await pipeline.run(capture);
 
@@ -931,6 +983,145 @@ async function main(): Promise<void> {
         `Adherence: ${stats.followed} followed, ${stats.contradicted} contradicted` +
           (stats.adherenceRate !== null ? ` — rate ${(stats.adherenceRate * 100).toFixed(0)}%` : " — no observations yet"),
       );
+      return;
+    }
+
+    console.error(USAGE);
+    process.exit(1);
+  }
+
+  if (command === "session") {
+    const sub = process.argv[3];
+    const emotion = buildEmotionService();
+    const scope = { tenantId, userId };
+
+    if (sub === "start") {
+      const ttlSec = Number(arg("--ttl-sec") ?? 4 * 3600);
+      const session = await emotion.startSession(scope, ttlSec);
+      console.log(`Session ${session.id} started (expires ${session.expiresAt}).`);
+      console.log(`Bind a capture with: donna capture <audio> --session ${session.id}`);
+      return;
+    }
+
+    if (sub === "end") {
+      const sessionId = process.argv[4];
+      if (!sessionId) {
+        console.error("usage: donna session end <session-id> [--user <id>]");
+        process.exit(1);
+      }
+      const result = await emotion.endSession(scope, sessionId);
+      const promoted =
+        result.promoted > 0
+          ? `, ${result.promoted} emotional snapshot(s) promoted to durable memory under your emotion.persist consent`
+          : ", no emotional context retained";
+      console.log(
+        `Session ended. ${result.workingRemoved} working memorie(s) expired, ${result.deleted} session snapshot(s) cleared${promoted}.`,
+      );
+      return;
+    }
+
+    if (sub === "list") {
+      const sessions = await new FileSessionStore(dataDir()).listSessions(tenantId, userId);
+      if (sessions.length === 0) {
+        console.log("No sessions yet.");
+        return;
+      }
+      for (const s of sessions) {
+        const state = s.endedAt !== undefined ? `ended ${s.endedAt}` : `expires ${s.expiresAt}`;
+        console.log(`• ${s.id}: started ${s.startedAt}, ${state}`);
+      }
+      return;
+    }
+
+    console.error(USAGE);
+    process.exit(1);
+  }
+
+  if (command === "emotion") {
+    const sub = process.argv[3];
+    const emotion = buildEmotionService();
+    const scope = { tenantId, userId };
+
+    // `donna emotion [--session <id>]` — inspect current inferences.
+    if (sub === undefined || sub === "--session" || sub === "--user" || sub?.startsWith("--")) {
+      const sessionId = arg("--session");
+      const enabled = await emotion.isEnabled(scope);
+      if (!enabled) {
+        console.log("Emotion inference is disabled. Re-enable with: donna emotion enable");
+        return;
+      }
+      const snapshots = await emotion.listSnapshots(
+        scope,
+        ...(sessionId !== undefined ? [sessionId] : []),
+      );
+      if (snapshots.length === 0) {
+        console.log("No session inferences. They are session-scoped and disappear when the session ends.");
+        return;
+      }
+      console.log("Tentative session inferences (guesses from word choice — may be wrong; correct or disable anytime):");
+      for (const s of snapshots) {
+        const labels =
+          s.labels.length > 0
+            ? s.labels.map((l) => `possibly ${l.label} (${l.confidence.toFixed(2)})`).join(", ")
+            : "no strong signal (abstained)";
+        console.log(`• ${s.id} [${s.correctionState}] session ${s.sessionId}: ${labels}`);
+        console.log(`    inferred by ${s.model} ${s.version}, expires ${s.expiresAt}`);
+      }
+      return;
+    }
+
+    if (sub === "correct") {
+      const snapshotId = process.argv[4];
+      const labelsArg = arg("--labels");
+      const none = process.argv.includes("--none");
+      if (!snapshotId || (!labelsArg && !none)) {
+        console.error(
+          "usage: donna emotion correct <snapshot-id> --labels <label:confidence,...> | --none [--user <id>]",
+        );
+        process.exit(1);
+      }
+      const labels = none
+        ? []
+        : labelsArg!.split(",").map((pair) => {
+            const [label, confidence] = pair.split(":");
+            return {
+              label: label!.trim() as "urgency" | "frustration" | "uncertainty" | "positive",
+              confidence: Number(confidence ?? 0.5),
+            };
+          });
+      const corrected = await emotion.correct(scope, snapshotId, labels);
+      console.log(
+        labels.length === 0
+          ? `Corrected ${snapshotId}: marked as "no strong emotion". Thanks — Donna will stay tentative.`
+          : `Corrected ${snapshotId}: now ${labels.map((l) => `${l.label} (${l.confidence})`).join(", ")}.`,
+      );
+      return;
+    }
+
+    if (sub === "confirm" || sub === "delete") {
+      const snapshotId = process.argv[4];
+      if (!snapshotId) {
+        console.error(`usage: donna emotion ${sub} <snapshot-id> [--user <id>]`);
+        process.exit(1);
+      }
+      if (sub === "confirm") {
+        await emotion.confirm(scope, snapshotId);
+        console.log(`Confirmed ${snapshotId}.`);
+      } else {
+        await emotion.deleteSnapshot(scope, snapshotId);
+        console.log(`Deleted ${snapshotId}.`);
+      }
+      return;
+    }
+
+    if (sub === "disable" || sub === "enable") {
+      if (sub === "disable") {
+        await emotion.disable(scope, "cli:emotion disable");
+        console.log("Emotion inference disabled. The core capture loop is unaffected.");
+      } else {
+        await emotion.enable(scope, "cli:emotion enable");
+        console.log("Emotion inference enabled (session-scoped, tentative, never durable without separate opt-in).");
+      }
       return;
     }
 

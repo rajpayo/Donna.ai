@@ -15,6 +15,12 @@ export interface Capture {
   audioPath: string;
   capturedAt: string; // ISO 8601
   durationSec?: number;
+  /**
+   * Optional session binding (Spec 2.4): when present, session-scoped
+   * working memory and tentative emotion/intent context apply. Without a
+   * session, no emotional context is inferred or stored.
+   */
+  session?: { id: string; expiresAt: string };
 }
 
 /**
@@ -475,6 +481,91 @@ export interface ContextPacket {
     truncated: number;
   };
 }
+
+/* ------------------------------------------------------------------ */
+/* Specification 2.4 — session emotion and intent context              */
+/* ------------------------------------------------------------------ */
+
+/** Emotional labels Donna may tentatively infer. Never diagnostic. */
+export type EmotionLabel =
+  | "urgency"
+  | "frustration"
+  | "uncertainty"
+  | "positive";
+
+/** User correction state of an inference. */
+export type InferenceCorrectionState =
+  | "uncorrected"
+  | "confirmed"
+  | "corrected"
+  | "disabled";
+
+/**
+ * A tentative, session-scoped emotional inference (FR-1). Every snapshot
+ * is labeled as inferred, confidence-scored (capped below certainty),
+ * evidence-linked to transcript segments, and stamped with the producing
+ * model/version. Snapshots live and die with their session unless a
+ * separate explicit opt-in ("emotion.persist" consent) promotes them to
+ * durable private memory at session expiry (FR-2, SR-3).
+ *
+ * Emotional context may adjust tone, review priority, and uncertainty
+ * handling ONLY — never access, permissions, or external actions (SR-2).
+ */
+export interface EmotionalSnapshot {
+  id: string;
+  tenantId: string;
+  userId: string;
+  sessionId: string;
+  /** Per-label confidence 0..1, capped by the analyzer. Empty = abstained. */
+  labels: Array<{ label: EmotionLabel; confidence: number }>;
+  /** True when the analyzer declined to infer (insufficient evidence). */
+  abstained: boolean;
+  /** Transcript segment IDs that motivated the inference. */
+  evidence: string[];
+  /** What produced the inference, e.g. "heuristic" + version. */
+  model: string;
+  version: string;
+  correctionState: InferenceCorrectionState;
+  createdAt: string; // ISO 8601
+  expiresAt: string; // ISO 8601 — the session's expiry
+}
+
+/**
+ * A tentative, session-scoped intent inference (what the user is trying to
+ * do in this session, e.g. capturing, planning, deciding, delegating,
+ * venting). Same privacy rules as EmotionalSnapshot.
+ */
+export interface IntentSignal {
+  id: string;
+  tenantId: string;
+  userId: string;
+  sessionId: string;
+  intent: string;
+  confidence: number; // 0..1, capped by the analyzer
+  /** Transcript segment IDs that motivated the signal. */
+  evidence: string[];
+  model: string;
+  version: string;
+  correctionState: InferenceCorrectionState;
+  createdAt: string; // ISO 8601
+  expiresAt: string; // ISO 8601 — the session's expiry
+}
+
+/**
+ * Tentative session context handed to the organizer prompt (Spec 2.4).
+ * Rendered in its own clearly-labeled section as an unverified inference.
+ */
+export interface SessionContext {
+  /** Tentative note, e.g. "The speaker may be in a hurry (inferred, 0.55)". */
+  note?: string;
+}
+
+/**
+ * At or above this emotional-signal confidence, organized items are
+ * flagged for human review (Spec 2.4: emotion may adjust review priority
+ * and uncertainty handling — never placement, access, or actions).
+ */
+export const REVIEW_PRIORITY_THRESHOLD = 0.5;
 
 /** End-to-end result of one capture through the loop. */
 export interface CoreLoopResult {

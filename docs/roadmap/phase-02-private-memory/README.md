@@ -406,7 +406,67 @@ source event visible. Do not start Specification 2.4 until accepted.
 
 ### Specification 2.4 — Session emotion and intent context
 
-Status: `draft`
+Status: `in-review` (approved by product owner 2026-09-03; implementation completed 2026-09-03)
+
+> Implementation evidence (2026-09-03, implementation worker):
+>
+> - **Types** (`packages/core`): `EmotionalSnapshot` + `IntentSignal`
+>   (confidence, evidence segment IDs, model/version, session ID,
+>   correction state, expiry — FR-1), `SessionContext`,
+>   `REVIEW_PRIORITY_THRESHOLD`; `Capture` gains an optional session
+>   binding; `EmotionalContext` port (result may only adjust tone/review
+>   priority/uncertainty handling — SR-2).
+> - **`packages/memory/src/session-store.ts`**: scoped file-backed session
+>   store (sessions + snapshots + intents, partition validation,
+>   fail-closed scope checks, 0600/0700) with automatic expiry sweeps.
+> - **`packages/memory/src/emotional-context.ts`**: a deliberately
+>   deterministic, confidence-capped heuristic analyzer
+>   (`heuristic` / `donna.emotion-heuristic.v1`, cap 0.7) that abstains
+>   when evidence is weak; `EmotionalContextService` with session
+>   lifecycle, user correction/confirmation/deletion, disable/enable, and
+>   fail-closed promotion: durable memory only with an active
+>   `emotion.persist` consent record (SR-3), revoked consent deletes
+>   instead. Promoted memories use uncertainty-aware wording
+>   ("tentatively inferred possible …", "unverified, user-correctable").
+> - **Pipeline**: session-bound captures analyze the transcript after
+>   persistence; the organizer prompt (both adapters) renders a separate
+>   SESSION CONTEXT section labeled TENTATIVE INFERENCE; review priority
+>   ≥ 0.5 flags items `needsReview` — placement, access, and actions are
+>   untouched (SR-2); any emotion failure or disabled mode leaves the core
+>   loop fully functional (AC-4).
+> - **Calibration evals** (`packages/evals/src/emotion-calibration.ts` +
+>   `datasets/golden/emotion.v1.json`, 8 synthetic cases): clear
+>   frustration/urgency/uncertainty/positive cases detected; 3 abstention
+>   cases produce zero false-confident inferences; confidence never
+>   exceeds the cap (AC-3).
+> - **CLI**: `donna session start|end|list`, `donna emotion` (view),
+>   `emotion correct|confirm|delete|disable|enable`, `donna capture
+>   --session <id>`. Durable persistence opt-in uses the generic
+>   `donna consent grant emotion.persist`.
+> - **Tests: 21 new (206 total green), typecheck clean.** Coverage:
+>   analyzer labels/evidence/caps/abstention, tentative-note phrasing
+>   (AC-5), snapshot storage with model/version/expiry (FR-1), default
+>   sessions leave no durable record incl. working memory (AC-1),
+>   automatic expiry sweeps (FR-2), opt-in promotion + revocation fail
+>   closed (AC-2/SR-3), abstained snapshots never promoted, correct/
+>   confirm/delete/disable controls (FR-3), disabled mode stores nothing
+>   (AC-4), cross-user isolation, pipeline note + review bias without
+>   placement change (SR-2), no-session no-op, emotion-failure isolation.
+> - **Live demo (synthetic espeak-ng audio, real gateway, temp data
+>   dir):** session-bound capture of an urgent/frustrated note produced a
+>   tentative inference (possibly frustration 0.40 / urgency 0.40,
+>   heuristic v1, session-scoped, expiry shown); the user corrected it to
+>   urgency 0.80; session end WITHOUT consent left zero durable memory;
+>   a second session WITH `emotion.persist` consent promoted exactly one
+>   tentative episodic memory; `emotion disable` kept capture fully
+>   functional with no inference.
+> - **Known limitations:** the analyzer is a transparent keyword heuristic
+>   (an LLM analyzer can implement the same port later; model identity is
+>   recorded on every snapshot so the swap is auditable); text-only
+>   signals (no prosody); review bias is all-or-nothing per capture at the
+>   0.5 threshold.
+>
+> Awaiting product-owner examination for acceptance.
 
 Depends on: Specification 2.3 accepted
 

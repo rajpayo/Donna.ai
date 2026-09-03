@@ -7,6 +7,7 @@ import type {
   ContextPacket,
   OrganizeOutput,
   Organizer,
+  SessionContext,
   Transcript,
 } from "@donna/core";
 import type { GatewayClient } from "./gateway.js";
@@ -36,12 +37,14 @@ export class OpenAiCompatibleOrganizer implements Organizer {
     transcript: Transcript,
     existingBuckets: Array<Pick<Bucket, "name" | "description">>,
     context?: ContextPacket,
+    session?: SessionContext,
   ): Promise<OrganizeOutput> {
     const prompt = buildOrganizePrompt(
       transcript.text,
       transcript.segments,
       existingBuckets,
-      ...(context !== undefined ? [context] : []),
+      context,
+      session,
     );
 
     const res = await this.gateway.postJson<ChatCompletionsResponse>(

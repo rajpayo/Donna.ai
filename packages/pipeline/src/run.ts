@@ -22,6 +22,7 @@ import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import {
   hashTranscriptContent,
+  REVIEW_PRIORITY_THRESHOLD,
   sha256Hex,
   type AudioStore,
   type AuditLog,
@@ -35,13 +36,16 @@ import {
   type CorrectionObserver,
   type DerivationVersions,
   type Embedder,
+  type EmotionalContext,
   type EventSink,
   type OrganizeOutput,
   type Organizer,
   type Provenance,
   type ProvenanceVerifier,
+  type SessionContext,
   type Thought,
   type Transcriber,
+  type Transcript,
   type TranscriptRecord,
   type TranscriptStore,
 } from "@donna/core";
@@ -82,6 +86,14 @@ export interface PipelineDeps {
    * or contradicted a learned correction. IDs and counts only.
    */
   correctionObserver?: CorrectionObserver;
+  /**
+   * When present AND the capture is bound to a session (Spec 2.4), the
+   * transcript is analyzed for tentative emotion/intent. The result may
+   * only add a tentative prompt note and bias review priority — never
+   * placement, access, or actions (SR-2). Any failure here degrades to
+   * no emotional context; the core loop is unaffected (AC-4).
+   */
+  emotionalContext?: EmotionalContext;
 }
 
 interface LaneOutput {
@@ -172,11 +184,15 @@ export class DonnaPipeline implements CoreLoop {
     const tOrg = Date.now();
     const buckets = await store.listBuckets(capture.tenantId, capture.userId);
     const context = await this.assembleContext(capture, transcript.text);
+    const sessionSignal = await this.analyzeSession(capture, transcript);
+    const sessionContext: SessionContext | undefined =
+      sessionSignal?.note !== undefined ? { note: sessionSignal.note } : undefined;
     const organized = await this.organizeVerified(
       transcriptRecord,
       transcript,
       buckets,
       context,
+      sessionContext,
     );
     const organizeLatencyMs = Date.now() - tOrg;
     this.emit("stage.organize", capture, {
@@ -233,6 +249,11 @@ export class DonnaPipeline implements CoreLoop {
       thought.bucketId = placement.bucket.id;
       await store.saveItem({ thought, bucketId: placement.bucket.id });
       await this.observeCorrectionAdherence(capture, thought, placement.bucket.id, context);
+      // Spec 2.4: emotional context may bias review priority ONLY — never
+      // placement, access, or actions (SR-2).
+      const reviewBias =
+        (sessionSignal?.reviewPriority ?? 0) >= REVIEW_PRIORITY_THRESHOLD;
+      const needsReview = placement.needsReview || reviewBias;
       if (placement.created) {
         bucketsCreated.push(placement.bucket);
         currentBuckets = [...currentBuckets, placement.bucket];
@@ -242,7 +263,7 @@ export class DonnaPipeline implements CoreLoop {
           b.id === placement.bucket.id ? placement.bucket : b,
         );
       }
-      items.push({ thought, bucket: placement.bucket, needsReview: placement.needsReview });
+      items.push({ thought, bucket: placement.bucket, needsReview });
     }
 
     this.emit("loop.complete", capture, {
@@ -316,6 +337,43 @@ export class DonnaPipeline implements CoreLoop {
   }
 
   /**
+   * Spec 2.4: analyze the transcript for tentative session emotion/intent
+   * when the capture is session-bound. Any failure degrades to no
+   * emotional context — the core loop is unaffected (AC-4). Telemetry
+   * carries flags and counts only, never content.
+   */
+  private async analyzeSession(
+    capture: Capture,
+    transcript: Transcript,
+  ): Promise<
+    { note?: string; reviewPriority: number; abstained: boolean } | undefined
+  > {
+    const emotional = this.deps.emotionalContext;
+    if (emotional === undefined || capture.session === undefined) {
+      return undefined;
+    }
+    try {
+      const signal = await emotional.analyzeAndStore(
+        { tenantId: capture.tenantId, userId: capture.userId },
+        capture.session,
+        transcript,
+      );
+      if (signal !== undefined) {
+        this.emit("emotion.analyzed", capture, {
+          sessionId: capture.session.id,
+          abstained: signal.abstained,
+          notePresent: signal.note !== undefined,
+          reviewPriority: signal.reviewPriority,
+        });
+      }
+      return signal;
+    } catch {
+      this.emit("emotion.error", capture, { sessionId: capture.session.id });
+      return undefined;
+    }
+  }
+
+  /**
    * Assemble the bounded context packet for this organize request. A
    * failing assembler degrades the run to no-packet mode (the organizer
    * falls back to its legacy prompt) — organization still works (AC-4).
@@ -360,8 +418,9 @@ export class DonnaPipeline implements CoreLoop {
     transcript: Parameters<Organizer["organize"]>[0],
     buckets: Parameters<Organizer["organize"]>[1],
     context?: ContextPacket,
+    session?: SessionContext,
   ): Promise<LaneOutput & { provenance: Provenance[] }> {
-    let lane = await this.organizeWithEscalation(transcript, buckets, context);
+    let lane = await this.organizeWithEscalation(transcript, buckets, context, session);
     let provenance = this.verifyAll(transcriptRecord, lane.output);
     if (
       !provenance.ok &&
@@ -373,7 +432,8 @@ export class DonnaPipeline implements CoreLoop {
         output: await this.deps.escalationOrganizer.organize(
           transcript,
           buckets,
-          ...(context !== undefined ? [context] : []),
+          context,
+          session,
         ),
         lane: this.deps.escalationOrganizer,
         escalationUsed: true,
@@ -391,21 +451,17 @@ export class DonnaPipeline implements CoreLoop {
     transcript: Parameters<Organizer["organize"]>[0],
     buckets: Parameters<Organizer["organize"]>[1],
     context?: ContextPacket,
+    session?: SessionContext,
   ): Promise<LaneOutput> {
     const { organizer, escalationOrganizer } = this.deps;
-    const args = [
-      transcript,
-      buckets,
-      ...(context !== undefined ? [context] : []),
-    ] as const;
     try {
-      const out = await organizer.organize(...args);
+      const out = await organizer.organize(transcript, buckets, context, session);
       const anyConfident = out.thoughts.some(
         (t) => t.confidence >= ESCALATION_CONFIDENCE_FLOOR,
       );
       if (!anyConfident && escalationOrganizer && out.thoughts.length > 0) {
         return {
-          output: await escalationOrganizer.organize(...args),
+          output: await escalationOrganizer.organize(transcript, buckets, context, session),
           lane: escalationOrganizer,
           escalationUsed: true,
         };
@@ -414,7 +470,7 @@ export class DonnaPipeline implements CoreLoop {
     } catch (err) {
       if (!escalationOrganizer) throw err;
       return {
-        output: await escalationOrganizer.organize(...args),
+        output: await escalationOrganizer.organize(transcript, buckets, context, session),
         lane: escalationOrganizer,
         escalationUsed: true,
       };
