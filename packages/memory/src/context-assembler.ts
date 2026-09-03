@@ -22,6 +22,7 @@
  *     organization still works when memory retrieval is unavailable.
  */
 import { randomUUID } from "node:crypto";
+import { cosineSimilarity } from "@donna/buckets";
 import type {
   BucketStore,
   CaptureStore,
@@ -30,6 +31,7 @@ import type {
   ContextPacket,
   ContextAssembler as ContextAssemblerPort,
   CorrectionEvent,
+  Embedder,
   TranscriptStore,
 } from "@donna/core";
 import { MemoryService, type Scope } from "./service.js";
@@ -45,6 +47,15 @@ export interface ContextAssemblerDeps {
    * produces packets without correction examples.
    */
   corrections?: { listAccepted(scope: Scope): Promise<CorrectionEvent[]> };
+  /**
+   * Spec 3.3: when present, correction-example relevance is SEMANTIC
+   * (cosine similarity ≥ similarityThreshold), so paraphrased captures
+   * still surface the user's correction. Without an embedder, the
+   * deterministic keyword-overlap path is the fallback.
+   */
+  embedder?: Embedder;
+  /** Cosine threshold for semantic example selection (default 0.75). */
+  similarityThreshold?: number;
   budgets: ContextBudgets;
   now: () => Date;
   idGen?: () => string;
@@ -78,6 +89,13 @@ interface Candidate extends ContextElement {
   priorityClass: number;
   score: number;
 }
+
+/**
+ * Default cosine threshold for semantic correction-example selection
+ * (Spec 3.3). Matches the calibrated adherence default (0.5) in
+ * corrections.ts — see models.config.yaml for the calibration notes.
+ */
+export const DEFAULT_EXAMPLE_SIMILARITY_THRESHOLD = 0.5;
 
 export class ContextAssembler implements ContextAssemblerPort {
   private readonly idGen: () => string;
@@ -179,21 +197,18 @@ export class ContextAssembler implements ContextAssemblerPort {
     if (this.deps.corrections !== undefined) {
       try {
         const accepted = await this.deps.corrections.listAccepted(scope);
-        const ranked = accepted
-          .filter(
-            (event) =>
-              event.type === "bucket.move" &&
-              event.payload["toBucketId"] !== undefined &&
-              event.payload["thoughtSummary"] !== undefined,
-          )
-          .map((event) => ({
-            event,
-            score: relevanceScore(
-              query.text,
-              `${event.payload["thoughtSummary"]} ${event.payload["toBucketName"] ?? ""}`,
-            ),
-          }))
-          .filter((entry) => entry.score > 0)
+        const eligible = accepted.filter(
+          (event) =>
+            event.type === "bucket.move" &&
+            event.payload["toBucketId"] !== undefined &&
+            event.payload["thoughtSummary"] !== undefined,
+        );
+        // Spec 3.3: semantic relevance when an embedder is configured
+        // (paraphrases still surface the correction), deterministic
+        // keyword overlap otherwise. scoreCorrectionExamples returns
+        // only applicable examples (thresholded).
+        const scored = await this.scoreCorrectionExamples(query.text, eligible);
+        const ranked = scored
           .sort(
             (a, b) =>
               b.score - a.score ||
@@ -302,5 +317,53 @@ export class ContextAssembler implements ContextAssemblerPort {
       budgets: this.deps.budgets,
       totals: { tokens, items: elements.length, truncated },
     };
+  }
+
+  /**
+   * Spec 3.3: score correction examples for relevance to this capture.
+   * Semantic path (embedder configured): cosine similarity between the
+   * capture and each example's summary+bucket text, thresholded at the
+   * configured similarity threshold. Fallback (no embedder, or embedding
+   * fails): deterministic keyword overlap, score > 0. Only applicable
+   * examples are returned.
+   */
+  private async scoreCorrectionExamples(
+    queryText: string,
+    eligible: CorrectionEvent[],
+  ): Promise<Array<{ event: CorrectionEvent; score: number }>> {
+    if (eligible.length === 0) return [];
+    const textOf = (event: CorrectionEvent): string =>
+      `${event.payload["thoughtSummary"]} ${event.payload["toBucketName"] ?? ""}`;
+
+    if (this.deps.embedder !== undefined) {
+      try {
+        const embeddings = await this.deps.embedder.embed([
+          queryText,
+          ...eligible.map(textOf),
+        ]);
+        const queryEmbedding = embeddings[0];
+        if (queryEmbedding !== undefined) {
+          const threshold =
+            this.deps.similarityThreshold ?? DEFAULT_EXAMPLE_SIMILARITY_THRESHOLD;
+          const scored: Array<{ event: CorrectionEvent; score: number }> = [];
+          eligible.forEach((event, index) => {
+            const candidate = embeddings[index + 1];
+            if (candidate === undefined) return;
+            const score = cosineSimilarity(queryEmbedding, candidate);
+            if (score >= threshold) scored.push({ event, score });
+          });
+          return scored;
+        }
+      } catch {
+        // Embedding failure degrades to the deterministic keyword path.
+      }
+    }
+
+    return eligible
+      .map((event) => ({
+        event,
+        score: relevanceScore(queryText, textOf(event)),
+      }))
+      .filter((entry) => entry.score > 0);
   }
 }

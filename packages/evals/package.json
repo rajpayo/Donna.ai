@@ -14,6 +14,7 @@
     "@donna/buckets": "*",
     "@donna/core": "*",
     "@donna/providers": "*",
+    "@donna/retrieval": "*",
     "dotenv": "^17.4.2",
     "@donna/memory": "*"
   },

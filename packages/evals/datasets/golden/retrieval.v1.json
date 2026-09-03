@@ -1,0 +1,51 @@
+{
+  "name": "retrieval.v1",
+  "metric": "hit@3 — a positive case passes when at least one relevant thought ranks in the top 3 hits; a negative case (relevant: []) passes when no hit is returned",
+  "successBar": 0.8,
+  "now": "2026-09-03T12:00:00.000Z",
+  "provenance": "Synthetic fixtures in the style of the existing demo data (vendor contracts, hiring, errands, product). Embeddings are hand-crafted 5-dim vectors: axes 0-3 are hiring/vendor/errands/product topic axes, axis 4 is an out-of-domain axis used by negative cases. Deterministic and offline — no live embedder needed.",
+  "fixtures": {
+    "buckets": [
+      { "id": "b-hiring", "name": "Hiring", "centroid": [0.95, 0.05, 0, 0.03, 0] },
+      { "id": "b-vendor", "name": "Vendor Contracts", "centroid": [0.05, 1, 0.02, 0, 0] },
+      { "id": "b-errands", "name": "Errands", "centroid": [0, 0.05, 0.95, 0, 0] },
+      { "id": "b-product", "name": "Product", "centroid": [0.02, 0.03, 0.02, 0.95, 0] }
+    ],
+    "thoughts": [
+      { "id": "th-interview", "text": "interview feedback for the backend candidate", "bucketId": "b-hiring", "createdAt": "2026-08-20T10:00:00.000Z", "embedding": [1, 0.05, 0, 0, 0] },
+      { "id": "th-onboarding", "text": "onboarding plan for the new analyst hire", "bucketId": "b-hiring", "createdAt": "2026-09-01T10:00:00.000Z", "embedding": [0.95, 0.1, 0, 0, 0] },
+      { "id": "th-1on1", "text": "prepare skip-level 1:1 questions for Priya", "bucketId": "b-hiring", "createdAt": "2026-08-28T10:00:00.000Z", "embedding": [0.9, 0, 0, 0.1, 0] },
+      { "id": "th-vendor", "text": "review the vendor contract renewal with Priya before Thursday", "bucketId": "b-vendor", "createdAt": "2026-09-02T10:00:00.000Z", "embedding": [0.1, 1, 0, 0, 0], "task": { "title": "Review vendor contract renewal", "assigneeHint": "Priya" } },
+      { "id": "th-msa", "text": "double-check the MSA liability cap wording", "bucketId": "b-vendor", "createdAt": "2026-08-25T10:00:00.000Z", "embedding": [0, 1, 0.05, 0, 0] },
+      { "id": "th-groceries", "text": "pick up groceries for the team offsite", "bucketId": "b-errands", "createdAt": "2026-09-02T10:00:00.000Z", "embedding": [0, 0, 1, 0, 0], "task": { "title": "Pick up groceries", "assigneeHint": "Meera" } },
+      { "id": "th-offsite", "text": "book the offsite venue deposit", "bucketId": "b-errands", "createdAt": "2026-08-30T10:00:00.000Z", "embedding": [0, 0.1, 0.9, 0, 0], "task": { "title": "Book venue deposit" } },
+      { "id": "th-roadmap", "text": "draft the Q4 roadmap narrative for the product review", "bucketId": "b-product", "createdAt": "2026-09-01T10:00:00.000Z", "embedding": [0, 0, 0.05, 1, 0] },
+      { "id": "th-signup", "text": "try one-click signup to reduce drop-off", "bucketId": "b-product", "createdAt": "2026-09-03T10:00:00.000Z", "embedding": [0.05, 0, 0, 0.95, 0] },
+      { "id": "th-metrics", "text": "the metrics dashboard is late again", "bucketId": "b-product", "createdAt": "2026-08-15T10:00:00.000Z", "embedding": [0, 0.1, 0, 0.9, 0] }
+    ]
+  },
+  "cases": [
+    { "id": "topic-vendor-exact", "query": "vendor contract renewal", "embedding": [0.1, 1, 0, 0, 0], "relevant": ["th-vendor"] },
+    { "id": "paraphrase-vendor", "query": "supplier agreement paperwork", "embedding": [0.1, 0.95, 0.05, 0, 0], "relevant": ["th-vendor", "th-msa"], "note": "zero shared keywords — semantic signal must carry it" },
+    { "id": "person-priya", "query": "what did I note about Priya", "embedding": [0.5, 0.5, 0, 0.05, 0], "relevant": ["th-1on1", "th-vendor"] },
+    { "id": "bucket-scoped", "query": "renewal", "embedding": [0, 1, 0, 0, 0], "filters": { "bucketIds": ["b-vendor"] }, "relevant": ["th-vendor"] },
+    { "id": "time-scoped", "query": "groceries offsite", "embedding": [0, 0, 1, 0, 0], "filters": { "createdFrom": "2026-09-01T00:00:00.000Z" }, "relevant": ["th-groceries"], "note": "th-offsite is offsite-related but predates the window" },
+    { "id": "task-intent", "query": "what tasks are due", "embedding": [0.1, 0.5, 0.4, 0, 0], "relevant": ["th-vendor", "th-groceries", "th-offsite"] },
+    { "id": "recency-onboarding", "query": "onboarding", "embedding": [0.95, 0.1, 0, 0, 0], "relevant": ["th-onboarding"] },
+    { "id": "paraphrase-signup", "query": "reduce signup friction", "embedding": [0.05, 0, 0, 0.95, 0], "relevant": ["th-signup"], "note": "the product-owner-witnessed paraphrase class" },
+    { "id": "negative-tax", "query": "quarterly tax filing", "embedding": [0.1, 0.1, 0.1, 0.1, 1], "relevant": [], "note": "out-of-domain: nothing stored about taxes" },
+    { "id": "negative-sushi", "query": "favorite sushi places", "embedding": [0.05, 0.1, 0.15, 0.1, 1], "relevant": [] },
+    { "id": "multi-signal-onboarding", "query": "the onboarding task for the new hire", "embedding": [0.95, 0.1, 0, 0, 0], "relevant": ["th-onboarding"] },
+    { "id": "person-task-meera", "query": "tasks involving Meera", "embedding": [0, 0, 1, 0, 0], "filters": { "people": ["meera"] }, "relevant": ["th-groceries"] },
+    { "id": "metrics-old", "query": "metrics dashboard late", "embedding": [0, 0.1, 0, 0.9, 0], "relevant": ["th-metrics"], "note": "old but exact — recency must not bury an exact match" },
+    { "id": "contract-wording", "query": "liability wording", "embedding": [0.05, 0.95, 0.05, 0, 0], "relevant": ["th-msa", "th-vendor"] },
+    { "id": "followup-session", "query": "when is it due", "sessionContext": ["vendor contract renewal"], "relevant": ["th-vendor"], "note": "bare follow-up misses; session working memory resolves it" },
+    { "id": "commitments", "query": "show my commitments", "embedding": [0.1, 0.5, 0.4, 0, 0], "relevant": ["th-vendor", "th-groceries", "th-offsite"] },
+    { "id": "time-bounded-old", "query": "metrics", "embedding": [0, 0.1, 0, 0.9, 0], "filters": { "createdTo": "2026-08-31T23:59:59.000Z" }, "relevant": ["th-metrics"] },
+    { "id": "broad-recent", "query": "what did I capture", "embedding": [0.1, 0.4, 0.3, 0.3, 0], "filters": { "createdFrom": "2026-09-02T00:00:00.000Z" }, "relevant": ["th-vendor", "th-groceries", "th-signup"] },
+    { "id": "hiring-generic", "query": "hiring pipeline", "embedding": [1, 0.05, 0, 0, 0], "relevant": ["th-interview", "th-onboarding", "th-1on1"], "note": "no fixture text contains the query tokens — pure semantic + bucket affinity" },
+    { "id": "errands", "query": "offsite logistics", "embedding": [0, 0.05, 1, 0, 0], "relevant": ["th-groceries", "th-offsite"] },
+    { "id": "exact-1on1", "query": "skip-level 1:1 questions", "embedding": [0.9, 0, 0, 0.1, 0], "relevant": ["th-1on1"] },
+    { "id": "ambiguous-review", "query": "review", "embedding": [0.1, 0.6, 0.1, 0.4, 0], "relevant": ["th-vendor", "th-roadmap"], "note": "ambiguous single word; either reading is a correct hit" }
+  ]
+}

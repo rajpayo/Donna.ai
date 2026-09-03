@@ -26,6 +26,7 @@
  */
 import { randomUUID } from "node:crypto";
 import { canonicalJson } from "@donna/core";
+import { cosineSimilarity } from "@donna/buckets";
 import type {
   BucketStore,
   CorrectionEvent,
@@ -53,8 +54,28 @@ export interface CorrectionServiceDeps {
   memory: MemoryService;
   transcripts: TranscriptStore;
   verifier: ProvenanceVerifier;
-  /** Required for thought.edit (re-embedding) and task.add re-embedding-free moves. */
+  /**
+   * Required for thought.edit (re-embedding) and task.add
+   * re-embedding-free moves. Also enables the semantic adherence
+   * applicability path (Spec 3.3).
+   */
   embedder?: Embedder;
+  /**
+   * Spec 3.3: cosine similarity at or above this threshold marks a
+   * correction example applicable to a placement. Default 0.5
+   * (models.config.yaml: corrections.adherence_semantic_threshold).
+   * When no embedder is available, applicability falls back to
+   * deterministic keyword overlap.
+   */
+  adherenceThreshold?: number;
+  /**
+   * Spec 3.3: the retrieval read model. Accepted corrections mutate
+   * source records (moves, renames, merges, edits), so the projection is
+   * rebuilt after application — search never serves stale bucket/text
+   * state (SR-3). A rebuild failure throws after the correction is
+   * durably applied; `rebuild` (CLI: donna reindex) heals the projection.
+   */
+  retrievalIndex?: { rebuild(tenantId: string, userId: string): Promise<unknown> };
   now: () => Date;
   idGen?: () => string;
 }
@@ -74,6 +95,16 @@ const RECORD_ONLY_TYPES: ReadonlySet<CorrectionType> = new Set([
 ]);
 
 const TASKS_BUCKET_NAME = "Tasks";
+
+/**
+ * Default cosine threshold for semantic adherence applicability
+ * (Spec 3.3). Configured via models.config.yaml
+ * (corrections.adherence_semantic_threshold). Calibrated
+ * 2026-09-03 against live text-embedding-3-large@1024: the
+ * product-owner-witnessed paraphrase pair scores ~0.55, unrelated
+ * text ~0.16 — 0.5 sits in the gap.
+ */
+export const DEFAULT_ADHERENCE_THRESHOLD = 0.5;
 
 function normalize(text: string): string {
   return text.trim().toLowerCase().replace(/\s+/g, " ");
@@ -174,6 +205,11 @@ export class CorrectionService implements CorrectionObserver {
       await this.derivePreference(scope, applied);
       await this.markContradicted(scope, applied);
     }
+    // Keep the retrieval projection in step with the mutated source
+    // records (Spec 3.3 SR-3). Record-only types change no state.
+    if (!RECORD_ONLY_TYPES.has(event.type)) {
+      await this.deps.retrievalIndex?.rebuild(scope.tenantId, scope.userId);
+    }
     return applied;
   }
 
@@ -239,8 +275,18 @@ export class CorrectionService implements CorrectionObserver {
   /**
    * Pipeline hook: for each injected correction example relevant to the
    * placed thought, record whether placement followed or contradicted the
-   * learned correction. Deterministic applicability: keyword overlap
-   * between the thought and the example text.
+   * learned correction.
+   *
+   * Applicability (Spec 3.3, product-owner-witnessed fix): when an
+   * embedder is configured, applicability is SEMANTIC — cosine
+   * similarity between the placed thought and the correction's canonical
+   * thought summary at or above the configured threshold (default 0.5,
+   * calibrated against live embeddings — see models.config.yaml) — so a
+   * paraphrased follow-up (e.g. a correction about "test removing email
+   * verification" and a later placement of "try one-click signup") is
+   * counted even with zero shared keywords. When no embedder is
+   * available (or embedding fails), the deterministic keyword-overlap
+   * path is the fallback.
    */
   async observePlacement(
     scope: Scope,
@@ -253,13 +299,19 @@ export class CorrectionService implements CorrectionObserver {
     let followed = 0;
     let contradicted = 0;
     for (const example of observation.examples) {
-      if (relevanceScore(observation.thoughtText, example.text) < 1) continue;
       const event = await this.deps.corrections.getCorrection(
         scope.tenantId,
         scope.userId,
         example.correctionId,
       );
       if (event === undefined || event.status !== "accepted") continue;
+      // Compare against the canonical correction summary, not the
+      // rendered example template (the template text dilutes the
+      // embedding).
+      const exampleText = event.payload["thoughtSummary"] ?? example.text;
+      if (!(await this.isApplicable(observation.thoughtText, exampleText))) {
+        continue;
+      }
       if (observation.placedBucketId === example.preferredBucketId) {
         event.followedCount += 1;
         followed += 1;
@@ -270,6 +322,28 @@ export class CorrectionService implements CorrectionObserver {
       await this.deps.corrections.saveCorrection(event);
     }
     return { followed, contradicted };
+  }
+
+  /**
+   * Semantic-first applicability with deterministic fallback. Exported
+   * for the context assembler's example selection (the same rule decides
+   * which examples are injected and which observations are counted).
+   */
+  async isApplicable(thoughtText: string, exampleText: string): Promise<boolean> {
+    if (this.deps.embedder !== undefined) {
+      try {
+        const [a, b] = await this.deps.embedder.embed([thoughtText, exampleText]);
+        if (a !== undefined && b !== undefined) {
+          return (
+            cosineSimilarity(a, b) >=
+            (this.deps.adherenceThreshold ?? DEFAULT_ADHERENCE_THRESHOLD)
+          );
+        }
+      } catch {
+        // Embedding failure degrades to the deterministic keyword path.
+      }
+    }
+    return relevanceScore(thoughtText, exampleText) >= 1;
   }
 
   /** AC-2: correction rate and adherence, per scoped (pseudonymous) user. */

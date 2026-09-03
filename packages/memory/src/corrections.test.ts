@@ -504,38 +504,52 @@ describe("replay determinism (FR-2) and deletion (AC-3)", () => {
 });
 
 describe("adherence tracking (AC-2)", () => {
-  it("records followed and contradicted placements", async () => {
+  /** Service with NO embedder: the deterministic keyword fallback path. */
+  function keywordOnlyService(): CorrectionService {
+    return new CorrectionService({
+      corrections: new FileCorrectionStore(dir),
+      buckets,
+      memory,
+      transcripts,
+      verifier: new DeterministicProvenanceVerifier(),
+      now: () => new Date("2026-09-03T10:00:00.000Z"),
+    });
+  }
+
+  it("records followed and contradicted placements (keyword path)", async () => {
+    const service = keywordOnlyService();
     buckets.buckets.push(makeBucket("b-random", "Random"), makeBucket("b-people", "People Ops"));
     buckets.items.push({ thought: makeThought("th-1", "hire a PM"), bucketId: "b-random" });
-    const event = await corrections.submit(SCOPE, moveInput("th-1", "b-people", "hire a PM"));
-    await corrections.accept(SCOPE, event.id);
+    const event = await service.submit(SCOPE, moveInput("th-1", "b-people", "hire a PM"));
+    await service.accept(SCOPE, event.id);
 
     const example = {
       correctionId: event.id,
       preferredBucketId: "b-people",
       text: 'The user corrected: "hire a PM" belongs in "People Ops"',
     };
-    const followed = await corrections.observePlacement(SCOPE, {
+    const followed = await service.observePlacement(SCOPE, {
       thoughtText: "we should hire a PM soon",
       placedBucketId: "b-people",
       examples: [example],
     });
     assert.deepEqual(followed, { followed: 1, contradicted: 0 });
-    const contradicted = await corrections.observePlacement(SCOPE, {
+    const contradicted = await service.observePlacement(SCOPE, {
       thoughtText: "hire a PM",
       placedBucketId: "b-random",
       examples: [example],
     });
     assert.deepEqual(contradicted, { followed: 0, contradicted: 1 });
 
-    const stats = await corrections.stats(SCOPE);
+    const stats = await service.stats(SCOPE);
     assert.equal(stats.followed, 1);
     assert.equal(stats.contradicted, 1);
     assert.equal(stats.adherenceRate, 0.5);
   });
 
-  it("ignores irrelevant examples and unknown corrections", async () => {
-    const outcome = await corrections.observePlacement(SCOPE, {
+  it("ignores irrelevant examples and unknown corrections (keyword path)", async () => {
+    const service = keywordOnlyService();
+    const outcome = await service.observePlacement(SCOPE, {
       thoughtText: "unrelated words",
       placedBucketId: "b-x",
       examples: [
@@ -543,6 +557,174 @@ describe("adherence tracking (AC-2)", () => {
       ],
     });
     assert.deepEqual(outcome, { followed: 0, contradicted: 0 });
+  });
+
+  it("keyword path undercounts paraphrases — the witnessed defect", async () => {
+    const service = keywordOnlyService();
+    buckets.buckets.push(makeBucket("b-growth", "Growth Experiments"), makeBucket("b-random", "Random"));
+    buckets.items.push({ thought: makeThought("th-1", "test removing email verification"), bucketId: "b-random" });
+    const event = await service.submit(
+      SCOPE,
+      moveInput("th-1", "b-growth", "test removing email verification", "Growth Experiments"),
+    );
+    await service.accept(SCOPE, event.id);
+    const example = {
+      correctionId: event.id,
+      preferredBucketId: "b-growth",
+      text: 'The user corrected: "test removing email verification" belongs in "Growth Experiments"',
+    };
+    // Zero shared keywords with the correction — the old behavior.
+    const outcome = await service.observePlacement(SCOPE, {
+      thoughtText: "try one-click signup",
+      placedBucketId: "b-growth",
+      examples: [example],
+    });
+    assert.deepEqual(outcome, { followed: 0, contradicted: 0 });
+  });
+
+  it("semantic path counts a paraphrased placement (Spec 3.3 fix)", async () => {
+    // Embeddings: the correction text and the paraphrased placement are
+    // close (both about signup-flow friction); unrelated text is not.
+    const semanticEmbedder: Embedder = {
+      modelId: "semantic-stub",
+      dimensions: 3,
+      embed: async (texts: string[]) =>
+        texts.map((text) => {
+          const t = text.toLowerCase();
+          if (t.includes("email verification") || t.includes("one-click signup")) {
+            return [1, 0.1, 0]; // same neighborhood
+          }
+          return [0, 0, 1];
+        }),
+    };
+    const service = new CorrectionService({
+      corrections: new FileCorrectionStore(dir),
+      buckets,
+      memory,
+      transcripts,
+      verifier: new DeterministicProvenanceVerifier(),
+      embedder: semanticEmbedder,
+      adherenceThreshold: 0.75,
+      now: () => new Date("2026-09-03T10:00:00.000Z"),
+    });
+    buckets.buckets.push(makeBucket("b-growth", "Growth Experiments"), makeBucket("b-random", "Random"));
+    buckets.items.push({ thought: makeThought("th-1", "test removing email verification"), bucketId: "b-random" });
+    const event = await service.submit(
+      SCOPE,
+      moveInput("th-1", "b-growth", "test removing email verification", "Growth Experiments"),
+    );
+    await service.accept(SCOPE, event.id);
+    const example = {
+      correctionId: event.id,
+      preferredBucketId: "b-growth",
+      text: 'The user corrected: "test removing email verification" belongs in "Growth Experiments"',
+    };
+
+    // The paraphrase now counts as FOLLOWED — the witnessed fix.
+    const followed = await service.observePlacement(SCOPE, {
+      thoughtText: "try one-click signup",
+      placedBucketId: "b-growth",
+      examples: [example],
+    });
+    assert.deepEqual(followed, { followed: 1, contradicted: 0 });
+
+    // And a paraphrased placement into the WRONG bucket counts as
+    // contradicted (semantic applicability, not keyword presence).
+    const contradicted = await service.observePlacement(SCOPE, {
+      thoughtText: "try one-click signup",
+      placedBucketId: "b-random",
+      examples: [example],
+    });
+    assert.deepEqual(contradicted, { followed: 0, contradicted: 1 });
+
+    // Semantically unrelated placements are still not applicable.
+    const unrelated = await service.observePlacement(SCOPE, {
+      thoughtText: "order more coffee pods",
+      placedBucketId: "b-random",
+      examples: [example],
+    });
+    assert.deepEqual(unrelated, { followed: 0, contradicted: 0 });
+  });
+
+  it("semantic path respects the configured threshold", async () => {
+    // Cosine between [1, 0.3] and the example [1, 0.1] ≈ 0.958 — passes
+    // at 0.75 but fails at 0.99.
+    const embedder: Embedder = {
+      modelId: "threshold-stub",
+      dimensions: 2,
+      embed: async (texts: string[]) =>
+        texts.map((text) => (text.includes("placement") ? [1, 0.3] : [1, 0.1])),
+    };
+    const makeService = (threshold: number) =>
+      new CorrectionService({
+        corrections: new FileCorrectionStore(dir),
+        buckets,
+        memory,
+        transcripts,
+        verifier: new DeterministicProvenanceVerifier(),
+        embedder,
+        adherenceThreshold: threshold,
+        now: () => new Date("2026-09-03T10:00:00.000Z"),
+      });
+    buckets.buckets.push(makeBucket("b-signup", "Signup Flow"));
+    buckets.items.push({ thought: makeThought("th-1", "example text"), bucketId: "b-signup" });
+    const event = await corrections.submit(
+      SCOPE,
+      moveInput("th-1", "b-signup", "example text", "Signup Flow"),
+    );
+    await corrections.accept(SCOPE, event.id);
+    const example = {
+      correctionId: event.id,
+      preferredBucketId: "b-signup",
+      text: "example text",
+    };
+    const loose = await makeService(0.75).observePlacement(SCOPE, {
+      thoughtText: "placement text",
+      placedBucketId: "b-signup",
+      examples: [example],
+    });
+    assert.deepEqual(loose, { followed: 1, contradicted: 0 });
+    const strict = await makeService(0.99).observePlacement(SCOPE, {
+      thoughtText: "placement text",
+      placedBucketId: "b-signup",
+      examples: [example],
+    });
+    assert.deepEqual(strict, { followed: 0, contradicted: 0 });
+  });
+
+  it("embedder failure falls back to the deterministic keyword path", async () => {
+    const failingEmbedder: Embedder = {
+      modelId: "failing-stub",
+      dimensions: 2,
+      embed: async () => {
+        throw new Error("embedder unavailable");
+      },
+    };
+    const service = new CorrectionService({
+      corrections: new FileCorrectionStore(dir),
+      buckets,
+      memory,
+      transcripts,
+      verifier: new DeterministicProvenanceVerifier(),
+      embedder: failingEmbedder,
+      now: () => new Date("2026-09-03T10:00:00.000Z"),
+    });
+    buckets.buckets.push(makeBucket("b-people", "People Ops"));
+    buckets.items.push({ thought: makeThought("th-1", "hire a PM"), bucketId: "b-random" });
+    const event = await service.submit(SCOPE, moveInput("th-1", "b-people", "hire a PM"));
+    await service.accept(SCOPE, event.id);
+    const outcome = await service.observePlacement(SCOPE, {
+      thoughtText: "hire a PM soon",
+      placedBucketId: "b-people",
+      examples: [
+        {
+          correctionId: event.id,
+          preferredBucketId: "b-people",
+          text: 'The user corrected: "hire a PM" belongs in "People Ops"',
+        },
+      ],
+    });
+    assert.deepEqual(outcome, { followed: 1, contradicted: 0 });
   });
 });
 
@@ -600,5 +782,42 @@ describe("tenant isolation (AC-3)", () => {
     assert.equal((await corrections.reviewQueue(OTHER)).length, 0);
     await assert.rejects(() => corrections.accept(OTHER, event.id), /does not exist/);
     assert.equal((await corrections.list(OTHER)).length, 0);
+  });
+});
+
+describe("retrieval projection freshness (Spec 3.3 SR-3)", () => {
+  it("accepting a move correction rebuilds the index — search never serves stale bucket state", async () => {
+    const { LocalRetrievalIndex } = await import("@donna/retrieval");
+    const indexDir = await mkdtemp(join(tmpdir(), "donna-corr-idx-"));
+    try {
+      buckets.buckets.push(makeBucket("b-random", "Random"), makeBucket("b-people", "People Ops"));
+      const item = { thought: makeThought("th-1", "hire a PM"), bucketId: "b-random" };
+      buckets.items.push(item);
+      const index = new LocalRetrievalIndex({ dataDir: indexDir, store: buckets });
+      await index.indexItem(item, buckets.buckets.find((b) => b.id === "b-random")!);
+
+      // Before the correction: the hit shows the old bucket.
+      let hits = await index.search({ ...SCOPE, text: "hire a PM" });
+      assert.equal(hits[0]?.bucketName, "Random");
+
+      const service = new CorrectionService({
+        corrections: new FileCorrectionStore(dir),
+        buckets,
+        memory,
+        transcripts,
+        verifier: new DeterministicProvenanceVerifier(),
+        retrievalIndex: index,
+        now: () => new Date("2026-09-03T10:00:00.000Z"),
+      });
+      const event = await service.submit(SCOPE, moveInput("th-1", "b-people", "hire a PM"));
+      await service.accept(SCOPE, event.id);
+
+      // After acceptance, the projection reflects the move.
+      hits = await index.search({ ...SCOPE, text: "hire a PM" });
+      assert.equal(hits[0]?.bucketName, "People Ops");
+      assert.equal(hits[0]?.bucketId, "b-people");
+    } finally {
+      await rm(indexDir, { recursive: true, force: true });
+    }
   });
 });

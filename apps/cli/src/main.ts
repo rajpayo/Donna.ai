@@ -60,6 +60,15 @@
  *                                              configured embedder)
  *   donna reindex                              rebuild the retrieval index
  *                                              from the source-of-truth store
+ *   donna query <text> [--answer] [--session]  hybrid natural-language
+ *                                              retrieval with provenance;
+ *                                              --answer adds grounded
+ *                                              synthesis (every claim cites
+ *                                              live hit IDs, fail-closed)
+ *   donna explain-ranking <text>               show the versioned features
+ *                                              and weights behind each hit
+ *   donna retrieval-feedback <id> --verdict..  relevance feedback, recorded
+ *                                              as a correction event
  *
  * This is the internal demo surface: one command turns a messy voice memo
  * into organized, bucketed, provenance-linked thoughts.
@@ -87,7 +96,12 @@ import {
   FileCaptureStore,
   FileTranscriptStore,
 } from "@donna/pipeline";
-import { LocalRetrievalIndex } from "@donna/retrieval";
+import {
+  AnswerSynthesizer,
+  HybridRetriever,
+  LocalRetrievalIndex,
+  type HybridRankingConfig,
+} from "@donna/retrieval";
 import {
   AudioKeyError,
   CaptureLifecycleService,
@@ -148,6 +162,12 @@ const USAGE = `usage:
   donna search <text> [--bucket <name>] [--from <iso>] [--to <iso>]
        [--task] [--person <name>] [--semantic] [--limit <n>] [--user <id>]
   donna reindex [--user <id>]
+  donna query <text> [--bucket <name>] [--from <iso>] [--to <iso>]
+       [--task] [--person <name>] [--limit <n>] [--session <id>]
+       [--answer] [--user <id>]
+  donna explain-ranking <text> [same filters] [--user <id>]
+  donna retrieval-feedback <thought-id> --verdict relevant|irrelevant
+       --query <text> [--user <id>]
   donna session start [--ttl-sec <n>] [--user <id>]
   donna session end <session-id> [--user <id>]
   donna session list [--user <id>]
@@ -199,11 +219,14 @@ function buildEmotionService(): EmotionalContextService {
 async function buildCorrectionService(): Promise<CorrectionService> {
   const dir = dataDir();
   let embedder;
+  let adherenceThreshold: number | undefined;
   try {
     const config = await loadModelsConfig(
       resolve(repoRoot, process.env.DONNA_MODELS_CONFIG ?? "models.config.yaml"),
     );
-    embedder = resolveStack(gatewayFromEnv(), config).embedder;
+    const stack = resolveStack(gatewayFromEnv(), config);
+    embedder = stack.embedder;
+    adherenceThreshold = stack.corrections.adherenceSemanticThreshold;
   } catch {
     embedder = undefined;
   }
@@ -214,6 +237,8 @@ async function buildCorrectionService(): Promise<CorrectionService> {
     transcripts: new FileTranscriptStore(dir),
     verifier: new DeterministicProvenanceVerifier(),
     ...(embedder !== undefined ? { embedder } : {}),
+    ...(adherenceThreshold !== undefined ? { adherenceThreshold } : {}),
+    retrievalIndex: buildRetrievalIndex(),
     now: () => new Date(),
   });
 }
@@ -230,6 +255,97 @@ function buildRetrievalIndex(): LocalRetrievalIndex {
     store: new FileBucketStore(dir),
     memories: new FileMemoryStore(dir),
   });
+}
+
+/**
+ * The hybrid retriever (Spec 3.3): versioned, explainable ranking over
+ * the local index. The embedder and answer generator come from
+ * models.config.yaml via the registry — without gateway credentials the
+ * retriever degrades to text-only ranking and no synthesis (FR-1).
+ */
+async function buildHybridRetriever(): Promise<{
+  retriever: HybridRetriever;
+  synthesizer: AnswerSynthesizer;
+}> {
+  const dir = dataDir();
+  let embedder;
+  let answerGenerator;
+  let ranking: HybridRankingConfig | undefined;
+  let adherenceThreshold: number | undefined;
+  try {
+    const config = await loadModelsConfig(
+      resolve(repoRoot, process.env.DONNA_MODELS_CONFIG ?? "models.config.yaml"),
+    );
+    const stack = resolveStack(gatewayFromEnv(), config);
+    embedder = stack.embedder;
+    answerGenerator = stack.answerGenerator;
+    adherenceThreshold = stack.corrections.adherenceSemanticThreshold;
+    ranking = {
+      version: stack.retrieval.rankingVersion,
+      weights: stack.retrieval.weights,
+      recencyHalfLifeDays: stack.retrieval.recencyHalfLifeDays,
+      candidateLimit: stack.retrieval.candidateLimit,
+      minScore: stack.retrieval.minScore,
+    };
+  } catch {
+    embedder = undefined;
+    answerGenerator = undefined;
+  }
+  const corrections = new CorrectionService({
+    corrections: new FileCorrectionStore(dir),
+    buckets: new FileBucketStore(dir),
+    memory: buildMemoryService(),
+    transcripts: new FileTranscriptStore(dir),
+    verifier: new DeterministicProvenanceVerifier(),
+    ...(embedder !== undefined ? { embedder } : {}),
+    ...(adherenceThreshold !== undefined
+      ? { adherenceThreshold }
+      : {}),
+    retrievalIndex: buildRetrievalIndex(),
+    now: () => new Date(),
+  });
+  const retriever = new HybridRetriever({
+    index: buildRetrievalIndex(),
+    buckets: new FileBucketStore(dir),
+    corrections,
+    ...(embedder !== undefined ? { embedder } : {}),
+    ...(ranking !== undefined ? { config: ranking } : {}),
+    now: () => new Date(),
+  });
+  return {
+    retriever,
+    synthesizer: new AnswerSynthesizer({
+      ...(answerGenerator !== undefined ? { generator: answerGenerator } : {}),
+    }),
+  };
+}
+
+/**
+ * Audio-window state for a hit's provenance (Spec 3.3): transcript text
+ * always; audio playback window while the audio is retained;
+ * transcript-only state after expiry/deletion.
+ */
+async function audioStateLabel(
+  captureId: string,
+  tenantId: string,
+  userId: string,
+): Promise<string> {
+  const dir = dataDir();
+  const capture = await new FileCaptureStore(dir).getCapture(
+    tenantId,
+    userId,
+    captureId,
+  );
+  if (capture === undefined) return "no capture record";
+  if (capture.audioDeletedAt !== undefined) {
+    return `transcript-only (audio deleted ${capture.audioDeletedAt})`;
+  }
+  try {
+    const has = await buildAudioStore().has(tenantId, userId, captureId);
+    return has ? "audio retained" : "transcript-only (audio expired)";
+  } catch {
+    return `transcript retained (audio state unverified — no audio key)`;
+  }
 }
 
 function buildLifecycle(): {
@@ -313,6 +429,8 @@ async function buildPipeline(): Promise<{ pipeline: DonnaPipeline; store: FileBu
     transcripts,
     verifier: new DeterministicProvenanceVerifier(),
     embedder: stack.embedder,
+    adherenceThreshold: stack.corrections.adherenceSemanticThreshold,
+    retrievalIndex: buildRetrievalIndex(),
     now: () => new Date(),
   });
   const pipeline = new DonnaPipeline({
@@ -590,6 +708,204 @@ async function main(): Promise<void> {
       );
       console.log(`    ↳ source: "${p.sourceText}"`);
     }
+    return;
+  }
+
+  if (command === "query" || command === "explain-ranking") {
+    const text = process.argv[3];
+    if (!text || text.startsWith("--")) {
+      console.error(
+        `usage: donna ${command} <text> [--bucket <name>] [--from <iso>] [--to <iso>] [--task] [--person <name>] [--limit <n>] [--session <id>]${command === "query" ? " [--answer]" : ""} [--user <id>]`,
+      );
+      process.exit(1);
+    }
+    const { retriever, synthesizer } = await buildHybridRetriever();
+
+    const filters: Record<string, unknown> = {};
+    const bucketName = arg("--bucket");
+    if (bucketName !== undefined) {
+      const store = new FileBucketStore(dataDir());
+      const bucket = await store.getBucketByName(tenantId, userId, bucketName);
+      if (bucket === undefined) {
+        console.error(`No bucket "${bucketName}" in this scope (see: donna buckets).`);
+        process.exit(1);
+      }
+      filters["bucketIds"] = [bucket.id];
+    }
+    const from = arg("--from");
+    const to = arg("--to");
+    if (from !== undefined) filters["createdFrom"] = from;
+    if (to !== undefined) filters["createdTo"] = to;
+    if (process.argv.includes("--task")) filters["hasTask"] = true;
+    const person = arg("--person");
+    if (person !== undefined) filters["people"] = [person];
+    const limitArg = arg("--limit");
+
+    // Follow-up support (Spec 3.3): within a session, prior queries live
+    // in working memory and expand a follow-up that finds nothing.
+    const sessionId = arg("--session");
+    let sessionContext: string[] | undefined;
+    let sessionExpiry: string | undefined;
+    if (sessionId !== undefined) {
+      const sessions = new FileSessionStore(dataDir());
+      const session = await sessions.getSession(tenantId, userId, sessionId);
+      if (session === undefined) {
+        console.error(`No session ${sessionId} in this scope. Start one with: donna session start`);
+        process.exit(1);
+      }
+      if (session.expiresAt <= new Date().toISOString()) {
+        console.error(`Session ${sessionId} has expired. Start a new one.`);
+        process.exit(1);
+      }
+      sessionExpiry = session.expiresAt;
+      const working = await buildMemoryService().listConfirmed(
+        { tenantId, userId },
+        "working",
+      );
+      sessionContext = working
+        .filter((record) => record.sessionId === sessionId && record.kind === "retrieval-query")
+        .map((record) => record.text)
+        .slice(-3);
+    }
+
+    const started = Date.now();
+    const hits = await retriever.search(
+      { tenantId, userId },
+      {
+        text,
+        ...(Object.keys(filters).length > 0
+          ? { filters: filters as Parameters<typeof retriever.search>[1]["filters"] }
+          : {}),
+        ...(limitArg !== undefined ? { limit: Number(limitArg) } : {}),
+        ...(sessionContext !== undefined && sessionContext.length > 0
+          ? { sessionContext }
+          : {}),
+      },
+    );
+    // SR-2: telemetry carries timing and counts, never query/result text.
+    console.error(`[telemetry] retrieval.query ms=${Date.now() - started} hits=${hits.length}`);
+
+    // Record the query in session working memory (expires with the session).
+    if (sessionId !== undefined && sessionExpiry !== undefined) {
+      await buildMemoryService().stateExplicit(
+        { tenantId, userId },
+        {
+          layer: "working",
+          kind: "retrieval-query",
+          subject: `retrieval-query:${randomUUID()}`,
+          text,
+          sources: [
+            { kind: "session", id: sessionId, reason: "retrieval query in this session" },
+          ],
+          expiresAt: sessionExpiry,
+          sessionId,
+        },
+      );
+    }
+
+    if (command === "explain-ranking") {
+      const description = retriever.describeRanking();
+      console.log(`Ranking version: ${description.version}`);
+      console.log(
+        `Weights: ${Object.entries(description.weights)
+          .map(([k, v]) => `${k}=${v}`)
+          .join(" ")}`,
+      );
+      if (hits.length === 0) {
+        console.log("No hits above the relevance floor.");
+        return;
+      }
+      for (const hit of hits) {
+        const f = hit.features;
+        const w = hit.weights;
+        console.log(`• ${hit.thought.id} [${hit.bucketName}] combined ${hit.scores.combined.toFixed(3)}`);
+        console.log(
+          `    text ${f.text.toFixed(3)}×${w.text} + semantic ${f.semantic.toFixed(3)}×${w.semantic} + bucket ${f.bucketAffinity.toFixed(3)}×${w.bucketAffinity}`,
+        );
+        console.log(
+          `    recency ${f.recency.toFixed(3)}×${w.recency} + personalization ${f.personalization.toFixed(3)}×${w.personalization} + task ${f.taskMatch.toFixed(3)}×${w.taskMatch}`,
+        );
+      }
+      return;
+    }
+
+    // Direct hits first — always, with or without synthesis (FR-1).
+    if (hits.length === 0) {
+      console.log("No matching thoughts above the relevance floor.");
+    }
+    for (const [index, hit] of hits.entries()) {
+      const p = hit.thought.provenance;
+      const audio = await audioStateLabel(p.captureId, tenantId, userId);
+      console.log(
+        `• [H${index + 1}] [${hit.bucketName}] ${hit.thought.summary}  (score ${hit.scores.combined.toFixed(3)})`,
+      );
+      console.log(`    thought ${hit.thought.id} · ${audio}`);
+      console.log(
+        `    ↳ provenance: capture ${p.captureId}, segments ${p.segmentIds.join(", ")}, audio ${p.startSec.toFixed(1)}–${p.endSec.toFixed(1)}s`,
+      );
+      console.log(`    ↳ source: "${p.sourceText}"`);
+    }
+
+    if (process.argv.includes("--answer")) {
+      let answer;
+      let generatorFailed = false;
+      try {
+        answer = await synthesizer.answer(text, hits);
+      } catch {
+        // Fail closed: a generator error (including an upstream guardrail
+        // rejection) means no synthesized answer, never a raw one.
+        generatorFailed = true;
+        answer = undefined;
+      }
+      if (generatorFailed) {
+        console.log("\nAnswer synthesis failed closed (generator error) — the direct hits above are the source of truth.");
+      } else if (answer === undefined) {
+        console.log("\nAnswer synthesis is not configured (retrieval.answer lane) — showing direct hits only.");
+      } else if (!answer.supported) {
+        // Fail closed: never present ungrounded text as an answer.
+        console.log(
+          `\nNo grounded answer could be synthesized from the stored evidence (${answer.failureReason}). The direct hits above are the source of truth.`,
+        );
+      } else {
+        console.log(`\n=== Grounded answer (${answer.model}, ${answer.promptVersion}) ===`);
+        console.log(answer.text);
+        console.log(`Cited hits: ${answer.citations.join(", ")}`);
+      }
+    }
+    return;
+  }
+
+  if (command === "retrieval-feedback") {
+    const thoughtId = process.argv[3];
+    const verdict = arg("--verdict");
+    const queryText = arg("--query");
+    if (!thoughtId || (verdict !== "relevant" && verdict !== "irrelevant") || !queryText) {
+      console.error(
+        "usage: donna retrieval-feedback <thought-id> --verdict relevant|irrelevant --query <text> [--user <id>]",
+      );
+      process.exit(1);
+    }
+    // FR-4: relevance feedback becomes a correction event (review queue).
+    const corrections = await buildCorrectionService();
+    const event = await corrections.submit(
+      { tenantId, userId },
+      {
+        type: "retrieval.relevance",
+        target: { kind: "retrieval", id: thoughtId },
+        payload: { verdict, query: queryText },
+        sources: [
+          { kind: "thought", id: thoughtId, reason: "hit the feedback is about" },
+          {
+            kind: "explicit-statement",
+            id: `cli-${randomUUID()}`,
+            reason: "user retrieval feedback via the CLI",
+          },
+        ],
+      },
+    );
+    console.log(
+      `Retrieval feedback recorded as correction ${event.id} (${verdict}). Review: donna corrections`,
+    );
     return;
   }
 

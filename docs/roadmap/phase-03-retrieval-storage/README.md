@@ -310,7 +310,114 @@ product owner accepts the storage boundary.
 
 ### Specification 3.3 — Hybrid natural-language retrieval with provenance
 
-Status: `draft`
+Status: `in-review`
+
+> Implementation evidence (2026-09-03, implementation worker):
+>
+> - **Hybrid ranking** (`packages/retrieval/src/hybrid-search.ts`):
+>   `HybridRetriever` over any `RetrievalIndex` — six versioned,
+>   explainable features (`donna.hybrid-ranking.v1`): text, semantic,
+>   bucket affinity (query embedding vs bucket centroid), recency
+>   (0.5^(days/half-life)), personalization (accepted-correction
+>   affinity), task match. Weights, half-life, candidate limit, and the
+>   relevance floor (`min_score` 0.20) live in models.config.yaml
+>   (`retrieval:` section), parsed by the registry — FR-3. Scope and
+>   filters are applied by the index BEFORE any feature is computed
+>   (SR-2); there is no cache, so deleted/expired content cannot reappear
+>   (SR-3). A reranker port (`reranker.ts`) exists with a deterministic
+>   default; `applyReranker` enforces the permutation contract and fails
+>   closed to the deterministic order — no LLM reranker is configured
+>   because deterministic ranking meets the bar (spec: rerank only when
+>   deterministic is insufficient).
+> - **Grounded answer synthesis** (`packages/retrieval/src/answer.ts`):
+>   optional (`retrieval.answer` lane → `AnswerGenerator` port, wired to
+>   gpt-5-mini via the registry; FR-1 hits-only without it). Trust-
+>   separated prompt `donna.answer-prompt.v1` (code-only SYSTEM POLICY,
+>   UNTRUSTED evidence section, no tools — SR-1). `verifyAnswer` parses
+>   claim sentences and [Hn] markers: uncited claims, stale citations
+>   (unknown hit), empty output, and model abstention all return
+>   `supported: false` with a machine-readable reason and the ungrounded
+>   text is never presented (AC-2, fail closed).
+> - **Follow-up questions**: `donna query --session <id>` records each
+>   query as session-scoped working memory (expires with the session);
+>   a bare follow-up that finds nothing is retried once with the recent
+>   session queries appended (bounded, deterministic).
+> - **Witnessed adherence fix**: `CorrectionService.observePlacement`
+>   applicability is now semantic when an embedder is configured —
+>   cosine ≥ `corrections.adherence_semantic_threshold` against the
+>   correction's canonical thoughtSummary — with the deterministic
+>   keyword path as fallback (no embedder, or embedder failure). The
+>   context assembler's example SELECTION got the same semantic path
+>   (otherwise the example is never injected for paraphrases and
+>   adherence has nothing to observe). **Threshold calibration (live
+>   text-embedding-3-large@1024, 2026-09-03): the witnessed pair ("test
+>   removing email verification" vs "try one-click signup" class) scores
+>   0.549; unrelated text scores 0.157 — the default is 0.5, documented
+>   in models.config.yaml; revisit with more real correction pairs.**
+> - **Projection freshness**: accepted corrections that mutate source
+>   records now rebuild the retrieval projection (found during live
+>   verification: a moved thought kept its old bucket name in search
+>   until reindex). The Postgres adapter maintains its projection
+>   transactionally per mutation; the local index rebuilds on accept.
+> - **CLI**: `donna query` (direct hits first with provenance + audio
+>   state: "audio retained" vs "transcript-only (audio deleted …)"),
+>   `donna explain-ranking` (features × weights per hit, AC-3), `donna
+>   retrieval-feedback <thought-id> --verdict relevant|irrelevant
+>   --query <text>` (FR-4: becomes a retrieval.relevance correction
+>   event in the review queue).
+> - **Golden retrieval set** (`packages/evals/datasets/golden/
+>   retrieval.v1.json` + `src/retrieval.ts`): 22 labeled cases over
+>   synthetic fixtures in the existing demo style (vendor contracts,
+>   hiring, errands, product) with hand-crafted 5-dim embeddings —
+>   deterministic and offline. Metric hit@3. **Result: 22/22 = 100.0%
+>   under the production ranking config (bar 80%)** — report written to
+>   packages/evals/reports/retrieval/ (gitignored like other reports).
+>   Honest caveat: fixtures are synthetic with clean vector separation;
+>   real-world embeddings are noisier, and the set should grow with
+>   real misfires.
+> - **Tests: 27 new (263 total green with the DB live, 254 without;
+>   typecheck clean).** Coverage: feature computation and weight-driven
+>   determinism (FR-3), filters-before-ranking (SR-2), cross-tenant
+>   denial (SR-1), follow-up expansion, deletion exclusion (SR-3),
+>   supported/uncited/stale-citation/abstain/empty answer paths (AC-2),
+>   prompt trust separation incl. injection confined to the untrusted
+>   section (SR-1), reranker permutation contract, semantic adherence:
+>   paraphrase counted, threshold boundary, keyword fallback, embedder-
+>   failure fallback, keyword-path undercount regression documentation,
+>   correction-accept projection rebuild, golden-set bar + determinism.
+> - **Live demo (synthetic espeak-ng audio, real gateway, temp data
+>   dir):** captured "We should test removing email verification…" +
+>   "remind me to send Priya the updated onboarding checklist…" →
+>   paraphrase query "how can we make signup easier" ranked the signup
+>   thought first (0.387); person query found the Priya task; grounded
+>   answer "You are testing removing email verification from the signup
+>   flow to reduce drop-off.[H1]" cited the live hit ID (gpt-5-mini);
+>   a separate answer with an uncited sentence failed closed
+>   (uncited-claim). The correction "test removing email verification →
+>   Growth Experiments" was accepted; the follow-up capture "Let's pilot
+>   a one-click signup…" was semantically matched to it —
+>   `correction.adherence followed=0 contradicted=1` (the thought carried
+>   a task and the hard rule routed it to Tasks — see decision point
+>   below) — where the keyword path had counted nothing. A bucket.rename
+>   correction was reflected in search immediately (projection rebuild).
+>   Session follow-up "who was it for" resolved via working memory.
+>   delete-audio flipped hits to "transcript-only". An injection-laden
+>   thought inserted directly into the store was retrieved as data; the
+>   gateway's own prompt shield rejected the synthesis prompt and the
+>   CLI failed closed; no buckets were altered. Cross-user and
+>   cross-tenant queries return nothing.
+> - **Decision point for the product owner:** when a corrected preference
+>   conflicts with the Tasks hard-rule (a task-bearing thought the user
+>   taught us belongs elsewhere), adherence currently records
+>   "contradicted" — the hard rule wins placement. If task routing should
+>   be exempt from adherence (or the hard rule should yield to accepted
+>   corrections), that is a product decision.
+> - **Known limitations:** follow-up expansion is naive concatenation
+>   (no coreference resolution); the relevance floor and adherence
+>   threshold are calibrated on a small sample; answer synthesis is
+>   single-shot (no multi-turn grounding); the golden set is synthetic.
+>
+> Awaiting product-owner examination for acceptance.
 
 Depends on: Specification 3.2 accepted
 

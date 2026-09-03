@@ -9,12 +9,13 @@
 import { readFile } from "node:fs/promises";
 import { parse } from "yaml";
 import { z } from "zod";
-import type { Embedder, Organizer, Transcriber } from "@donna/core";
+import type { AnswerGenerator, Embedder, Organizer, Transcriber } from "@donna/core";
 import type { GatewayClient } from "./gateway.js";
 import { OpenAiCompatibleTranscriber } from "./openai-transcriber.js";
 import { OpenAiCompatibleOrganizer } from "./openai-organizer.js";
 import { AnthropicOrganizer } from "./anthropic-organizer.js";
 import { OpenAiCompatibleEmbedder } from "./openai-embedder.js";
+import { OpenAiCompatibleAnswerGenerator } from "./answer-generator.js";
 
 const laneSchema = z.object({
   provider: z.enum(["openai-compatible", "anthropic"]),
@@ -62,6 +63,74 @@ const configSchema = z.object({
       maxBucketSummaries: c.max_bucket_summaries,
       maxCorrectionExamples: c.max_correction_examples,
     })),
+  // Spec 3.3: hybrid retrieval ranking — versioned features/weights,
+  // tunable here, never in code.
+  retrieval: z
+    .object({
+      ranking_version: z.string().default("donna.hybrid-ranking.v1"),
+      weights: z
+        .object({
+          text: z.number(),
+          semantic: z.number(),
+          bucket_affinity: z.number(),
+          recency: z.number(),
+          personalization: z.number(),
+          task_match: z.number(),
+        })
+        .default({
+          text: 0.3,
+          semantic: 0.3,
+          bucket_affinity: 0.1,
+          recency: 0.1,
+          personalization: 0.15,
+          task_match: 0.05,
+        }),
+      recency_half_life_days: z.number().positive().default(30),
+      candidate_limit: z.number().int().positive().default(100),
+      min_score: z.number().min(0).max(1).default(0.2),
+      answer: laneSchema.optional(),
+      rerank: laneSchema.optional(),
+    })
+    .default({
+      ranking_version: "donna.hybrid-ranking.v1",
+      weights: {
+        text: 0.3,
+        semantic: 0.3,
+        bucket_affinity: 0.1,
+        recency: 0.1,
+        personalization: 0.15,
+        task_match: 0.05,
+      },
+      recency_half_life_days: 30,
+      candidate_limit: 100,
+      min_score: 0.2,
+    })
+    .transform((r) => ({
+      rankingVersion: r.ranking_version,
+      weights: {
+        text: r.weights.text,
+        semantic: r.weights.semantic,
+        bucketAffinity: r.weights.bucket_affinity,
+        recency: r.weights.recency,
+        personalization: r.weights.personalization,
+        taskMatch: r.weights.task_match,
+      },
+      recencyHalfLifeDays: r.recency_half_life_days,
+      candidateLimit: r.candidate_limit,
+      minScore: r.min_score,
+      answer: r.answer,
+      rerank: r.rerank,
+    })),
+  // Spec 2.3/3.3: correction adherence applicability threshold (semantic
+  // path; deterministic keyword fallback when no embedder is available).
+  corrections: z
+    .object({
+      adherence_semantic_threshold: z.number().min(0).max(1).default(0.75),
+    })
+    .default({ adherence_semantic_threshold: 0.75 })
+    .transform((c) => ({
+      adherenceSemanticThreshold: c.adherence_semantic_threshold,
+    })),
 });
 
 export type ModelsConfig = z.infer<typeof configSchema>;
@@ -80,6 +149,12 @@ export interface ResolvedStack {
   bucketTuning: ModelsConfig["buckets"];
   /** Spec 2.2 context assembly budgets from models.config.yaml. */
   contextBudgets: ModelsConfig["context"];
+  /** Spec 3.3 retrieval ranking configuration from models.config.yaml. */
+  retrieval: ModelsConfig["retrieval"];
+  /** Spec 3.3 grounded-answer generator, when the answer lane is configured. */
+  answerGenerator?: AnswerGenerator;
+  /** Spec 2.3/3.3 corrections tuning from models.config.yaml. */
+  corrections: ModelsConfig["corrections"];
 }
 
 function makeOrganizer(gateway: GatewayClient, lane: Lane): Organizer {
@@ -98,6 +173,7 @@ export function resolveStack(
   const t = config.stages.transcribe.default;
   const e = config.stages.embed.default;
   const escalation = config.stages.organize.escalation;
+  const answerLane = config.retrieval.answer;
   return {
     transcriber: new OpenAiCompatibleTranscriber(gateway, t.model, t.params),
     organizer: makeOrganizer(gateway, config.stages.organize.default),
@@ -107,5 +183,16 @@ export function resolveStack(
     embedder: new OpenAiCompatibleEmbedder(gateway, e.model, e.params),
     bucketTuning: config.buckets,
     contextBudgets: config.context,
+    retrieval: config.retrieval,
+    ...(answerLane !== undefined
+      ? {
+          answerGenerator: new OpenAiCompatibleAnswerGenerator(
+            gateway,
+            answerLane.model,
+            answerLane.params,
+          ),
+        }
+      : {}),
+    corrections: config.corrections,
   };
 }

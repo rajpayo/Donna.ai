@@ -122,6 +122,19 @@ export interface Embedder {
 }
 
 /**
+ * Grounded-answer text generator (Specification 3.3). Config-selected
+ * like every model. The generator has NO tools: it receives a
+ * trust-separated prompt (retrieved evidence is data, never
+ * instructions — SR-1) and returns free text whose claims must cite live
+ * retrieval hit IDs. The retrieval layer verifies citations and fails
+ * closed on unsupported or stale-cited output.
+ */
+export interface AnswerGenerator {
+  readonly modelId: string;
+  generate(prompt: string): Promise<string>;
+}
+
+/**
  * Optimistic concurrency failure (Specification 3.2): a conditional
  * write detected that the row changed underneath the caller and bounded
  * retries did not resolve the conflict. Callers may safely retry their
