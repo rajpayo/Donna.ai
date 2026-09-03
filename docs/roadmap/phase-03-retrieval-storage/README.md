@@ -1,6 +1,7 @@
 # Phase 3 — Retrieval and production storage
 
-Status: `in-progress`
+Status: `in-review` (all three specifications implemented and verified;
+awaiting product-owner examination)
 
 > Product-owner directive (2026-09-03): Specifications 3.1, 3.2, and 3.3
 > are approved and are executed in one ordered run, one specification at a
