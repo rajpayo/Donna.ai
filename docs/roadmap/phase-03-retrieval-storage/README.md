@@ -488,3 +488,27 @@ specifications are accepted.
 - PostgreSQL and pgvector provide transactional concurrency and database-level
   scope enforcement.
 - Retrieval meets the agreed success threshold and never loses provenance.
+
+## Independent verification round (2026-09-03, post-implementation)
+
+A product-owner-style verification pass over the live CLI found and fixed two
+real defects the implementation worker's tests had not caught:
+
+1. **Label parroting (fixed, commit `0990bee`).** The organize prompt rendered
+   context elements as `[bucket:<uuid> · as of …]`; gpt-5-mini echoed that
+   label as a bucket *name*, minting a bucket literally called
+   `bucket:45ce0675-…`. Source IDs no longer render into the prompt, and the
+   engine resolves parroted `bucket:<id>` proposals to the referenced bucket.
+2. **Adherence not wired (fixed, commit `0990bee`).** The CLI built the
+   `ContextAssembler` without the embedder, silently degrading
+   correction-example selection to keyword overlap; paraphrases never
+   surfaced corrections. Verified live after the fix: a zero-keyword
+   paraphrase of the accepted correction fires `correction.adherence`
+   (`contradicted=1` — the Tasks hard-rule overrode the preference, the
+   documented design decision awaiting product-owner confirmation).
+
+Also verified live in this round: `items` with provenance, `reindex`
+(17 items), text search, semantic paraphrase search ranking all five
+onboarding items top, grounded `query --answer` with per-claim hit citations,
+`explain-ranking` feature breakdown, `retrieval-feedback` → correction event,
+and 265/265 tests with PostgreSQL 16 + pgvector 0.6.0 live.
