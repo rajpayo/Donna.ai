@@ -110,6 +110,14 @@ import {
   parseAudioKey,
   RetentionService,
 } from "@donna/privacy";
+import {
+  checkM365Connection,
+  disconnectM365,
+  M365_IDENTITY_NOTE,
+  m365EndpointFromEnv,
+  parseM365Endpoint,
+} from "@donna/integrations-m365";
+import { M365_CONSENT_PURPOSES } from "@donna/core";
 import { config as loadEnv } from "dotenv";
 import {
   gatewayEnvProblems,
@@ -176,7 +184,15 @@ const USAGE = `usage:
   donna emotion confirm <snapshot-id> [--user <id>]
   donna emotion delete <snapshot-id> [--user <id>]
   donna emotion disable [--user <id>]
-  donna emotion enable [--user <id>]`;
+  donna emotion enable [--user <id>]
+  donna m365 status                      managed-MCP connection health
+                                             (endpoint, gateway auth,
+                                             initialize, tool discovery,
+                                             one read-only probe)
+  donna m365 connect-info [--user <id>]  identity model + Donna-side
+                                             consent state per source type
+  donna m365 disconnect [--user <id>]    revoke all m365.* consents and
+                                             purge cached source snippets`;
 
 function dataDir(): string {
   return resolve(repoRoot, process.env.DONNA_DATA_DIR ?? "data");
@@ -1602,6 +1618,66 @@ async function main(): Promise<void> {
         await emotion.enable(scope, "cli:emotion enable");
         console.log("Emotion inference enabled (session-scoped, tentative, never durable without separate opt-in).");
       }
+      return;
+    }
+
+    console.error(USAGE);
+    process.exit(1);
+  }
+
+  if (command === "m365") {
+    const sub = process.argv[3];
+    const scope = { tenantId, userId };
+
+    if (sub === "status") {
+      // Spec 5.1 AC-1: endpoint config → gateway auth → initialize →
+      // tool discovery → one read-only probe. Stage failures are redacted
+      // by construction (statuses and counts only — never credentials or
+      // Microsoft content). The probe discards what it reads.
+      const report = await checkM365Connection();
+      console.log(`Managed MCP endpoint: ${report.endpointHost}`);
+      for (const stage of report.stages) {
+        console.log(`  ${stage.ok ? "ok  " : "FAIL"} ${stage.stage} — ${stage.detail}`);
+      }
+      if (report.tools !== undefined) {
+        console.log(
+          `Tools: ${report.tools.total} (${report.tools.read} read / ${report.tools.write} write-draft / ${report.tools.unknown} unknown)`,
+        );
+      }
+      if (report.ok) {
+        console.log("Connection healthy. Read tools only from the context layer; writes need the approval path.");
+      } else {
+        console.error("Connection is NOT healthy — fix the first FAIL stage and re-run.");
+        process.exit(1);
+      }
+      return;
+    }
+
+    if (sub === "connect-info") {
+      const endpoint = m365EndpointFromEnv();
+      console.log(`Managed MCP endpoint: ${parseM365Endpoint(endpoint).host}`);
+      console.log(M365_IDENTITY_NOTE);
+      console.log("\nDonna-side source consent (independent of Microsoft OAuth):");
+      const memory = buildMemoryService();
+      for (const purpose of M365_CONSENT_PURPOSES) {
+        const active = await memory.hasConsent(scope, purpose);
+        console.log(
+          `  • ${purpose}: ${active ? "active" : "not granted"}${active ? "" : ` — grant with: donna consent grant ${purpose}`}`,
+        );
+      }
+      return;
+    }
+
+    if (sub === "disconnect") {
+      // Spec 5.1: stop calling the MCP (revoke every m365.* grant so all
+      // consent gates fail closed) and purge cached source snippets.
+      const result = await disconnectM365(buildMemoryService(), scope, dataDir());
+      console.log(
+        `Disconnected. Revoked ${result.revokedPurposes.length} consent grant(s)` +
+          `${result.revokedPurposes.length > 0 ? ` (${result.revokedPurposes.join(", ")})` : ""}` +
+          `; cached source snippets ${result.purgedCache ? "purged" : "none cached"}.`,
+      );
+      console.log("Donna will make no further Microsoft 365 calls until you re-grant consent.");
       return;
     }
 

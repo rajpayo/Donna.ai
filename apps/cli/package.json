@@ -11,6 +11,7 @@
     "@donna/buckets": "*",
     "@donna/core": "*",
     "@donna/evals": "*",
+    "@donna/integrations-m365": "*",
     "@donna/memory": "*",
     "@donna/pipeline": "*",
     "@donna/privacy": "*",

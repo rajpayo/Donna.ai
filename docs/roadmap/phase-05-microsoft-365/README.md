@@ -1,6 +1,15 @@
 # Phase 5 — Microsoft 365 grounding and destinations
 
-Status: `not-started`
+Status: `in-progress`
+
+> Product-owner directive (2026-09-03): the REVISED Specifications 5.1, 5.2,
+> 5.3, and 5.4 are approved and are executed in one ordered run, one
+> specification at a time, on branch `cursor/import-mvp-scaffold-b430`. Each
+> specification still moves approved → in-progress → in-review with its own
+> evidence; the per-specification acceptance gate between specifications is
+> overridden for this phase only (as was done for Phases 1–4). Phases 1–4
+> are accepted; their consent, context-assembly, retrieval, and storage
+> contracts are the entry conditions for this phase.
 
 > **Approved revision (product owner, 2026-09-03):** this phase runs on the
 > **TrueFoundry-managed Microsoft 365 MCP**, not a Donna-registered Entra
@@ -34,9 +43,75 @@ content and trusted instructions.
 
 ### Specification 5.1 — Managed-MCP identity, consent, and connection boundary
 
-Status: `draft`
+Status: `in-review` (approved by product owner 2026-09-03)
 
 Depends on: Phase 4 accepted
+
+> Implementation evidence (2026-09-03, implementation worker):
+>
+> - **McpClient transport** (`packages/integrations-m365/src/mcp-client.ts`):
+>   JSON-RPC 2.0 over HTTP POST to the managed endpoint, `Accept:
+>   application/json, text/event-stream`, event-stream `data: ` parsing
+>   (plain-JSON fallback), initialize → tools/list → tools/call, Bearer
+>   auth from the existing TrueFoundry credential only. Endpoint pinning
+>   (SR-2): https mandatory, URL-embedded credentials rejected, host
+>   extracted from the configured endpoint (`DONNA_M365_MCP_URL` override,
+>   default the verified 2026-09-03 endpoint). Injectable fetch; network
+>   errors are re-thrown without the underlying message (it can embed the
+>   URL). `M365McpError` carries stage + HTTP status + JSON-RPC code only.
+> - **Client-side tool allowlist** (`src/tools.ts`, SR-3, AC-3): the 48
+>   live tools are classified 25 read / 23 write-draft; unrecognized tools
+>   are `unknown` and denied in every mode (a server-side addition can
+>   never widen Donna's reach). `m365ReadOnlyClient` (context layer)
+>   throws `M365ToolDeniedError` BEFORE any network I/O — tested: zero
+>   fetch calls recorded for send_email/create_draft/post_channel_message/
+>   share_file/unknown-tool attempts. `m365ApprovalPathClient` takes an
+>   explicit per-tool allowlist for Specification 5.4.
+> - **Core boundary** (`packages/core/src/types.ts`, `ports.ts`):
+>   `M365ReadSourceType`, canonical consent purposes
+>   (`m365.read.calendar|mail|teams|files`, `m365.destination.onedrive`),
+>   `ContextSnippet`, `McpConnection` and `ContextSource` ports; the port
+>   docs pin the identity model (managed MCP owns Entra/OAuth/storage/
+>   refresh; pilot runs under the connector owner's Microsoft identity).
+> - **Connection health** (`src/connection.ts`, FR-3): `checkM365Connection`
+>   reports endpoint-config → gateway-auth → mcp-initialize →
+>   tool-discovery → read-probe, failing closed at the first broken stage
+>   (later stages "skipped"). The read probe (`list_calendars`) discards
+>   content and keeps only an item count. Env inspection classifies
+>   unset/placeholder/configured without exposing values.
+> - **Consent + disconnect** (FR-2, AC-2): `requireM365Consent` fails
+>   closed per scope against the existing append-only ConsentStore;
+>   `disconnectM365` revokes every active `m365.*` grant and purges the
+>   scoped cache partition (`data/m365/<tenant>/<user>/`, path-traversal
+>   guarded), idempotently; consent history is preserved (grant + revoke
+>   records both persist).
+> - **CLI** (`apps/cli/src/main.ts`): `m365 status`, `m365 connect-info`
+>   (endpoint host, identity note, per-purpose consent state),
+>   `m365 disconnect`.
+> - **Live verification (2026-09-03, real managed MCP):** `m365 status` →
+>   all 5 stages ok; initialize 200 (`m365-mcp-server`); tools/list 48
+>   (25 read / 23 write / 0 unknown); read probe `list_calendars` ok,
+>   3 items, content discarded. Consent grant → connect-info active →
+>   disconnect revoked 2 grants → second disconnect revoked 0
+>   (idempotent); consent list shows append-only grant+revoke history.
+> - **Tests: 30 new (369 total green with Postgres live, typecheck
+>   clean).** Coverage: event-stream/plain-JSON/no-data-line parsing,
+>   endpoint pinning rejections, 401→gateway-auth mapping, non-auth stage
+>   attribution, JSON-RPC code-only errors, network-failure redaction,
+>   allowlist denial before I/O (incl. unknown tools, approval-path
+>   scoping), happy-path/failing health reports, missing-credential and
+>   bad-endpoint short-circuits (zero HTTP requests), report redaction
+>   sweep (AC-4 — scripted 403 body echoing the key + a trace id never
+>   appears in the serialized report), consent grant/deny/revoke,
+>   cross-scope denial, disconnect revoke+purge+idempotency, partition-ID
+>   traversal guards.
+> - **Known limitations:** the probe's item count requires parsing the
+>   tool result shape; unparseable shapes report ok without a count.
+>   Stage attribution of downstream Microsoft authorization failures is
+>   heuristic (tool-error results advise re-running Connect Now without
+>   echoing detail).
+>
+> Awaiting product-owner examination for acceptance.
 
 > Revised 2026-09-03: replaces the Donna-registered Entra application with
 > the TrueFoundry-managed M365 MCP. Donna never sees Microsoft tokens; the

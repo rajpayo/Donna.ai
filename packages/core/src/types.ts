@@ -643,6 +643,104 @@ export interface RetrievalHit {
   scoreVersion: string;
 }
 
+/* ------------------------------------------------------------------ */
+/* Specification 5.1 — managed Microsoft 365 connection boundary       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Microsoft 365 read-source types Donna can be grounded in (Phase 5).
+ * Each is gated by its own Donna-side consent record — independent of the
+ * Microsoft-side OAuth consent, which the TrueFoundry-managed MCP owns
+ * end to end (Donna never registers an Entra app and never handles
+ * Microsoft tokens).
+ */
+export type M365ReadSourceType = "calendar" | "mail" | "teams" | "files";
+
+/**
+ * Canonical Donna-side consent purposes for Microsoft 365 (FR-2). Reads of
+ * a source type require the matching active grant; `m365.destination.*`
+ * purposes gate external writes through the approval path. Records live in
+ * the existing append-only ConsentStore; revocation stops new reads and
+ * invalidates cached snippets.
+ */
+export const M365_CONSENT_PURPOSES = [
+  "m365.read.calendar",
+  "m365.read.mail",
+  "m365.read.teams",
+  "m365.read.files",
+  "m365.destination.onedrive",
+] as const;
+
+export type M365ConsentPurpose = (typeof M365_CONSENT_PURPOSES)[number];
+
+/** The consent purpose that gates reads of one M365 source type. */
+export function m365ReadConsentPurpose(
+  source: M365ReadSourceType,
+): M365ConsentPurpose {
+  switch (source) {
+    case "calendar":
+      return "m365.read.calendar";
+    case "mail":
+      return "m365.read.mail";
+    case "teams":
+      return "m365.read.teams";
+    case "files":
+      return "m365.read.files";
+  }
+}
+
+/** True when the purpose belongs to the Microsoft 365 integration. */
+export function isM365ConsentPurpose(purpose: string): boolean {
+  return purpose.startsWith("m365.");
+}
+
+/**
+ * Microsoft resource types a context snippet can be normalized from
+ * (Specification 5.2). Kept deliberately coarse; the MCP tool name that
+ * produced the snippet is recorded on the snippet itself.
+ */
+export type M365ResourceType =
+  | "calendar-event"
+  | "email"
+  | "teams-message"
+  | "file"
+  | "sharepoint-item";
+
+/**
+ * One minimized excerpt of external Microsoft 365 context. Always
+ * UNTRUSTED content (SR-4): a snippet is data, never an instruction, and
+ * can never alter system policy or grant capabilities. Snippets live in a
+ * TTL cache; promotion to durable memory is a separate visible proposal.
+ */
+export interface ContextSnippet {
+  /** Donna-local snippet identifier (deterministic per resource+revision). */
+  id: string;
+  tenantId: string;
+  userId: string;
+  source: {
+    kind: "m365";
+    resourceType: M365ResourceType;
+    /** Stable Microsoft/MCP resource identifier (never content). */
+    resourceId: string;
+    /** Source URI when the MCP exposes one (webUrl etc.). */
+    uri?: string;
+    /** Owner/organizer hint as reported by the source (untrusted). */
+    owner?: string;
+    /** The MCP read tool that produced this snippet. */
+    tool: string;
+  };
+  /** The Donna-side consent purpose that authorized the read (FR-1). */
+  consentPurpose: M365ConsentPurpose;
+  /** Minimal excerpt — never the full document (SR-3). */
+  excerpt: string;
+  /** ISO 8601 time the source reports for the resource, when available. */
+  sourceTimestamp?: string;
+  /** ISO 8601 time Donna fetched the excerpt. */
+  fetchedAt: string;
+  /** ISO 8601 time after which the snippet must not be served. */
+  expiresAt: string;
+}
+
 /** End-to-end result of one capture through the loop. */
 export interface CoreLoopResult {
   capture: Capture;

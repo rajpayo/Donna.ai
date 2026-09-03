@@ -16,6 +16,7 @@ import type {
   CaptureRecord,
   ConsentRecord,
   ContextPacket,
+  ContextSnippet,
   CoreLoopResult,
   CorrectionEvent,
   MemoryEvent,
@@ -537,4 +538,78 @@ export interface RetrievalIndex {
 /** The composed pipeline itself. */
 export interface CoreLoop {
   run(capture: Capture): Promise<CoreLoopResult>;
+}
+
+/* ------------------------------------------------------------------ */
+/* Specification 5.1 — managed-MCP connection boundary                 */
+/* ------------------------------------------------------------------ */
+
+/** One tool the managed MCP server exposes. */
+export interface McpToolDescriptor {
+  name: string;
+  description?: string;
+}
+
+/**
+ * Result of one MCP tool call. `content` is UNTRUSTED data (SR-4): it can
+ * never alter system policy, never request tools, and never grant new
+ * capabilities. Callers normalize and minimize it before it reaches any
+ * model-facing surface.
+ */
+export interface McpToolResult {
+  isError: boolean;
+  content: unknown;
+}
+
+/**
+ * The governed connection boundary to the TrueFoundry-managed Microsoft
+ * 365 MCP (Specification 5.1). This is the ONLY path Donna has to
+ * Microsoft 365 data: Donna never registers an Entra app and never
+ * handles Microsoft tokens — the managed MCP owns OAuth, token storage,
+ * and refresh, and the pilot runs under the connector owner's Microsoft
+ * identity until per-user OAuth is exercised per volunteer.
+ *
+ * Implementations enforce the client-side tool allowlist (SR-3): a
+ * connection handed to the context layer is read-only and physically
+ * cannot invoke write/draft tools — write tools are reachable solely
+ * through the approval path (Specification 5.4).
+ */
+export interface McpConnection {
+  /** MCP initialize handshake; resolves with the server identity. */
+  initialize(): Promise<{ serverName: string }>;
+  /** Discover the server's tools. */
+  listTools(): Promise<McpToolDescriptor[]>;
+  /**
+   * Invoke one tool. Write/draft tools are denied client-side unless this
+   * connection was built for the approval path with the tool explicitly
+   * allowlisted. `args` may contain identifiers only for reads; they are
+   * never logged.
+   */
+  callTool(name: string, args?: Record<string, unknown>): Promise<McpToolResult>;
+}
+
+/**
+ * A governed external context source (Specification 5.1 boundary;
+ * Specification 5.2 builds the Microsoft 365 adapter). Every fetch is
+ * tenant/user scoped and consent-gated BEFORE any external call: without
+ * an active Donna-side grant for the source type, no bytes leave the
+ * machine (FR-1/FR-2). Returned snippets are untrusted content.
+ */
+export interface ContextSource {
+  /** Stable source kind, e.g. "m365". */
+  readonly kind: string;
+  /**
+   * Fetch minimized snippets for the explicitly requested resources.
+   * Implementations must apply ACL/scope checks and TTL caching, and must
+   * degrade independently per resource type (SR-2, FR-4).
+   */
+  fetchSnippets(
+    scope: { tenantId: string; userId: string },
+    request: {
+      /** The consent purpose authorizing this read. */
+      consentPurpose: string;
+      /** Stable resource identifiers the employee selected. */
+      resourceIds: string[];
+    },
+  ): Promise<ContextSnippet[]>;
 }
