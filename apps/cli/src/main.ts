@@ -74,9 +74,10 @@
  * into organized, bucketed, provenance-linked thoughts.
  */
 import { randomUUID } from "node:crypto";
-import { stat } from "node:fs/promises";
+import { mkdir, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createInterface } from "node:readline";
 import type { Capture, EventSink, MemoryLayer } from "@donna/core";
 import { FileBucketStore } from "@donna/buckets";
 import { promoteCorrectionToGoldenCase, runCompatibilityCheck } from "@donna/evals";
@@ -110,6 +111,25 @@ import {
   parseAudioKey,
   RetentionService,
 } from "@donna/privacy";
+import {
+  EMOTION_PERSIST_PURPOSE,
+  EnrollmentError,
+  ExcludedCategoryError,
+  FileMisfireRegisterStore,
+  FilePilotProfileStore,
+  MisfireRegister,
+  MISFIRE_CATEGORIES,
+  NotEnrolledError,
+  PILOT_DATA_CLASSES,
+  PILOT_EXPLANATIONS,
+  PILOT_REVIEW_CONFIDENCE_THRESHOLD,
+  PilotService,
+  pilotRedactionActive,
+  redactContent,
+  type EnrollmentDecisions,
+  type MisfireCategory,
+} from "@donna/pilot";
+import type { M365ReadSourceType } from "@donna/core";
 import {
   checkM365Connection,
   disconnectM365,
@@ -242,7 +262,47 @@ const USAGE = `usage:
                                              create an Outlook DRAFT (never
                                              send); other types are sandbox
                                              commits (no external mutation)
-  donna draft capabilities               per-type execution capability`;
+  donna draft capabilities               per-type execution capability
+  donna pilot explain                    plain-language pilot explanations
+                                             (what Donna stores, what admins
+                                             cannot see, what Donna is not)
+  donna pilot onboard [flags]            interactive enrollment; every setting
+       --participant <pseudonymous-id>   is an affirmative, versioned consent
+       [--data-classes <csv>]            record. Defaults are narrow: no M365
+       [--m365-sources <csv>]            sources, emotion session-only, no
+       [--durable-memory on|off]         emotion persistence. Non-interactive
+       [--emotion-inference on|off]      needs every flag plus --affirm.
+       [--emotion-persist on|off]
+       [--affirm]
+  donna pilot status                     enrollment + consent state, capture
+                                             and review counts (no content)
+  donna pilot review                     the review queue: pending corrections,
+                                             memory proposals, low-confidence
+                                             thoughts (Spec 6.1 FR-2)
+  donna pilot settings                   current per-setting state
+  donna pilot set data-classes <csv>     change a setting (records new
+  donna pilot set m365-sources <csv>     versioned consent; revoking a source
+  donna pilot set durable-memory on|off  purges its cached M365 snippets)
+  donna pilot set emotion-inference on|off
+  donna pilot set emotion-persist on|off
+  donna pilot export --out <file>        full scoped export written to a file
+                                             (never dumped to the terminal)
+  donna pilot leave --out <file>         exit the pilot: export, revoke all
+       [--delete-all]                    consents, disconnect M365; --delete-all
+                                             also deletes captures+memories and
+                                             verifies the deletion
+  donna pilot report-misfire <category> --description <text>
+       [--capture <id>] [--thought <id>] [--scenario <id>]
+                                         private misfire report with a consent
+                                             snapshot (categories: stt,
+                                             provenance, organization, memory,
+                                             retrieval, context, latency,
+                                             integration, other)
+  donna pilot misfires                   list the private misfire register
+
+Pilot note: while enrolled, CLI commands redact verbatim transcript text by
+default (SR-2). Pass --show-transcripts on capture/search/query/export to
+view it in a private terminal.`;
 
 function dataDir(): string {
   return resolve(repoRoot, process.env.DONNA_DATA_DIR ?? "data");
@@ -260,11 +320,48 @@ function buildAudioStore(): EncryptedFileAudioStore {
 
 function buildMemoryService(): MemoryService {
   const dir = dataDir();
+  // Spec 6.1 FR-2: when a pilot profile is enrolled with durable memory
+  // off, durable-memory creation fails closed everywhere (CLI, correction
+  // derivation, future jobs). No profile → non-pilot behavior unchanged.
+  const profiles = new FilePilotProfileStore(dir);
   return new MemoryService({
     memories: new FileMemoryStore(dir),
     consents: new FileConsentStore(dir),
+    durableMemoryGate: async (scope) => {
+      const profile = await profiles.get(scope.tenantId, scope.userId);
+      if (profile === undefined || profile.status !== "enrolled") return true;
+      return profile.durableMemory;
+    },
     now: () => new Date(),
   });
+}
+
+function buildPilotService(): PilotService {
+  const dir = dataDir();
+  return new PilotService({
+    profiles: new FilePilotProfileStore(dir),
+    memory: buildMemoryService(),
+    now: () => new Date(),
+  });
+}
+
+function buildMisfireRegister(): MisfireRegister {
+  return new MisfireRegister(
+    new FileMisfireRegisterStore(dataDir()),
+    () => new Date(),
+    randomUUID,
+  );
+}
+
+/**
+ * SR-2 (Spec 6.1): transcript redaction for shared terminals. Enrolled
+ * pilot profiles redact verbatim transcript text by default; the explicit
+ * per-invocation `--show-transcripts` flag reveals it. Non-pilot scopes
+ * keep the existing demo behavior.
+ */
+async function transcriptRedaction(tenantId: string, userId: string): Promise<boolean> {
+  const profile = await new FilePilotProfileStore(dataDir()).get(tenantId, userId);
+  return pilotRedactionActive(profile) && !process.argv.includes("--show-transcripts");
 }
 
 function buildEmotionService(): EmotionalContextService {
@@ -638,6 +735,18 @@ async function main(): Promise<void> {
       );
       process.exit(1);
     }
+    // Spec 6.1 FR-1: an exited pilot profile must re-onboard before any
+    // further personal-data processing in this scope.
+    const pilotProfile = await new FilePilotProfileStore(dataDir()).get(tenantId, userId);
+    if (pilotProfile?.status === "exited") {
+      console.error(
+        "This scope left the pilot. Re-onboard before capturing again: donna pilot onboard",
+      );
+      process.exit(1);
+    }
+    // Spec 6.1 SR-2: enrolled pilot profiles get redacted transcripts by
+    // default in shared terminals.
+    const redact = pilotRedactionActive(pilotProfile) && !process.argv.includes("--show-transcripts");
     // Spec 2.4: optional session binding enables tentative session
     // emotion/intent context for this capture.
     const sessionId = arg("--session");
@@ -669,7 +778,7 @@ async function main(): Promise<void> {
     const result = await pipeline.run(capture);
 
     console.log("\n=== Transcript ===");
-    console.log(result.transcript.text);
+    console.log(redactContent(result.transcript.text, !redact));
     console.log("\n=== Organized ===");
     for (const item of result.items) {
       const flag = item.needsReview ? " (needs review)" : "";
@@ -678,7 +787,7 @@ async function main(): Promise<void> {
         console.log(`    ↳ task: ${item.thought.task.title}`);
       }
       console.log(
-        `    ↳ source: ${item.thought.provenance.startSec.toFixed(1)}–${item.thought.provenance.endSec.toFixed(1)}s "${item.thought.provenance.sourceText.slice(0, 80)}"`,
+        `    ↳ source: ${item.thought.provenance.startSec.toFixed(1)}–${item.thought.provenance.endSec.toFixed(1)}s ${redact ? redactContent(item.thought.provenance.sourceText, false) : `"${item.thought.provenance.sourceText.slice(0, 80)}"`}`,
       );
     }
     if (result.bucketsCreated.length > 0) {
@@ -820,6 +929,7 @@ async function main(): Promise<void> {
       console.log("No matching thoughts.");
       return;
     }
+    const redactSearch = await transcriptRedaction(tenantId, userId);
     for (const hit of hits) {
       const p = hit.thought.provenance;
       console.log(
@@ -829,7 +939,7 @@ async function main(): Promise<void> {
       console.log(
         `    ↳ provenance: segments ${p.segmentIds.join(", ")}, audio ${p.startSec.toFixed(1)}–${p.endSec.toFixed(1)}s`,
       );
-      console.log(`    ↳ source: "${p.sourceText}"`);
+      console.log(`    ↳ source: ${redactSearch ? redactContent(p.sourceText, false) : `"${p.sourceText}"`}`);
     }
     return;
   }
@@ -956,6 +1066,7 @@ async function main(): Promise<void> {
     if (hits.length === 0) {
       console.log("No matching thoughts above the relevance floor.");
     }
+    const redactQuery = await transcriptRedaction(tenantId, userId);
     for (const [index, hit] of hits.entries()) {
       const p = hit.thought.provenance;
       const audio = await audioStateLabel(p.captureId, tenantId, userId);
@@ -966,7 +1077,7 @@ async function main(): Promise<void> {
       console.log(
         `    ↳ provenance: capture ${p.captureId}, segments ${p.segmentIds.join(", ")}, audio ${p.startSec.toFixed(1)}–${p.endSec.toFixed(1)}s`,
       );
-      console.log(`    ↳ source: "${p.sourceText}"`);
+      console.log(`    ↳ source: ${redactQuery ? redactContent(p.sourceText, false) : `"${p.sourceText}"`}`);
     }
 
     if (process.argv.includes("--answer")) {
@@ -1069,7 +1180,17 @@ async function main(): Promise<void> {
   if (command === "export") {
     const captureId = process.argv[3];
     if (!captureId) {
-      console.error("usage: donna export <capture-id> [--user <id>]");
+      console.error("usage: donna export <capture-id> [--user <id>] [--show-transcripts]");
+      process.exit(1);
+    }
+    // SR-2 (Spec 6.1): an enrolled pilot profile never dumps transcripts to
+    // a shared terminal by default — the pilot export writes to a file.
+    if (await transcriptRedaction(tenantId, userId)) {
+      console.error(
+        "Transcript dumps to the terminal are redacted while enrolled in the pilot (SR-2).\n" +
+          "Use `donna pilot export --out <file>` to write your export to a file, " +
+          "or re-run with --show-transcripts in a private terminal.",
+      );
       process.exit(1);
     }
     const { lifecycle } = buildLifecycle();
@@ -2124,8 +2245,499 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  if (command === "pilot") {
+    const sub = process.argv[3];
+    const scope = scope0(tenantId, userId);
+    const pilot = buildPilotService();
+    const dir = dataDir();
+
+    if (sub === "explain") {
+      console.log(`Donna pilot — plain-language explanations (consent text ${"pilot-consent.v1"})`);
+      for (const explanation of PILOT_EXPLANATIONS) {
+        console.log(`\n## ${explanation.title}\n${explanation.body}`);
+      }
+      return;
+    }
+
+    if (sub === "onboard") {
+      const participantFlag = arg("--participant");
+      let decisions: EnrollmentDecisions;
+      if (participantFlag !== undefined) {
+        // Non-interactive: every decision comes from flags; --affirm is the
+        // affirmative acknowledgement (explanations + audio retention +
+        // not-authoritative).
+        const onoff = (flag: string): boolean | undefined => {
+          const v = arg(flag);
+          if (v === undefined) return undefined;
+          if (v === "on") return true;
+          if (v === "off") return false;
+          console.error(`${flag} expects on|off`);
+          process.exit(1);
+        };
+        const durable = onoff("--durable-memory");
+        const inference = onoff("--emotion-inference");
+        const persist = onoff("--emotion-persist");
+        if (durable === undefined || inference === undefined || persist === undefined) {
+          console.error(
+            "Non-interactive onboarding needs --durable-memory, --emotion-inference, and --emotion-persist (on|off).",
+          );
+          process.exit(1);
+        }
+        if (!process.argv.includes("--affirm")) {
+          console.error(
+            "Non-interactive onboarding needs --affirm: you confirm you read `donna pilot explain`, " +
+              "accept 7-day encrypted audio retention, and understand Donna is not authoritative and does not act autonomously.",
+          );
+          process.exit(1);
+        }
+        const dataClassesArg = arg("--data-classes");
+        decisions = {
+          participantId: participantFlag,
+          dataClasses:
+            dataClassesArg !== undefined
+              ? dataClassesArg.split(",").map((s) => s.trim()).filter((s) => s !== "")
+              : [...PILOT_DATA_CLASSES],
+          m365Sources: (arg("--m365-sources") ?? "")
+            .split(",")
+            .map((s) => s.trim())
+            .filter((s) => s !== "") as M365ReadSourceType[],
+          durableMemory: durable,
+          emotionInference: inference,
+          emotionPersistence: persist,
+          acknowledgements: { explanations: true, audioRetention: true, notAuthoritative: true },
+        };
+      } else {
+        decisions = await promptOnboarding();
+      }
+      try {
+        const profile = await pilot.enroll(scope, decisions);
+        console.log(`\nEnrolled as ${profile.participantId} (consent text ${profile.consentTextVersion}).`);
+        console.log(`  data classes: ${profile.dataClasses.join(", ")}`);
+        console.log(
+          `  Microsoft 365 sources: ${profile.m365Sources.length > 0 ? profile.m365Sources.join(", ") : "none (narrow default)"}`,
+        );
+        console.log(`  durable memory: ${profile.durableMemory ? "on" : "off"}`);
+        console.log(
+          `  emotion: ${profile.emotionInference ? "session-only inference" : "inference off"}, persistence ${profile.emotionPersistence ? "ON (opted in)" : "off (default)"}`,
+        );
+        console.log(`  audio: encrypted, auto-deleted after ${profile.audioRetentionDays} days`);
+        console.log("\nEvery choice is a versioned consent record. Inspect: donna consent list · Change: donna pilot set …");
+        console.log("First capture: donna capture <audio-file>");
+      } catch (error) {
+        if (error instanceof EnrollmentError || error instanceof ExcludedCategoryError) {
+          console.error(error.message);
+        } else {
+          console.error(error instanceof Error ? error.message : String(error));
+        }
+        process.exit(1);
+      }
+      return;
+    }
+
+    if (sub === "status") {
+      const profile = await pilot.getProfile(scope);
+      if (profile === undefined) {
+        console.log("Not enrolled. Run: donna pilot onboard");
+        return;
+      }
+      console.log(`Pilot profile: ${profile.participantId} — ${profile.status} (consent text ${profile.consentTextVersion})`);
+      console.log(`  enrolled ${profile.enrolledAt}${profile.exitedAt !== undefined ? `, exited ${profile.exitedAt}` : ""}`);
+      console.log(`  data classes: ${profile.dataClasses.join(", ")}`);
+      console.log(`  m365 sources: ${profile.m365Sources.length > 0 ? profile.m365Sources.join(", ") : "none"}`);
+      console.log(`  durable memory: ${profile.durableMemory ? "on" : "off"}; emotion inference: ${profile.emotionInference ? "session-only" : "off"}; emotion persistence: ${profile.emotionPersistence ? "on" : "off"}`);
+      const memory = buildMemoryService();
+      const purposes = [...new Set((await memory.listConsents(scope)).map((r) => r.purpose))];
+      if (purposes.length > 0) {
+        console.log("  consent state:");
+        for (const purpose of purposes) {
+          console.log(`    • ${purpose}: ${(await memory.hasConsent(scope, purpose)) ? "active" : "not granted"}`);
+        }
+      }
+      // Counts only — status never prints content (SR-2).
+      const store = new FileBucketStore(dir);
+      const [items, buckets, captures, pendingCorrections, pendingProposals, misfires, retentionStatuses] =
+        await Promise.all([
+          store.listItems(tenantId, userId),
+          store.listBuckets(tenantId, userId),
+          new FileCaptureStore(dir).listCaptures(tenantId, userId),
+          (await buildCorrectionService()).reviewQueue(scope),
+          memory.listPendingProposals(scope),
+          buildMisfireRegister().list(scope),
+          buildLifecycle().retention.statusAll(tenantId, userId),
+        ]);
+      const audioRetained = retentionStatuses.filter((s) => s.audioAvailable).length;
+      const lowConfidence = items.filter((i) => i.thought.confidence < PILOT_REVIEW_CONFIDENCE_THRESHOLD).length;
+      console.log("  state (counts only):");
+      console.log(`    captures: ${captures.length} (${audioRetained} with audio retained, ${retentionStatuses.length - audioRetained} transcript-only)`);
+      console.log(`    buckets: ${buckets.length}; thoughts: ${items.length} (${lowConfidence} low-confidence)`);
+      console.log(`    awaiting review: ${pendingCorrections.length} correction(s), ${pendingProposals.length} memory proposal(s)`);
+      console.log(`    misfire register: ${misfires.length} report(s) (${misfires.filter((m) => m.status === "open").length} open)`);
+      return;
+    }
+
+    if (sub === "settings") {
+      const profile = await requireEnrolledCli(pilot, scope);
+      console.log(`Pilot settings for ${profile.participantId} (consent text ${profile.consentTextVersion}):`);
+      console.log(`  data-classes:      ${profile.dataClasses.join(", ")}  — change: donna pilot set data-classes <csv>`);
+      console.log(`  m365-sources:      ${profile.m365Sources.length > 0 ? profile.m365Sources.join(", ") : "none"}  — change: donna pilot set m365-sources <csv>`);
+      console.log(`  durable-memory:    ${profile.durableMemory ? "on" : "off"}  — change: donna pilot set durable-memory on|off`);
+      console.log(`  emotion-inference: ${profile.emotionInference ? "on (session-only)" : "off"}  — change: donna pilot set emotion-inference on|off`);
+      console.log(`  emotion-persist:   ${profile.emotionPersistence ? "on" : "off"}  — change: donna pilot set emotion-persist on|off`);
+      console.log(`  audio retention:   ${profile.audioRetentionDays} days, encrypted, then auto-deleted (fixed pilot policy)`);
+      console.log("  excluded from the pilot: HR, legal, financial, KYC, payment content (rejected by configuration)");
+      return;
+    }
+
+    if (sub === "set") {
+      const setting = process.argv[4];
+      const value = process.argv[5];
+      if (setting === undefined || value === undefined || value.startsWith("--")) {
+        console.error(
+          "usage: donna pilot set <data-classes|m365-sources> <csv> | donna pilot set <durable-memory|emotion-inference|emotion-persist> on|off",
+        );
+        process.exit(1);
+      }
+      try {
+        if (setting === "data-classes") {
+          const result = await pilot.updateDataClasses(scope, value.split(",").map((s) => s.trim()).filter((s) => s !== ""));
+          console.log(
+            `Data classes now: ${result.profile.dataClasses.join(", ")}` +
+              `${result.granted.length > 0 ? ` (granted: ${result.granted.join(", ")})` : ""}` +
+              `${result.revoked.length > 0 ? ` (revoked: ${result.revoked.join(", ")})` : ""}.`,
+          );
+        } else if (setting === "m365-sources") {
+          const next = value.split(",").map((s) => s.trim()).filter((s) => s !== "") as M365ReadSourceType[];
+          const result = await pilot.updateM365Sources(scope, next);
+          // Revoked sources: fail every read closed (consent gate) AND purge
+          // cached snippets + selections of the revoked types.
+          if (result.revoked.length > 0) {
+            const selections = await new M365SelectionStore(dir).list(scope);
+            const typeToSource: Record<string, M365ReadSourceType> = {
+              email: "mail",
+              "calendar-event": "calendar",
+              "teams-chat": "teams",
+              "teams-channel": "teams",
+              file: "files",
+              "sharepoint-item": "files",
+            };
+            let unselected = 0;
+            for (const selection of selections) {
+              const source = typeToSource[selection.type];
+              if (source !== undefined && result.revoked.includes(source)) {
+                await new M365SelectionStore(dir).unselect(scope, selection.resourceId);
+                unselected += 1;
+              }
+            }
+            let purged = false;
+            try {
+              await rm(m365ScopeDir(dir, scope), { recursive: true });
+              purged = true;
+            } catch (error) {
+              if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
+            }
+            console.log(
+              `Revoked: ${result.revoked.join(", ")} — reads now fail closed; ${unselected} selection(s) removed; cached snippets ${purged ? "purged" : "none cached"}.`,
+            );
+          }
+          console.log(`Microsoft 365 sources now: ${result.profile.m365Sources.length > 0 ? result.profile.m365Sources.join(", ") : "none"}.`);
+        } else if (setting === "durable-memory" || setting === "emotion-inference" || setting === "emotion-persist") {
+          if (value !== "on" && value !== "off") {
+            console.error(`donna pilot set ${setting} expects on|off`);
+            process.exit(1);
+          }
+          const on = value === "on";
+          if (setting === "durable-memory") {
+            const profile = await pilot.setDurableMemory(scope, on);
+            console.log(`Durable memory ${profile.durableMemory ? "on" : "off"}.${on ? "" : " New durable memories now fail closed; existing memories are untouched — forget them with: donna memory forget <id>"}`);
+          } else if (setting === "emotion-inference") {
+            const profile = await pilot.setEmotionInference(scope, on);
+            const emotion = buildEmotionService();
+            if (on) await emotion.enable(scope, "cli:pilot set emotion-inference");
+            else await emotion.disable(scope, "cli:pilot set emotion-inference");
+            console.log(`Emotion inference ${profile.emotionInference ? "on (session-only, tentative)" : "off"}; persistence ${profile.emotionPersistence ? "on" : "off"}.`);
+          } else {
+            const profile = await pilot.setEmotionPersistence(scope, on);
+            console.log(`Emotion persistence ${profile.emotionPersistence ? "on (separate opt-in recorded)" : "off"}.`);
+          }
+        } else {
+          console.error(`Unknown pilot setting "${setting}".`);
+          process.exit(1);
+        }
+      } catch (error) {
+        console.error(error instanceof Error ? error.message : String(error));
+        process.exit(1);
+      }
+      return;
+    }
+
+    if (sub === "review") {
+      const profile = await requireEnrolledCli(pilot, scope);
+      const memory = buildMemoryService();
+      const corrections = await buildCorrectionService();
+      const [pendingCorrections, pendingProposals, items, buckets] = await Promise.all([
+        corrections.reviewQueue(scope),
+        memory.listPendingProposals(scope),
+        new FileBucketStore(dir).listItems(tenantId, userId),
+        new FileBucketStore(dir).listBuckets(tenantId, userId),
+      ]);
+      const bucketNames = new Map(buckets.map((b) => [b.id, b.name]));
+      const lowConfidence = items.filter((i) => i.thought.confidence < PILOT_REVIEW_CONFIDENCE_THRESHOLD);
+      console.log(`Review queue for ${profile.participantId} — nothing here influences Donna until you decide.`);
+      console.log(`\nPending corrections (${pendingCorrections.length}):`);
+      for (const e of pendingCorrections) {
+        console.log(`  • ${e.id} ${e.type} on ${e.target.kind}:${e.target.id}`);
+      }
+      if (pendingCorrections.length > 0) {
+        console.log("  decide: donna corrections accept|reject <id>");
+      }
+      console.log(`\nPending memory proposals (${pendingProposals.length}):`);
+      for (const p of pendingProposals) {
+        console.log(`  • ${p.id} (${p.layer}/${p.kind}, confidence ${p.confidence}) ${p.text}`);
+      }
+      if (pendingProposals.length > 0) {
+        console.log("  decide: donna memory approve|reject <id>");
+      }
+      console.log(`\nLow-confidence thoughts (${lowConfidence.length}, organizer confidence < ${PILOT_REVIEW_CONFIDENCE_THRESHOLD}):`);
+      for (const item of lowConfidence) {
+        console.log(`  • ${item.thought.id} [${bucketNames.get(item.bucketId) ?? "?"}] (${item.thought.confidence.toFixed(2)}) ${item.thought.summary}`);
+      }
+      if (lowConfidence.length > 0) {
+        console.log("  fix placement: donna correct move <thought-id> --to <bucket-name>");
+      }
+      return;
+    }
+
+    if (sub === "export") {
+      const profile = await requireEnrolledCli(pilot, scope);
+      const out = arg("--out");
+      if (out === undefined) {
+        console.error("usage: donna pilot export --out <file> — the export writes to a file, never the terminal (SR-2).");
+        process.exit(1);
+      }
+      const bundle = await pilot.exportBundle(scope, {
+        captures: await new FileCaptureStore(dir).listCaptures(tenantId, userId),
+        corrections: await (await buildCorrectionService()).list(scope),
+        misfires: await buildMisfireRegister().list(scope),
+      });
+      const outPath = resolve(invocationDir, out);
+      await mkdir(dirname(outPath), { recursive: true, mode: 0o700 });
+      await writeFile(outPath, JSON.stringify(bundle, null, 2) + "\n", { mode: 0o600 });
+      console.log(
+        `Export written to ${outPath} (mode 0600): ${bundle.captures.length} capture(s), ` +
+          `${bundle.memory.memories.length} memor(ies), ${bundle.corrections.length} correction(s), ` +
+          `${bundle.misfires.length} misfire report(s), ${bundle.memory.consents.length} consent record(s).`,
+      );
+      console.log(`Participant ${profile.participantId}; exported ${bundle.exportedAt}.`);
+      return;
+    }
+
+    if (sub === "leave") {
+      const profile = await requireEnrolledCli(pilot, scope);
+      const out = arg("--out");
+      if (out === undefined) {
+        console.error(
+          "usage: donna pilot leave --out <file> [--delete-all]\n" +
+            "Leaving always exports your data to a file first, then revokes every consent and disconnects Microsoft 365.",
+        );
+        process.exit(1);
+      }
+      // 1. Export first — data portability before any revocation/deletion.
+      const bundle = await pilot.exportBundle(scope, {
+        captures: await new FileCaptureStore(dir).listCaptures(tenantId, userId),
+        corrections: await (await buildCorrectionService()).list(scope),
+        misfires: await buildMisfireRegister().list(scope),
+      });
+      const outPath = resolve(invocationDir, out);
+      await mkdir(dirname(outPath), { recursive: true, mode: 0o700 });
+      await writeFile(outPath, JSON.stringify(bundle, null, 2) + "\n", { mode: 0o600 });
+      console.log(`Exported everything to ${outPath} (mode 0600) before leaving.`);
+
+      // 2. Disconnect Microsoft 365 (revokes m365.* grants, purges cache).
+      const disconnect = await disconnectM365(buildMemoryService(), scope, dir, "pilot:leave");
+      console.log(`Microsoft 365 disconnected (${disconnect.revokedPurposes.length} grant(s) revoked, cache ${disconnect.purgedCache ? "purged" : "none cached"}).`);
+
+      // 3. Revoke every remaining active consent; mark exited.
+      const { revokedPurposes } = await pilot.exit(scope);
+      console.log(`Revoked ${revokedPurposes.length} consent purpose(s) total. Consent history is kept as an audit trail.`);
+
+      // 4. Optional verified deletion of content stores.
+      if (process.argv.includes("--delete-all")) {
+        const { lifecycle } = buildLifecycle();
+        const captures = await new FileCaptureStore(dir).listCaptures(tenantId, userId);
+        for (const capture of captures) {
+          await lifecycle.deleteCapture(tenantId, userId, capture.id);
+        }
+        // Sessions + emotional snapshots + intents (far-future sweep removes all).
+        await new FileSessionStore(dir).sweepExpired(tenantId, userId, "9999-12-31T23:59:59.999Z");
+        // Remaining memories and proposals (explicit ones not capture-derived).
+        const memory = buildMemoryService();
+        for (const record of await memory.listAll(scope)) {
+          await memory.forget(scope, record.id);
+        }
+        const memoryStore = new FileMemoryStore(dir);
+        for (const proposal of await memoryStore.listProposals(tenantId, userId)) {
+          await memoryStore.deleteProposal(tenantId, userId, proposal.id);
+        }
+        const corrections = await buildCorrectionService();
+        for (const event of await corrections.list(scope)) {
+          await corrections.deleteCorrection(scope, event.id);
+        }
+        await new FileMisfireRegisterStore(dir).saveAll(tenantId, userId, []);
+        for (const selection of await new M365SelectionStore(dir).list(scope)) {
+          await new M365SelectionStore(dir).unselect(scope, selection.resourceId);
+        }
+
+        // Verified deletion: re-list every content store and report counts.
+        const remaining = {
+          captures: (await new FileCaptureStore(dir).listCaptures(tenantId, userId)).length,
+          thoughts: (await new FileBucketStore(dir).listItems(tenantId, userId)).length,
+          memories: (await memory.listAll(scope)).length,
+          proposals: (await memoryStore.listProposals(tenantId, userId)).length,
+          corrections: (await corrections.list(scope)).length,
+          sessions: (await new FileSessionStore(dir).listSessions(tenantId, userId)).length,
+          misfires: (await buildMisfireRegister().list(scope)).length,
+          m365Selections: (await new M365SelectionStore(dir).list(scope)).length,
+        };
+        const leftover = Object.entries(remaining).filter(([, n]) => n > 0);
+        console.log("Deletion verification (each must be 0):");
+        for (const [storeName, n] of Object.entries(remaining)) {
+          console.log(`  ${storeName}: ${n}`);
+        }
+        if (leftover.length > 0) {
+          console.error(`DELETION INCOMPLETE: ${leftover.map(([k, n]) => `${k}=${n}`).join(", ")}`);
+          process.exit(1);
+        }
+        console.log("Verified: no captures, thoughts, memories, proposals, corrections, sessions, misfires, or selections remain. Consent history and the exited profile are kept as the audit trail.");
+      }
+      console.log(`Left the pilot, ${profile.participantId}. Thank you.`);
+      return;
+    }
+
+    if (sub === "report-misfire") {
+      const profile = await requireEnrolledCli(pilot, scope);
+      const category = process.argv[4];
+      const description = arg("--description");
+      if (category === undefined || !MISFIRE_CATEGORIES.includes(category as MisfireCategory) || description === undefined) {
+        console.error(
+          `usage: donna pilot report-misfire <${MISFIRE_CATEGORIES.join("|")}> --description <text> [--capture <id>] [--thought <id>] [--correction <id>] [--scenario <id>]`,
+        );
+        process.exit(1);
+      }
+      const evalSharing = await buildMemoryService().hasConsent(scope, "eval-sharing");
+      const record = await buildMisfireRegister().report(scope, {
+        category: category as MisfireCategory,
+        description,
+        participantId: profile.participantId,
+        consent: { evalSharing },
+        ...(arg("--capture") !== undefined ? { captureId: arg("--capture")! } : {}),
+        ...(arg("--thought") !== undefined ? { thoughtId: arg("--thought")! } : {}),
+        ...(arg("--correction") !== undefined ? { correctionId: arg("--correction")! } : {}),
+        ...(arg("--scenario") !== undefined ? { scenarioId: arg("--scenario")! } : {}),
+      });
+      console.log(
+        `Misfire ${record.id} recorded privately (category ${record.category}). ` +
+          `It stays in your partition${record.consent.evalSharing ? "; eval-sharing consent is active, so triage may propose it as a de-identified golden case" : " — you have NOT consented to eval sharing, so it can never become a shared golden case"}.`,
+      );
+      return;
+    }
+
+    if (sub === "misfires") {
+      await requireEnrolledCli(pilot, scope);
+      const records = await buildMisfireRegister().list(scope);
+      if (records.length === 0) {
+        console.log("No misfire reports. Report one with: donna pilot report-misfire <category> --description <text>");
+        return;
+      }
+      for (const r of records) {
+        const links = [r.captureId !== undefined ? `capture ${r.captureId}` : undefined, r.thoughtId !== undefined ? `thought ${r.thoughtId}` : undefined]
+          .filter((x) => x !== undefined)
+          .join(", ");
+        console.log(`• ${r.id} [${r.status}] ${r.category} — reported ${r.reportedAt}${links !== "" ? ` (${links})` : ""}`);
+        console.log(`    ${r.description}`);
+        console.log(`    ↳ eval-sharing consent at report time: ${r.consent.evalSharing ? "active" : "not granted"}`);
+      }
+      return;
+    }
+
+    console.error(USAGE);
+    process.exit(1);
+  }
+
   console.error(USAGE);
   process.exit(1);
+}
+
+async function requireEnrolledCli(
+  pilot: PilotService,
+  scope: { tenantId: string; userId: string },
+) {
+  try {
+    return await pilot.requireEnrolled(scope);
+  } catch (error) {
+    if (error instanceof NotEnrolledError) {
+      console.error(error.message);
+      process.exit(1);
+    }
+    throw error;
+  }
+}
+
+/** Interactive onboarding (Spec 6.1 AC-1): explanations, per-setting
+ * prompts with narrow defaults, and an explicit final affirmation. */
+async function promptOnboarding(): Promise<EnrollmentDecisions> {
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  // The async iterator buffers input lines, so piped (non-TTY) answers
+  // arriving before their prompt are not dropped.
+  const lines = rl[Symbol.asyncIterator]();
+  const ask = async (question: string): Promise<string> => {
+    process.stdout.write(question);
+    const next = await lines.next();
+    if (next.done) {
+      console.error("\nOnboarding aborted — input ended before all answers were given. Nothing was recorded.");
+      process.exit(1);
+    }
+    return next.value.trim();
+  };
+  try {
+    console.log("Donna pilot onboarding. Read each explanation carefully — onboarding asks you to confirm them.");
+    for (const explanation of PILOT_EXPLANATIONS) {
+      console.log(`\n## ${explanation.title}\n${explanation.body}`);
+    }
+    console.log("");
+    const participantId = await ask("Your pseudonymous participant ID (e.g. P-02 — never your name or email): ");
+    const classesAnswer = await ask(`Data classes you will capture [all of: ${PILOT_DATA_CLASSES.join(", ")}]: `);
+    const sourcesAnswer = await ask("Microsoft 365 sources Donna may read (calendar,mail,teams,files) [none]: ");
+    const durableAnswer = await ask("Allow durable cross-session memory (facts/preferences you approve)? (yes/no) [yes]: ");
+    const inferenceAnswer = await ask("Allow tentative, session-only emotion inference? (yes/no) [yes]: ");
+    const persistAnswer = await ask("Also persist emotional context beyond sessions (separate opt-in)? (yes/no) [no]: ");
+    const yes = (answer: string, fallback: boolean): boolean =>
+      answer === "" ? fallback : /^y(es)?$/i.test(answer);
+    const affirm = await ask(
+      "\nType 'yes' to confirm: you read the explanations above, accept 7-day encrypted audio retention, " +
+        "and understand Donna organizes and drafts but is not authoritative and does not act autonomously: ",
+    );
+    if (!/^yes$/i.test(affirm)) {
+      console.error("Onboarding aborted — nothing was recorded. Re-run: donna pilot onboard");
+      process.exit(1);
+    }
+    return {
+      participantId,
+      dataClasses:
+        classesAnswer === ""
+          ? [...PILOT_DATA_CLASSES]
+          : classesAnswer.split(",").map((s) => s.trim()).filter((s) => s !== ""),
+      m365Sources: sourcesAnswer
+        .split(",")
+        .map((s) => s.trim())
+        .filter((s) => s !== "") as M365ReadSourceType[],
+      durableMemory: yes(durableAnswer, true),
+      emotionInference: yes(inferenceAnswer, true),
+      emotionPersistence: yes(persistAnswer, false),
+      acknowledgements: { explanations: true, audioRetention: true, notAuthoritative: true },
+    };
+  } finally {
+    rl.close();
+  }
 }
 
 function scope0(tenantId: string, userId: string): { tenantId: string; userId: string } {
@@ -2228,6 +2840,9 @@ function renderDraftPreview(draft: ActionDraft): void {
 }
 
 main().catch((err) => {
-  console.error(err);
+  // Domain errors (consent gates, enrollment refusals, not-found) carry
+  // actionable messages — print those, not a stack trace, on this
+  // pilot-facing surface.
+  console.error(err instanceof Error ? err.message : String(err));
   process.exit(1);
 });

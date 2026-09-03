@@ -38,7 +38,7 @@ import type {
   ProvenanceVerifier,
   TranscriptStore,
 } from "@donna/core";
-import { MemoryService, type Scope } from "./service.js";
+import { DurableMemoryDisabledError, MemoryService, type Scope } from "./service.js";
 import { relevanceScore } from "./context-assembler.js";
 
 export interface CorrectionInput {
@@ -531,7 +531,8 @@ export class CorrectionService implements CorrectionObserver {
   private async derivePreference(scope: Scope, event: CorrectionEvent): Promise<void> {
     const summary = event.payload["thoughtSummary"] ?? event.target.id;
     const bucketName = event.payload["toBucketName"] ?? event.payload["toBucketId"] ?? "unknown";
-    await this.deps.memory.stateExplicit(scope, {
+    try {
+      await this.deps.memory.stateExplicit(scope, {
       layer: "procedural",
       kind: "organization-preference",
       subject: `correction:${event.id}`,
@@ -543,7 +544,14 @@ export class CorrectionService implements CorrectionObserver {
           reason: "user moved a thought to this bucket",
         },
       ],
-    });
+      });
+    } catch (error) {
+      // Spec 6.1: when the scope's pilot profile has durable memory off,
+      // the correction still applies (the user's ground-truth move is
+      // never blocked) — only the derived durable preference is skipped.
+      if (error instanceof DurableMemoryDisabledError) return;
+      throw error;
+    }
   }
 
   /**

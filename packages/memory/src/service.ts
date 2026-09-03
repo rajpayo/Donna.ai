@@ -45,6 +45,14 @@ export interface MemoryServiceDeps {
   now: () => Date;
   /** Injectable ID generator for deterministic tests. */
   idGen?: () => string;
+  /**
+   * Spec 6.1: optional gate consulted before any DURABLE memory is created
+   * (stateExplicit/approve/supersede for non-working layers). Returns false
+   * when the scope's pilot profile has durable memory off — creation then
+   * fails closed with DurableMemoryDisabledError. Undefined = allowed
+   * (non-pilot behavior unchanged).
+   */
+  durableMemoryGate?: (scope: Scope) => Promise<boolean>;
 }
 
 export interface MemoryInput {
@@ -81,6 +89,22 @@ export class ProposalNotFoundError extends Error {
   constructor() {
     super("Proposal does not exist in the requested tenant/user scope");
     this.name = "ProposalNotFoundError";
+  }
+}
+
+/**
+ * Thrown when a durable memory would be created while the scope's pilot
+ * profile has durable memory switched off (Specification 6.1 FR-2). The
+ * gate is consulted only when wired (pilot installations); without it,
+ * behavior is exactly as before. Working memory is never gated — it is
+ * session-scoped and dies with the session.
+ */
+export class DurableMemoryDisabledError extends Error {
+  constructor() {
+    super(
+      "Durable memory is off for this pilot profile. Re-enable with: donna pilot set durable-memory on",
+    );
+    this.name = "DurableMemoryDisabledError";
   }
 }
 
@@ -193,6 +217,7 @@ export class MemoryService {
    */
   async stateExplicit(scope: Scope, input: MemoryInput): Promise<MemoryRecord> {
     this.validateInput(input);
+    await this.requireDurableAllowed(scope, input.layer);
     const now = this.deps.now().toISOString();
     const record: MemoryRecord = {
       id: this.idGen(),
@@ -258,6 +283,7 @@ export class MemoryService {
     if (proposal.status !== "pending") {
       throw new Error(`Proposal already ${proposal.status}`);
     }
+    await this.requireDurableAllowed(scope, proposal.layer);
     const now = this.deps.now().toISOString();
     const record: MemoryRecord = {
       id: this.idGen(),
@@ -336,6 +362,7 @@ export class MemoryService {
     if (old.status !== "confirmed") {
       throw new Error(`Cannot supersede a ${old.status} memory`);
     }
+    await this.requireDurableAllowed(scope, old.layer);
     const now = this.deps.now().toISOString();
     const next: MemoryRecord = {
       ...old,
@@ -546,6 +573,19 @@ export class MemoryService {
   }
 
   /* ------------------------------ internals --------------------------- */
+
+  /**
+   * Spec 6.1: durable-memory creation fails closed when the wired pilot
+   * gate denies it. Working memory (session-scoped) is never gated.
+   */
+  private async requireDurableAllowed(scope: Scope, layer: MemoryLayer): Promise<void> {
+    if (layer === "working") return;
+    const gate = this.deps.durableMemoryGate;
+    if (gate === undefined) return;
+    if (!(await gate(scope))) {
+      throw new DurableMemoryDisabledError();
+    }
+  }
 
   private isExpired(record: MemoryRecord): boolean {
     return (

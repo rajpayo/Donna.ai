@@ -1,6 +1,21 @@
 # Phase 6 — Controlled CLI pilot
 
-Status: `not-started`
+Status: `in-progress`
+
+> Product-owner directive (2026-09-03): Specifications 6.1, 6.2, and 6.3 are
+> approved and are executed in one ordered run, one specification at a time,
+> on branch `cursor/import-mvp-scaffold-b430`. Each specification still moves
+> approved → in-progress → in-review with its own evidence; the
+> per-specification acceptance gate between specifications is overridden for
+> this phase only (as was done for Phases 1–5). Phases 1–5 are accepted.
+>
+> Reality constraint (recorded with the approval): Specifications 6.2 and 6.3
+> are partly operational — the product owner must recruit 2–3 consenting
+> colleagues and collect real recordings. Volunteer-dependent acceptance
+> criteria are implemented as tooling/runbooks/instrumentation, proven with
+> synthetic data plus the product owner's own existing captures, and marked
+> "awaiting product-owner pilot runs". Volunteer data is never fabricated;
+> pilot graduation is not claimed.
 
 ## Objective
 
@@ -19,9 +34,114 @@ desktop, Teams, or action-taking agents.
 
 ### Specification 6.1 — Pilot onboarding, consent, and review experience
 
-Status: `draft`
+Status: `in-review` (approved by the product owner 2026-09-03; awaiting product-owner examination — only the product owner accepts)
 
 Depends on: Phase 5 accepted
+
+> Implementation evidence (2026-09-03, implementation worker):
+>
+> - **New `@donna/pilot` package** (`packages/pilot/`):
+>   - `src/policy.ts` — closed permitted data-class set (meetings, tasks,
+>     ideas, follow-ups, decisions, people, projects) matching the approved
+>     scenario matrix; excluded-category rejection for HR/legal/financial/
+>     KYC/payment via whole-token + two-word-phrase matching (no substring
+>     false positives) with a clear message (SR-3); consent-text version
+>     `pilot-consent.v1`; the plain-language explanations (`PILOT_EXPLANATIONS`,
+>     AC-3): what Donna stores, what admins cannot see, not-authoritative/
+>     never-autonomous, emotion tentativeness, M365 per-source choice,
+>     exclusions, leaving, misfire reporting; redaction helpers (SR-2) that
+>     replace content with a length-only placeholder (never a prefix).
+>   - `src/profile.ts` — `PilotProfile` (pseudonymous participant ID,
+>     consent-text version, per-setting choices, fixed 7-day audio
+>     retention, status enrolled/exited) + scoped file store under
+>     `data/pilot/<tenant>/<user>/` (partition-ID guards, 0700/0600).
+>   - `src/onboarding.ts` — `PilotService`: affirmative enrollment (every
+>     acknowledgement required; every chosen/non-chosen setting recorded as
+>     a grant or explicit denial in the append-only ConsentStore with the
+>     consent-text version in the channel — FR-1); per-setting changes
+>     (`updateDataClasses`, `updateM365Sources`, `setDurableMemory`,
+>     `setEmotionInference`, `setEmotionPersistence`) re-recording versioned
+>     consent (FR-2); `exit` revoking EVERY active purpose with history
+>     preserved (FR-3); `exportBundle` (profile + memory export + captures
+>     + corrections + misfires).
+>   - `src/misfires.ts` — private scoped misfire register: category
+>     (stt/provenance/organization/memory/retrieval/context/latency/
+>     integration/other), description, links, pseudonymous reporter, and a
+>     consent snapshot (eval-sharing state) at report time.
+> - **Durable-memory gate** (`packages/memory/src/service.ts`): optional
+>   `durableMemoryGate` on `MemoryService` — durable creation
+>   (stateExplicit/approve/supersede, non-working layers) fails closed with
+>   `DurableMemoryDisabledError` when the enrolled profile has durable
+>   memory off; working memory never gated; undefined gate = unchanged
+>   non-pilot behavior. `CorrectionService.derivePreference` catches the
+>   gate error: a ground-truth correction still applies (move/centroids),
+>   only the derived durable preference is skipped.
+> - **CLI** (`apps/cli/src/main.ts`): `pilot explain` | `pilot onboard`
+>   (interactive readline with buffered async-iterator prompts and an
+>   explicit final "yes" affirmation, or fully flag-driven with `--affirm`)
+>   | `pilot status` (consent state + counts only) | `pilot settings` |
+>   `pilot set <setting>` (m365-source removal also purges cached snippets
+>   and drops selections of revoked types) | `pilot review` (pending
+>   corrections + pending proposals + thoughts below the documented 0.75
+>   organizer-confidence floor) | `pilot export --out <file>` (0600 file,
+>   never the terminal) | `pilot leave --out <file> [--delete-all]`
+>   (export → M365 disconnect+purge → revoke all → optional wipe with
+>   re-listed zero-count verification) | `pilot report-misfire` |
+>   `pilot misfires`. Global CLI errors now print clean actionable messages
+>   instead of stack traces.
+> - **Redaction (SR-2)**: while a scope is enrolled, `capture` (transcript
+>   block + per-item verbatim source), `search`/`query` (verbatim source
+>   lines) redact by default; `--show-transcripts` reveals per invocation.
+>   `export` refuses the terminal dump while enrolled and directs to
+>   `pilot export --out`. Non-enrolled scopes keep prior behavior exactly.
+> - **FR-1 enforcement**: `capture` refuses scopes whose pilot profile is
+>   `exited` until re-onboarding.
+> - **Live verification (2026-09-03, live TrueFoundry gateway, scratch
+>   users pilot-probe-61/61b):** `pilot explain` renders all explanations;
+>   onboarding with `hr` in data classes → "The pilot excludes HR, legal,
+>   financial, KYC, and payment content. Rejected: \"hr\" (hr)…" with zero
+>   consent records written; flags onboarding recorded 11 versioned consent
+>   records (narrow defaults as explicit denials); interactive onboarding
+>   (piped answers) enrolled with all-default narrow choices, and a final
+>   non-"yes" answer aborted with nothing recorded; `pilot set
+>   durable-memory off` → `memory remember` failed closed ("Durable memory
+>   is off for this pilot profile…"), re-enable restored it; m365-sources
+>   calendar,mail → calendar revoked mail (grant→revoke history visible);
+>   a live espeak-ng synthetic capture as the enrolled user printed the
+>   transcript and source lines redacted, `--show-transcripts` revealed
+>   them, and the non-enrolled m365-spec52-probe scope printed unredacted
+>   as before; `pilot report-misfire organization …` recorded the consent
+>   snapshot (eval-sharing not granted); `pilot export` wrote a 0600 bundle
+>   (1 capture, 1 memory, 17 consent records, 1 misfire); `pilot leave
+>   --delete-all` exported, disconnected M365, revoked 6 active purposes,
+>   wiped all content stores, and verified eight zero counts; a subsequent
+>   capture as that scope was refused ("left the pilot… re-onboard").
+> - **Tests: 20 new (435 total green with Postgres live, typecheck
+>   clean).** Coverage: fresh onboarding + versioned consent records +
+>   narrow-default denials; source-choice grants; missing-acknowledgement
+>   refusal; pseudonymous-ID validation; duplicate-enrollment refusal;
+>   excluded-category rejection across aliases ("hr", "Human Resources",
+>   "legal", "financial", "KYC", "payment-processing", "payroll") with
+>   unknown-vs-excluded distinction; unknown-class rejection; emotion
+>   persistence-requires-inference; per-setting opt-in/opt-out re-records;
+>   data-class grant/revoke diff; m365 source revoke; export bundle shape;
+>   exit revokes all + history preserved + re-enrollment; not-enrolled
+>   refusals; durable-memory gate (durable blocked, working allowed,
+>   approve blocked, ungated unchanged); correction applies with preference
+>   skipped when gated off; redaction defaults + no-prefix placeholder +
+>   explicit-show; misfire report shape/consent snapshot; unknown-category
+>   and empty-description rejection.
+> - **Known limitations:** the low-confidence review list uses the
+>   persisted organizer self-confidence (the capture-time `needsReview`
+>   flag, which also reflects bucket-band placement and session review
+>   bias, is shown at capture time but not persisted); `pilot leave` keeps
+>   consent history and the exited profile as the audit trail by design;
+>   interactive prompts require a stdin that supplies every answer (EOF
+>   aborts fail-closed).
+>
+> Awaiting product-owner examination for acceptance. Review-gate dry run
+> executed with synthetic data and scratch users only — no real volunteer
+> was enrolled.
 
 #### Outcome
 

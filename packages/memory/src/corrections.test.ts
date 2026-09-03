@@ -360,6 +360,33 @@ describe("correction application (accepted only, FR-3)", () => {
     assert.equal(moved.thought.task, undefined);
   });
 
+  it("Spec 6.1: bucket.move still applies with durable memory off; the derived preference is skipped", async () => {
+    // Pilot durable-memory gate wired off — correction application (the
+    // user's ground-truth move) is never blocked by the memory policy.
+    const gatedMemory = new MemoryService({
+      memories: new FileMemoryStore(dir),
+      consents: new FileConsentStore(dir),
+      now: () => new Date("2026-09-03T10:00:00.000Z"),
+      durableMemoryGate: async () => false,
+    });
+    const gatedCorrections = new CorrectionService({
+      corrections: new FileCorrectionStore(dir),
+      buckets,
+      memory: gatedMemory,
+      transcripts,
+      verifier: new DeterministicProvenanceVerifier(),
+      embedder: stubEmbedder,
+      now: () => new Date("2026-09-03T10:00:00.000Z"),
+    });
+    const event = await gatedCorrections.submit(SCOPE, moveInput("th-1", "b-people", "hire a PM"));
+    const accepted = await gatedCorrections.accept(SCOPE, event.id);
+    // The move applied (ground truth honored)…
+    assert.equal(buckets.items[0]?.bucketId, "b-people");
+    assert.equal(accepted.appliedAt !== undefined, true);
+    // …but no durable procedural preference was derived.
+    assert.equal((await gatedMemory.listConfirmed(SCOPE, "procedural")).length, 0);
+  });
+
   it("bucket.rename renames in scope", async () => {
     const event = await corrections.submit(SCOPE, {
       type: "bucket.rename",

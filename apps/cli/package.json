@@ -15,6 +15,7 @@
     "@donna/integrations-m365": "*",
     "@donna/memory": "*",
     "@donna/pipeline": "*",
+    "@donna/pilot": "*",
     "@donna/privacy": "*",
     "@donna/providers": "*",
     "@donna/retrieval": "*",
