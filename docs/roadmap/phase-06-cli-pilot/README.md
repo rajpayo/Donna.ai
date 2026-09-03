@@ -200,9 +200,91 @@ accepted.
 
 ### Specification 6.2 — Volunteer runs and misfire-to-golden loop
 
-Status: `draft`
+Status: `in-review` (approved by the product owner 2026-09-03; volunteer-dependent acceptance criteria **awaiting product-owner pilot runs** — tooling/runbooks/instrumentation complete and proven on synthetic + scratch-participant data only; no volunteer data exists and none was fabricated)
 
 Depends on: Specification 6.1 accepted
+
+> Implementation evidence (2026-09-03, implementation worker):
+>
+> - **Runbooks** (`docs/pilot/`): `RUNBOOK.md` — named-owner table, hard
+>   rules, enrollment steps, the balanced scenario matrix (SC-MEET-01 …
+>   SC-MULTI-01 across meetings/tasks/ideas/follow-ups/decisions/people/
+>   projects/mixed-emotional/multi-capture, plus variants V-ACCENT, V-PACE,
+>   V-NOISE, V-INTERRUPT, V-CORRECT, V-REPEAT), per-scenario run flow, the
+>   explicit-decision → command mapping (accept/move/split/merge/edit/
+>   reject/memory approve-reject/retrieval relevance), the misfire triage
+>   workflow, the separately-consented golden promotion path, weekly
+>   retention/deletion verification, and the support/incident path;
+>   `CONSENT_SCRIPT.md` — the exact pre-onboarding read-aloud script;
+>   `SESSION_CHECKLIST.md` — pre/during/post session checklist.
+> - **Run instrumentation** (`packages/pilot/src/runs.ts`): `PilotRunBook`
+>   over a scoped `runs.json`. Every run records the pseudonymous
+>   participant ID, runbook scenario ID, and the eval-harness config
+>   fingerprint (same `captureSnapshot`/`snapshotFingerprint` the harness
+>   uses — FR-1). One open run at a time; `end` gathers the window's
+>   capture IDs and explicit decision counts/IDs from the correction and
+>   memory stores (`collectRunDecisions`, pure). Records carry IDs and
+>   counts only (SR-2). CLI: `pilot run start|end|list|show`.
+> - **Misfire triage tooling** (`packages/pilot/src/misfires.ts`):
+>   `triage` (category + expected behavior required — FR-2), `resolve`
+>   (disposition fixed / accepted-limitation / blocks-graduation, note
+>   required, triage-first enforced), `linkGoldenCase`, and `summarize`
+>   (the board: counts by category/status/disposition, unresolved list,
+>   graduation blockers — IDs only). CLI: `pilot misfire triage|resolve|
+>   promote|board`.
+> - **Consented de-identification wiring**: `pilot misfire promote <id>
+>   --correction <id>` checks active `eval-sharing` consent BEFORE calling
+>   the Spec 2.3 promotion path (which re-checks and de-identifies), then
+>   records the golden-case link on the misfire. Fail-closed without
+>   consent — verified live (see below).
+> - **Live loop proof (2026-09-03, scratch participant P-INTERACTIVE /
+>   pilot-probe-61b, synthetic espeak-ng audio, live gateway):** run
+>   SC-IDEA-01 opened with config fingerprint 71093c3f…; one capture → 2
+>   thoughts; TWO genuine misfires observed and reported: (1) STT — the
+>   synthetic entity "finance-free review board" was transcribed as
+>   "finance pre-review board" → triaged stt → resolved
+>   accepted-limitation (chunked-timestamp STT fallback already
+>   documented); (2) organization — vendor-portal thought landed in the
+>   generic Product Ideas bucket → participant correction `bucket.move` →
+>   pinned "Vendor Portal" → accepted → triaged organization → resolved
+>   fixed with the correction linked. Promotion WITHOUT eval-sharing
+>   consent failed closed ("The misfire stays private…"); after explicit
+>   `consent grant eval-sharing`, promotion wrote de-identified case
+>   `4d7e4b5c…` to `corrections.v1.json` (no tenant/user/capture IDs —
+>   type + bucket names + summary only) and linked the misfire. Board: 2
+>   reports, 2 resolved (1 fixed, 1 accepted-limitation), 1 promoted, 0
+>   blockers. Run end gathered 1 window capture + bucket.move=1.
+> - **Tests: 11 new (446 total green with Postgres live, typecheck
+>   clean).** Coverage: triage fields + timestamp; resolve-requires-triage;
+>   all three dispositions; unknown category/disposition and empty-field
+>   rejections; golden-case link recording; board counts + blocker list;
+>   run start shape + single-open-run + scenario required; end terminal +
+>   not-found; window decision gathering (in/out-of-window corrections,
+>   memory approvals/rejections, capture filtering); collectRunDecisions
+>   counting; file-store round-trip + cross-partition invisibility.
+> - **Known limitations:** promotion currently supports `bucket.move`
+>   corrections only (the Spec 2.3 golden-case shape); STT/provenance
+>   misfire classes are triaged and dispositioned but not yet promotable —
+>   they enter datasets as authored fixtures. Run decision gathering is
+>   window-based; decisions made after `run end` belong to no run.
+>
+> **Volunteer-dependent acceptance criteria — AWAITING PRODUCT-OWNER
+> PILOT RUNS (not claimed):**
+>
+> - `AC-1` (scenario matrix adjudicated deeply enough to report every
+>   graduation metric without hiding cohort failures): tooling and matrix
+>   exist; requires the product owner's 2–3 consenting volunteers to run
+>   the matrix. The loop proof above covers one synthetic participant.
+> - `AC-2` (every observed misfire dispositioned): proven for the two
+>   synthetic-loop misfires; the cohort-wide register awaits real runs.
+> - `AC-3` (repeated personalized scenarios show correction-rate
+>   improvement): requires repeated volunteer runs; not measurable yet.
+> - `AC-4` (retention and deletion jobs verified during the live pilot):
+>   the mechanism is verified (Spec 1.3 retention suite + `pilot leave`
+>   zero-count verification in 6.1); the DURING-THE-PILOT verification
+>   cadence (runbook §6) awaits real pilot weeks.
+>
+> Awaiting product-owner examination for acceptance.
 
 #### Outcome
 

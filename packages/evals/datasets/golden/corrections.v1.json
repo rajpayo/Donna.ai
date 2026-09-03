@@ -10,6 +10,15 @@
       "toBucketName": "Negotiations",
       "promotedAt": "2026-09-03T11:54:14.672Z",
       "source": "consented-correction-deidentified"
+    },
+    {
+      "id": "4d7e4b5c-1e44-4dbd-8abf-8c361f4488ff",
+      "type": "bucket.move",
+      "thoughtSummary": "Add quiet mode to vendor portal to hide badges",
+      "fromBucketName": "Product Ideas",
+      "toBucketName": "Vendor Portal",
+      "promotedAt": "2026-09-03T18:14:31.431Z",
+      "source": "consented-correction-deidentified"
     }
   ]
 }

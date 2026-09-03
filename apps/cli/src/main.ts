@@ -80,7 +80,12 @@ import { fileURLToPath } from "node:url";
 import { createInterface } from "node:readline";
 import type { Capture, EventSink, MemoryLayer } from "@donna/core";
 import { FileBucketStore } from "@donna/buckets";
-import { promoteCorrectionToGoldenCase, runCompatibilityCheck } from "@donna/evals";
+import {
+  captureSnapshot,
+  promoteCorrectionToGoldenCase,
+  runCompatibilityCheck,
+  snapshotFingerprint,
+} from "@donna/evals";
 import {
   ContextAssembler,
   CorrectionService,
@@ -117,17 +122,21 @@ import {
   ExcludedCategoryError,
   FileMisfireRegisterStore,
   FilePilotProfileStore,
+  FilePilotRunStore,
   MisfireRegister,
   MISFIRE_CATEGORIES,
+  MISFIRE_DISPOSITIONS,
   NotEnrolledError,
   PILOT_DATA_CLASSES,
   PILOT_EXPLANATIONS,
   PILOT_REVIEW_CONFIDENCE_THRESHOLD,
+  PilotRunBook,
   PilotService,
   pilotRedactionActive,
   redactContent,
   type EnrollmentDecisions,
   type MisfireCategory,
+  type MisfireDisposition,
 } from "@donna/pilot";
 import type { M365ReadSourceType } from "@donna/core";
 import {
@@ -299,6 +308,24 @@ const USAGE = `usage:
                                              retrieval, context, latency,
                                              integration, other)
   donna pilot misfires                   list the private misfire register
+  donna pilot misfire triage <id> --category <c> --expected <text>
+  donna pilot misfire resolve <id> --disposition <fixed|accepted-limitation|blocks-graduation>
+       --note <text> [--correction <id>]
+  donna pilot misfire promote <id> --correction <id>
+                                         share the linked accepted correction
+                                             as a de-identified golden case
+                                             (fails closed without active
+                                             eval-sharing consent)
+  donna pilot misfire board              triage summary incl. graduation
+                                             blockers (counts and IDs only)
+  donna pilot run start --scenario <id>  open an instrumented pilot run
+                                             (pseudonymous participant +
+                                             scenario IDs, config fingerprint)
+  donna pilot run end <run-id> [--notes <t>]
+                                         close the run; window decisions are
+                                             gathered from the correction and
+                                             memory stores
+  donna pilot run list|show [<id>]       run register (IDs and counts only)
 
 Pilot note: while enrolled, CLI commands redact verbatim transcript text by
 default (SR-2). Pass --show-transcripts on capture/search/query/export to
@@ -351,6 +378,20 @@ function buildMisfireRegister(): MisfireRegister {
     () => new Date(),
     randomUUID,
   );
+}
+
+function buildRunBook(): PilotRunBook {
+  return new PilotRunBook(new FilePilotRunStore(dataDir()), () => new Date(), randomUUID);
+}
+
+/** The eval-harness config fingerprint (Spec 6.2 FR-1) for run records. */
+async function currentConfigFingerprint(): Promise<string> {
+  const snapshot = await captureSnapshot({
+    repoRoot,
+    configPath: resolve(repoRoot, process.env.DONNA_MODELS_CONFIG ?? "models.config.yaml"),
+    dataset: { name: "(pilot-run)", version: 0, sha256: "0".repeat(64) },
+  });
+  return snapshotFingerprint(snapshot);
 }
 
 /**
@@ -2652,11 +2693,214 @@ async function main(): Promise<void> {
         const links = [r.captureId !== undefined ? `capture ${r.captureId}` : undefined, r.thoughtId !== undefined ? `thought ${r.thoughtId}` : undefined]
           .filter((x) => x !== undefined)
           .join(", ");
-        console.log(`• ${r.id} [${r.status}] ${r.category} — reported ${r.reportedAt}${links !== "" ? ` (${links})` : ""}`);
+        const disposition = r.disposition !== undefined ? `, ${r.disposition}` : "";
+        console.log(`• ${r.id} [${r.status}${disposition}] ${r.category} — reported ${r.reportedAt}${links !== "" ? ` (${links})` : ""}`);
         console.log(`    ${r.description}`);
-        console.log(`    ↳ eval-sharing consent at report time: ${r.consent.evalSharing ? "active" : "not granted"}`);
+        if (r.expectedBehavior !== undefined) {
+          console.log(`    ↳ expected: ${r.expectedBehavior}`);
+        }
+        if (r.dispositionNote !== undefined) {
+          console.log(`    ↳ disposition: ${r.dispositionNote}`);
+        }
+        console.log(`    ↳ eval-sharing consent at report time: ${r.consent.evalSharing ? "active" : "not granted"}${r.goldenCaseId !== undefined ? `; promoted as golden case ${r.goldenCaseId}` : ""}`);
       }
       return;
+    }
+
+    if (sub === "misfire") {
+      const action = process.argv[4];
+      const misfireId = process.argv[5];
+      await requireEnrolledCli(pilot, scope);
+      const register = buildMisfireRegister();
+
+      if (action === "triage") {
+        const category = arg("--category");
+        const expected = arg("--expected");
+        if (misfireId === undefined || category === undefined || expected === undefined) {
+          console.error(`usage: donna pilot misfire triage <id> --category <${MISFIRE_CATEGORIES.join("|")}> --expected <text>`);
+          process.exit(1);
+        }
+        const record = await register.triage(scope, misfireId, {
+          category: category as MisfireCategory,
+          expectedBehavior: expected,
+        });
+        console.log(`Triaged ${record.id}: ${record.category}; expected behavior recorded. Resolve with: donna pilot misfire resolve ${record.id} --disposition <${MISFIRE_DISPOSITIONS.join("|")}> --note <text>`);
+        return;
+      }
+
+      if (action === "resolve") {
+        const disposition = arg("--disposition");
+        const note = arg("--note");
+        if (misfireId === undefined || disposition === undefined || note === undefined) {
+          console.error(`usage: donna pilot misfire resolve <id> --disposition <${MISFIRE_DISPOSITIONS.join("|")}> --note <text> [--correction <id>]`);
+          process.exit(1);
+        }
+        const record = await register.resolve(scope, misfireId, {
+          disposition: disposition as MisfireDisposition,
+          note,
+          ...(arg("--correction") !== undefined ? { correctionId: arg("--correction")! } : {}),
+        });
+        console.log(`Resolved ${record.id} as ${record.disposition}.${record.disposition === "blocks-graduation" ? " This BLOCKS the graduation decision until cleared." : ""}`);
+        return;
+      }
+
+      if (action === "promote") {
+        // Spec 6.2: consented de-identification path from misfire to shared
+        // golden case. The eval-side promotion fails closed without active
+        // eval-sharing consent; the register then records the link.
+        const correctionId = arg("--correction");
+        if (misfireId === undefined || correctionId === undefined) {
+          console.error("usage: donna pilot misfire promote <id> --correction <accepted-correction-id>");
+          process.exit(1);
+        }
+        const memory = buildMemoryService();
+        if (!(await memory.hasConsent(scope, "eval-sharing"))) {
+          console.error(
+            "Cannot promote: no active eval-sharing consent. The misfire stays private. " +
+              "To share this case de-identified, grant explicitly: donna consent grant eval-sharing",
+          );
+          process.exit(1);
+        }
+        try {
+          const result = await promoteCorrectionToGoldenCase(
+            {
+              corrections: new FileCorrectionStore(dir),
+              hasConsent: (purpose) => memory.hasConsent(scope, purpose),
+              datasetPath: resolve(repoRoot, "packages/evals/datasets/golden/corrections.v1.json"),
+              now: () => new Date(),
+            },
+            scope,
+            correctionId,
+          );
+          const linked = await register.linkGoldenCase(scope, misfireId, {
+            correctionId,
+            goldenCaseId: result.caseId,
+          });
+          console.log(
+            result.alreadyShared
+              ? `Correction ${correctionId} was already a golden case; misfire ${linked.id} linked to it.`
+              : `Promoted correction ${correctionId} as a de-identified golden case and linked misfire ${linked.id}.`,
+          );
+        } catch (error) {
+          console.error(error instanceof Error ? error.message : String(error));
+          process.exit(1);
+        }
+        return;
+      }
+
+      if (action === "board") {
+        const board = await register.summarize(scope);
+        console.log(`Misfire board: ${board.total} report(s)`);
+        console.log(`  by category: ${Object.entries(board.byCategory).map(([k, v]) => `${k}=${v}`).join(", ") || "—"}`);
+        console.log(`  by status: ${Object.entries(board.byStatus).map(([k, v]) => `${k}=${v}`).join(", ") || "—"}`);
+        console.log(`  dispositions: ${Object.entries(board.byDisposition).map(([k, v]) => `${k}=${v}`).join(", ") || "—"}`);
+        console.log(`  promoted to golden cases: ${board.promotedGoldenCases}`);
+        if (board.unresolved.length > 0) {
+          console.log(`  UNRESOLVED: ${board.unresolved.join(", ")}`);
+        }
+        if (board.blocksGraduation.length > 0) {
+          console.log(`  BLOCKS GRADUATION: ${board.blocksGraduation.map((b) => `${b.id} (${b.category})`).join(", ")}`);
+        }
+        return;
+      }
+
+      console.error(USAGE);
+      process.exit(1);
+    }
+
+    if (sub === "run") {
+      const action = process.argv[4];
+      const profile = await requireEnrolledCli(pilot, scope);
+      const book = buildRunBook();
+
+      if (action === "start") {
+        const scenario = arg("--scenario");
+        if (scenario === undefined) {
+          console.error("usage: donna pilot run start --scenario <id>  (scenario IDs: docs/pilot/RUNBOOK.md)");
+          process.exit(1);
+        }
+        const fingerprint = await currentConfigFingerprint();
+        try {
+          const run = await book.start(scope, {
+            participantId: profile.participantId,
+            scenarioId: scenario,
+            configFingerprint: fingerprint,
+          });
+          console.log(`Run ${run.id} started — scenario ${run.scenarioId}, participant ${run.participantId}.`);
+          console.log(`  config fingerprint: ${run.configFingerprint.slice(0, 16)}…`);
+          console.log(`  capture, review, and correct as usual; then: donna pilot run end ${run.id}`);
+        } catch (error) {
+          console.error(error instanceof Error ? error.message : String(error));
+          process.exit(1);
+        }
+        return;
+      }
+
+      if (action === "end") {
+        const runId = process.argv[5];
+        if (runId === undefined || runId.startsWith("--")) {
+          console.error("usage: donna pilot run end <run-id> [--notes <text>]");
+          process.exit(1);
+        }
+        try {
+          const ended = await book.end(
+            scope,
+            runId,
+            {
+              captures: await new FileCaptureStore(dir).listCaptures(tenantId, userId),
+              corrections: await (await buildCorrectionService()).list(scope),
+              memoryEvents: await new FileMemoryStore(dir).listEvents(tenantId, userId),
+            },
+            arg("--notes"),
+          );
+          console.log(`Run ${ended.id} (${ended.scenarioId}) ended ${ended.endedAt}.`);
+          console.log(`  captures in window: ${ended.captureIds.length}`);
+          console.log(`  decisions: ${Object.entries(ended.decisions.corrections).map(([k, v]) => `${k}=${v}`).join(", ") || "no corrections"}; memory approvals ${ended.decisions.memoryApprovals}, rejections ${ended.decisions.memoryRejections}`);
+        } catch (error) {
+          console.error(error instanceof Error ? error.message : String(error));
+          process.exit(1);
+        }
+        return;
+      }
+
+      if (action === "list") {
+        const records = await book.list(scope);
+        if (records.length === 0) {
+          console.log("No pilot runs yet. Start one with: donna pilot run start --scenario <id>");
+          return;
+        }
+        for (const r of records) {
+          const state = r.endedAt === undefined ? "OPEN" : `ended ${r.endedAt}`;
+          console.log(`• ${r.id} ${r.scenarioId} (${r.participantId}) — started ${r.startedAt}, ${state}, config ${r.configFingerprint.slice(0, 12)}…, ${r.captureIds.length} capture(s)`);
+        }
+        return;
+      }
+
+      if (action === "show") {
+        const runId = process.argv[5];
+        if (runId === undefined || runId.startsWith("--")) {
+          console.error("usage: donna pilot run show <run-id>");
+          process.exit(1);
+        }
+        try {
+          const r = await book.get(scope, runId);
+          console.log(`Run ${r.id} — scenario ${r.scenarioId}, participant ${r.participantId}`);
+          console.log(`  started ${r.startedAt}${r.endedAt !== undefined ? `, ended ${r.endedAt}` : " (OPEN)"}`);
+          console.log(`  config fingerprint: ${r.configFingerprint}`);
+          console.log(`  captures: ${r.captureIds.join(", ") || "none"}`);
+          console.log(`  correction decisions: ${Object.entries(r.decisions.corrections).map(([k, v]) => `${k}=${v}`).join(", ") || "none"}`);
+          console.log(`  correction IDs: ${r.decisions.correctionIds.join(", ") || "none"}`);
+          console.log(`  memory approvals ${r.decisions.memoryApprovals}, rejections ${r.decisions.memoryRejections}`);
+          if (r.notes !== undefined) console.log(`  notes: ${r.notes}`);
+        } catch (error) {
+          console.error(error instanceof Error ? error.message : String(error));
+          process.exit(1);
+        }
+        return;
+      }
+
+      console.error(USAGE);
+      process.exit(1);
     }
 
     console.error(USAGE);
