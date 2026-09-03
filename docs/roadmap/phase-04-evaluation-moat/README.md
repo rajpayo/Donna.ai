@@ -1,6 +1,6 @@
 # Phase 4 — Evaluation moat
 
-Status: `in-review` (all three specifications implemented, verified, and
+Status: `accepted` (product owner, 2026-09-03)
 awaiting product-owner examination)
 
 > Product-owner directive (2026-09-03): Specifications 4.1, 4.2, and 4.3
@@ -34,7 +34,7 @@ the complete harness and graduation gate.
 
 ### Specification 4.1 — Versioned datasets and reproducible harness
 
-Status: `in-review` (approved by the product owner 2026-09-03)
+Status: `accepted` (product owner, 2026-09-03)
 
 > Implementation evidence (2026-09-03, implementation worker):
 >
@@ -186,7 +186,7 @@ start Specification 4.2 until the product owner accepts the dataset rules.
 
 ### Specification 4.2 — Full-loop quality, latency, and cost scoring
 
-Status: `in-review` (approved by the product owner 2026-09-03)
+Status: `accepted` (product owner, 2026-09-03)
 
 > Implementation evidence (2026-09-03, implementation worker):
 >
@@ -331,7 +331,7 @@ intentional regression. Do not start Specification 4.3 until accepted.
 
 ### Specification 4.3 — Regression CI and graduation decisions
 
-Status: `in-review` (approved by the product owner 2026-09-03)
+Status: `accepted` (product owner, 2026-09-03)
 
 > Implementation evidence (2026-09-03, implementation worker):
 >
