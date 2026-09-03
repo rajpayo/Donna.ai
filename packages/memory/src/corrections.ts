@@ -384,6 +384,30 @@ export class CorrectionService implements CorrectionObserver {
         const toBucketId = event.payload["toBucketId"];
         if (toBucketId === undefined) throw new Error("bucket.move requires toBucketId");
         await this.deps.buckets.moveItem(tenantId, userId, event.target.id, toBucketId);
+        // Product-owner decision (2026-09-03): the user is ground truth, so a
+        // direct move is always allowed — but Tasks membership and the task
+        // field must never disagree. Moving a task-bearing thought OUT of
+        // Tasks clears the task candidate; moving a thought INTO Tasks adds
+        // one from its summary. The autonomous-placement hard rule in the
+        // bucket engine is untouched.
+        const buckets = await this.deps.buckets.listBuckets(tenantId, userId);
+        const target = buckets.find((b) => b.id === toBucketId);
+        const targetIsTasks =
+          target !== undefined &&
+          target.name.trim().toLowerCase() === TASKS_BUCKET_NAME.toLowerCase();
+        const items = await this.deps.buckets.listItems(tenantId, userId);
+        const moved = items.find((candidate) => candidate.thought.id === event.target.id);
+        if (moved !== undefined) {
+          if (!targetIsTasks && moved.thought.task !== undefined) {
+            await this.deps.buckets.updateItem(tenantId, userId, event.target.id, {
+              task: null,
+            });
+          } else if (targetIsTasks && moved.thought.task === undefined) {
+            await this.deps.buckets.updateItem(tenantId, userId, event.target.id, {
+              task: { title: moved.thought.summary },
+            });
+          }
+        }
         return;
       }
       case "bucket.rename": {

@@ -67,6 +67,14 @@ decision and an update to this file.
   adherence records "contradicted" — honest bookkeeping, not a silent override.
   Rationale: the Tasks bucket is the agent layer's safety anchor. Revisit at
   Phase 7 if pilot evidence demands it.
+- **The user is ground truth on corrections (product owner, 2026-09-03):** a
+  direct `bucket.move` correction is always allowed, even for task-bearing
+  thoughts out of `Tasks`. The apply path keeps one invariant — Tasks
+  membership and the task field never disagree: moving a task-bearing thought
+  out of `Tasks` clears its task candidate; moving a thought into `Tasks`
+  adds one from its summary. A direct user action is never recorded as
+  "contradicted" — adherence bookkeeping measures only autonomous placements
+  against learned preferences.
 - Corrections are first-class learning events and evaluation inputs.
 - Every thought and derived memory requires source provenance.
 

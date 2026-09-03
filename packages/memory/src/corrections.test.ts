@@ -317,6 +317,49 @@ describe("correction application (accepted only, FR-3)", () => {
     assert.equal((await memory.listConfirmed(SCOPE, "procedural")).length, 1);
   });
 
+  it("bucket.move OUT of Tasks clears the task candidate (product-owner decision 2026-09-03)", async () => {
+    buckets.buckets.push(makeBucket("b-tasks", "Tasks", [0, 0, 1]));
+    buckets.items.push({
+      thought: {
+        ...makeThought("th-task", "test removing email verification", [0, 0, 1]),
+        task: { title: "test removing email verification" },
+      },
+      bucketId: "b-tasks",
+    });
+
+    const event = await corrections.submit(
+      SCOPE,
+      moveInput("th-task", "b-people", "test removing email verification"),
+    );
+    await corrections.accept(SCOPE, event.id);
+
+    const moved = buckets.items.find((i) => i.thought.id === "th-task")!;
+    assert.equal(moved.bucketId, "b-people");
+    assert.equal(moved.thought.task, undefined);
+  });
+
+  it("bucket.move INTO Tasks adds a task candidate from the summary", async () => {
+    buckets.buckets.push(makeBucket("b-tasks", "Tasks", [0, 0, 1]));
+
+    const event = await corrections.submit(
+      SCOPE,
+      moveInput("th-1", "b-tasks", "hire a PM", "Tasks"),
+    );
+    await corrections.accept(SCOPE, event.id);
+
+    const moved = buckets.items.find((i) => i.thought.id === "th-1")!;
+    assert.equal(moved.bucketId, "b-tasks");
+    assert.equal(moved.thought.task?.title, "hire a PM");
+  });
+
+  it("bucket.move between non-Tasks buckets leaves the task field untouched", async () => {
+    const event = await corrections.submit(SCOPE, moveInput("th-1", "b-people", "hire a PM"));
+    await corrections.accept(SCOPE, event.id);
+    const moved = buckets.items.find((i) => i.thought.id === "th-1")!;
+    assert.equal(moved.bucketId, "b-people");
+    assert.equal(moved.thought.task, undefined);
+  });
+
   it("bucket.rename renames in scope", async () => {
     const event = await corrections.submit(SCOPE, {
       type: "bucket.rename",
