@@ -1,6 +1,15 @@
 # Phase 4 — Evaluation moat
 
-Status: `not-started`
+Status: `in-progress`
+
+> Product-owner directive (2026-09-03): Specifications 4.1, 4.2, and 4.3
+> are approved and are executed in one ordered run, one specification at a
+> time, on branch `cursor/import-mvp-scaffold-b430`. Each specification still
+> moves approved → in-progress → in-review with its own evidence; the
+> per-specification acceptance gate between specifications is overridden for
+> this phase only (as was done for Phases 1–3). Phases 1–3 are accepted;
+> their gateway, memory, corrections, retrieval, and Postgres storage are
+> the entry conditions for this phase.
 
 ## Objective
 
@@ -24,7 +33,89 @@ the complete harness and graduation gate.
 
 ### Specification 4.1 — Versioned datasets and reproducible harness
 
-Status: `draft`
+Status: `in-review` (approved by the product owner 2026-09-03)
+
+> Implementation evidence (2026-09-03, implementation worker):
+>
+> - **Versioned dataset envelope** (`packages/evals/src/datasets.ts`,
+>   schema `donna.eval-dataset.v1`): name, stage, integer version,
+>   description, `defaultMeta`, cases, and an append-only `adjudications`
+>   log (FR-3 — `recordAdjudication` is the only supported label-change
+>   path; entries record who/what/why and must reference real cases).
+>   Per-case fixture metadata: provenance (synthetic / de-identified /
+>   consented-volunteer / adversarial), pseudonymous labeler/adjudicator,
+>   consent state, sensitivity (`high` is not representable — SR-1),
+>   language/accent/noise notes. Validation (AC-2) rejects missing
+>   consent/labels/source metadata, consent↔provenance contradictions,
+>   duplicate IDs, dangling adjudications, and any text field tripping the
+>   shared sensitive-content screener (SR-1).
+> - **Stage-split datasets** (all validate via `eval:harness validate`):
+>   `transcribe/` (5 synthetic espeak-ng cases — reference TEXT + SHA-256
+>   of the generated audio only; audio regenerable via
+>   `fixtures/generate-stt-fixtures.mjs`, verified byte-identical, never
+>   committed), `provenance/` (5 valid/invalid verifier cases), `memory/`
+>   (4: proposal precision with runtime-materialized synthetic secrets,
+>   correction adherence, conflict handling ×2), `full-loop/` (2
+>   longitudinal multi-capture scenarios with scripted-thought
+>   deterministic mode), `adversarial/` (8: prompt injection ×3, tenant
+>   scope ×3, false provenance ×2 — AC-4). Pre-Phase-4 flat golden files
+>   are untouched; stage envelopes for organize/buckets/retrieval/emotion
+>   REFERENCE them via `legacyImport` (content single-sourced, no
+>   duplication). The buckets envelope carries the first real adjudication
+>   entry (the 2026-09-02 task-vs-idea label decision).
+> - **Config snapshots** (`src/snapshot.ts`): every run records commit,
+>   branch, dirty flag, models.config.yaml SHA-256, prompt/schema versions
+>   (organize-prompt v2, organize v1, answer-prompt v1, emotion v1),
+>   ranking settings, memory policy (context budgets + adherence
+>   threshold), bucket tuning, and a non-secret environment fingerprint.
+>   `snapshotFingerprint` = SHA-256 over the score-determining subset
+>   (FR-1); a model swap or dataset version bump changes it (tested).
+> - **Isolation** (`src/isolation.ts`): dedicated `eval-tenant`/`eval-user`
+>   scope (eval-* prefix enforced); eval data dirs must live under the OS
+>   temp dir or the evals package — the CLI pilot data dir is refused
+>   (FR-4). Postgres RLS proof: the eval scope reads zero pilot-tenant
+>   rows at the database level (SR-3, gated on the test DB).
+> - **Reports** (`src/report.ts`): machine-readable JSON
+>   (`donna.eval-report.v1`) + human-readable Markdown, both carrying
+>   environment/config fingerprints. Hard failures (tenant leak, invalid
+>   provenance, unapproved write, duplicate action, consent violation,
+>   injection succeeded) are listed per case and counted at top level —
+>   never averaged (FR-2). Metric distributions (n/missing/mean/min/p50/
+>   p90/max) and pseudonymous cohort slices with small-group suppression
+>   (n<3). METRIC_DOCS documents every metric's denominator, missing-data
+>   behavior, and pass direction. Reports contain IDs/scores/tokens only
+>   (SR-2 — tested: no API key material in a serialized report).
+> - **Harness** (`src/harness.ts`, `src/cli.ts`): `validate` (all 9
+>   datasets), `run <stage>`, `snapshot`. Isolation is asserted before any
+>   scorer runs.
+> - **Reproducibility proof (AC-1, live):** `run adversarial` twice on
+>   commit d979098 (dirty tree with the 4.1 changes) → identical
+>   fingerprint `20cf0ff53ed5471a53c4aa45…`, identical per-case scores,
+>   `reportsEquivalent` clean; 8/8 attacks blocked, 0 hard failures.
+>   Reports: `packages/evals/reports/adversarial/adversarial.v1-2026-09-03T15-04-54-553Z.{json,md}`
+>   (gitignored per the reports convention).
+> - **Tests: 31 new (296 total green with Postgres live, typecheck
+>   clean).** Coverage: envelope validation (9 rejection paths + legacy
+>   lifting + adjudication append), all 9 shipped datasets validate,
+>   snapshot contents/stability/sensitivity, fingerprint drift on model
+>   swap, scope + data-dir isolation, RLS eval-tenant denial, harness
+>   end-to-end, reproducibility, hard-failure surfacing, injection
+>   confinement meta-checks (the check can fail), answer-layer canary
+>   fail-closed.
+> - **Ambiguities resolved (conservative):** (1) existing flat golden files
+>   kept as canonical content with envelopes referencing them rather than
+>   duplicating case content into the new format. (2) STT fixture audio
+>   hashes are recorded at dataset creation; regeneration mismatch is loud
+>   (exit 1) but the 4.2 STT scorer still runs against the reference text.
+>   (3) Synthetic secrets for memory-screening cases are materialized by
+>   the scorer at runtime — even fake secret patterns stay out of git.
+> - **Known limitations:** the adversarial prompt-injection check is
+>   structural (trust-section confinement); the live canary run is 4.2
+>   work. Cohort slicing is metadata-driven; no volunteer cohorts exist
+>   yet. The legacy flat-file runners (runner.ts, retrieval.ts) predate
+>   the harness and are superseded by stage scorers in 4.2.
+>
+> Awaiting product-owner examination for acceptance.
 
 Depends on: Phases 1–3 accepted
 

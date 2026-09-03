@@ -1,0 +1,19 @@
+{
+  "schema": "donna.eval-dataset.v1",
+  "name": "retrieval.v1",
+  "stage": "retrieval",
+  "version": 1,
+  "description": "Golden retrieval set (22 labeled cases, hit@3, bar 80%). Case content is single-sourced in the pre-Phase-4 flat file ../retrieval.v1.json (legacyImport) with hand-crafted 5-dim embeddings — deterministic and offline. This envelope adds the 4.1 metadata, versioning, and adjudication log.",
+  "defaultMeta": {
+    "provenance": "synthetic",
+    "labeler": "labeler:product-owner",
+    "adjudicator": "labeler:product-owner",
+    "consent": "not-required-synthetic",
+    "sensitivity": "none",
+    "language": "en",
+    "notes": "synthetic fixtures with clean vector separation; grow with real misfires"
+  },
+  "cases": [],
+  "legacyImport": { "path": "../retrieval.v1.json", "format": "retrieval-legacy-v1" },
+  "adjudications": []
+}

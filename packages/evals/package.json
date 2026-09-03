@@ -8,15 +8,19 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "tsx --test src/*.test.ts",
-    "eval": "tsx src/runner.ts"
+    "eval": "tsx src/runner.ts",
+    "eval:harness": "tsx src/cli.ts"
   },
   "dependencies": {
     "@donna/buckets": "*",
     "@donna/core": "*",
+    "@donna/pipeline": "*",
     "@donna/providers": "*",
     "@donna/retrieval": "*",
+    "@donna/storage-postgres": "*",
     "dotenv": "^17.4.2",
-    "@donna/memory": "*"
+    "@donna/memory": "*",
+    "zod": "^3.24.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

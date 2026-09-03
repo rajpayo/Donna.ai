@@ -1,0 +1,127 @@
+{
+  "schema": "donna.eval-dataset.v1",
+  "name": "full-loop.v1",
+  "stage": "full-loop",
+  "version": 1,
+  "description": "Longitudinal multi-capture scenarios: bucket and memory state evolve across captures and corrections. scriptedThoughts make the deterministic (no-gateway) mode exact — model quality is scored by the stage evals; here we score the plumbing (provenance, placement, hard rule, adherence) and, in live mode, the real models end to end.",
+  "defaultMeta": {
+    "provenance": "synthetic",
+    "labeler": "labeler:product-owner",
+    "adjudicator": "labeler:product-owner",
+    "consent": "not-required-synthetic",
+    "sensitivity": "none",
+    "language": "en"
+  },
+  "cases": [
+    {
+      "id": "weekly-evolution-01",
+      "description": "Three captures over a week: an onboarding bucket forms, a task lands in Tasks, a correction moves an experiment idea to Growth Experiments, and a later similar thought follows the correction.",
+      "steps": [
+        {
+          "op": "capture",
+          "id": "c1",
+          "transcript": "The onboarding drop-off is at step three, we should test cutting the LinkedIn import. And I promised Arjun the pricing deck by Thursday.",
+          "scriptedThoughts": [
+            {
+              "summary": "Test cutting the LinkedIn import to reduce onboarding drop-off",
+              "text": "The onboarding drop-off is at step three, we should test cutting the LinkedIn import.",
+              "confidence": 0.9,
+              "newBucketName": "Onboarding improvements",
+              "newBucketDescription": "Ideas and experiments to reduce onboarding drop-off."
+            },
+            {
+              "summary": "Send the pricing deck to Arjun by Thursday",
+              "text": "I promised Arjun the pricing deck by Thursday.",
+              "confidence": 0.95,
+              "task": { "title": "Send the pricing deck to Arjun", "assigneeHint": "Arjun", "dueHint": "Thursday" }
+            }
+          ]
+        },
+        {
+          "op": "capture",
+          "id": "c2",
+          "transcript": "Another onboarding idea: prefill the form from the invite link, that could cut drop-off too.",
+          "scriptedThoughts": [
+            {
+              "summary": "Prefill the onboarding form from the invite link",
+              "text": "Another onboarding idea: prefill the form from the invite link, that could cut drop-off too.",
+              "confidence": 0.88,
+              "suggestedBucket": "Onboarding improvements"
+            }
+          ]
+        },
+        {
+          "op": "correction",
+          "type": "bucket.move",
+          "thoughtContains": "LinkedIn import",
+          "toBucket": "Growth Experiments"
+        },
+        {
+          "op": "capture",
+          "id": "c3",
+          "transcript": "We should also test removing the email verification step, it might be causing drop-off.",
+          "scriptedThoughts": [
+            {
+              "summary": "Test removing the email verification step",
+              "text": "We should also test removing the email verification step, it might be causing drop-off.",
+              "confidence": 0.85,
+              "suggestedBucket": "Growth Experiments"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "buckets": ["Onboarding improvements", "Tasks", "Growth Experiments"],
+        "mustNotHaveBuckets": ["Onboarding", "Onboarding ideas"],
+        "allTasksInTasksBucket": true,
+        "adherence": { "followed": 1, "contradicted": 0 }
+      }
+    },
+    {
+      "id": "tasks-hard-rule-02",
+      "description": "The Tasks hard rule is absolute: an accepted correction pulls experiment ideas to Growth Experiments, but a later task-bearing paraphrase still routes to Tasks and adherence honestly records the contradiction (product-owner decision 2026-09-03).",
+      "steps": [
+        {
+          "op": "capture",
+          "id": "c1",
+          "transcript": "We should test removing the email verification step from onboarding.",
+          "scriptedThoughts": [
+            {
+              "summary": "Test removing the email verification step from onboarding",
+              "text": "We should test removing the email verification step from onboarding.",
+              "confidence": 0.9,
+              "newBucketName": "Onboarding improvements",
+              "newBucketDescription": "Ideas and experiments to reduce onboarding drop-off."
+            }
+          ]
+        },
+        {
+          "op": "correction",
+          "type": "bucket.move",
+          "thoughtContains": "email verification",
+          "toBucket": "Growth Experiments"
+        },
+        {
+          "op": "capture",
+          "id": "c2",
+          "transcript": "Remind me to test the email verification removal with five percent of traffic by Friday.",
+          "scriptedThoughts": [
+            {
+              "summary": "Test the email verification removal with five percent of traffic",
+              "text": "Remind me to test the email verification removal with five percent of traffic by Friday.",
+              "confidence": 0.92,
+              "task": { "title": "Test the email verification removal with 5% of traffic", "dueHint": "Friday" }
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "buckets": ["Growth Experiments", "Tasks"],
+        "mustNotHaveBuckets": [],
+        "allTasksInTasksBucket": true,
+        "adherence": { "followed": 0, "contradicted": 1 }
+      }
+    }
+  ],
+  "adjudications": []
+}

@@ -1,0 +1,153 @@
+{
+  "schema": "donna.eval-dataset.v1",
+  "name": "transcribe.v1",
+  "stage": "transcribe",
+  "version": 1,
+  "description": "Synthetic STT fixtures: known scripts synthesized with espeak-ng (robotic but deterministic). Git holds ONLY the reference text and SHA-256 of the generated audio — never audio bytes. Regenerate with fixtures/generate-stt-fixtures.mjs. Scored with WER + entity/date/task preservation (Spec 4.2).",
+  "defaultMeta": {
+    "provenance": "synthetic",
+    "labeler": "labeler:product-owner",
+    "adjudicator": "labeler:product-owner",
+    "consent": "not-required-synthetic",
+    "sensitivity": "none",
+    "language": "en",
+    "noise": "clean-synthetic"
+  },
+  "cases": [
+    {
+      "id": "clear-task-01",
+      "meta": {
+        "accent": "en-US synthetic",
+        "notes": "simple commitment with assignee and due date"
+      },
+      "referenceText": "Remind me to send the pricing deck to Arjun by Thursday.",
+      "audio": {
+        "generator": "espeak-ng",
+        "voice": "en-us",
+        "speedWpm": 160,
+        "sha256": "1ef3919f06f34770ce1729629b15d5a0e42bd6920b978f1635ec7bfad9ecbc25",
+        "file": "clear-task-01.wav"
+      },
+      "expect": {
+        "maxWer": 0.35,
+        "entities": [
+          "Arjun",
+          "pricing deck"
+        ],
+        "dates": [
+          "Thursday"
+        ],
+        "tasks": [
+          "send the pricing deck"
+        ]
+      }
+    },
+    {
+      "id": "clear-entities-02",
+      "meta": {
+        "accent": "en-US synthetic",
+        "notes": "people and org entities plus a month"
+      },
+      "referenceText": "Priya said the vendor contract renewal with Acme is scheduled for October.",
+      "audio": {
+        "generator": "espeak-ng",
+        "voice": "en-us",
+        "speedWpm": 160,
+        "sha256": "aef5361ea2224a203b3a9e78e989a0be1bd0dce4eedda56fb64e03e780380c7f",
+        "file": "clear-entities-02.wav"
+      },
+      "expect": {
+        "maxWer": 0.35,
+        "entities": [
+          "Priya",
+          "Acme",
+          "vendor contract"
+        ],
+        "dates": [
+          "October"
+        ],
+        "tasks": []
+      }
+    },
+    {
+      "id": "fast-meeting-03",
+      "meta": {
+        "accent": "en-US synthetic",
+        "notes": "faster speech, 200 wpm"
+      },
+      "referenceText": "The board meeting is on March 3rd and I need to ask Tushar about the security review.",
+      "audio": {
+        "generator": "espeak-ng",
+        "voice": "en-us",
+        "speedWpm": 200,
+        "sha256": "78bb31fc38ef5ad63d2dc4b236b32bd79f50f0e4413fa5393ef935f3ab14b5c4",
+        "file": "fast-meeting-03.wav"
+      },
+      "expect": {
+        "maxWer": 0.4,
+        "entities": [
+          "Tushar",
+          "security review"
+        ],
+        "dates": [
+          "March 3rd"
+        ],
+        "tasks": [
+          "ask Tushar about the security review"
+        ]
+      }
+    },
+    {
+      "id": "numbers-04",
+      "meta": {
+        "accent": "en-US synthetic",
+        "notes": "spoken numbers and quantities"
+      },
+      "referenceText": "The churn number they quoted was three percent and the plan covers twelve seats.",
+      "audio": {
+        "generator": "espeak-ng",
+        "voice": "en-us",
+        "speedWpm": 160,
+        "sha256": "4a6382e6f05bd4e6463241596c8996529b564f46bcd7609e38b02856411d2238",
+        "file": "numbers-04.wav"
+      },
+      "expect": {
+        "maxWer": 0.35,
+        "entities": [
+          "three percent",
+          "twelve seats"
+        ],
+        "dates": [],
+        "tasks": []
+      }
+    },
+    {
+      "id": "accent-variant-05",
+      "meta": {
+        "accent": "en-GB synthetic",
+        "notes": "accent cohort: British voice variant"
+      },
+      "referenceText": "Let's pilot a one-click signup flow next sprint and measure the drop-off.",
+      "audio": {
+        "generator": "espeak-ng",
+        "voice": "en-gb",
+        "speedWpm": 160,
+        "sha256": "7216d8c2b251afe58b9c4814a5defb618e4905bf88d392b0948e25aac940b3a2",
+        "file": "accent-variant-05.wav"
+      },
+      "expect": {
+        "maxWer": 0.35,
+        "entities": [
+          "one-click signup"
+        ],
+        "dates": [
+          "next sprint"
+        ],
+        "tasks": [
+          "pilot a one-click signup flow"
+        ]
+      }
+    }
+  ],
+  "adjudications": []
+}

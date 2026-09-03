@@ -1,0 +1,27 @@
+{
+  "schema": "donna.eval-dataset.v1",
+  "name": "buckets.v1",
+  "stage": "buckets",
+  "version": 1,
+  "description": "Bucket-assignment cases seeded from real demo misfires (2026-09-02). Case content is single-sourced in the pre-Phase-4 flat file ../buckets.v1.json (legacyImport); this envelope adds the 4.1 metadata, versioning, and adjudication log.",
+  "defaultMeta": {
+    "provenance": "de-identified",
+    "labeler": "labeler:product-owner",
+    "adjudicator": "labeler:product-owner",
+    "consent": "de-identified",
+    "sensitivity": "low",
+    "language": "en",
+    "notes": "real misfires, de-identified: synthetic names, no company data"
+  },
+  "cases": [],
+  "legacyImport": { "path": "../buckets.v1.json", "format": "buckets-legacy-v1" },
+  "adjudications": [
+    {
+      "at": "2026-09-02T00:00:00.000Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "task-vs-idea-boundary-03",
+      "change": "expected.action: 'join Onboarding improvements' (not Tasks); thought.isTask: false",
+      "reason": "Human adjudication of a live demo misfire: experiment proposals ('we should test X') belong to the topic bucket unless a concrete owner/deliverable is stated. Recorded into the 4.1 audit log on 2026-09-03."
+    }
+  ]
+}

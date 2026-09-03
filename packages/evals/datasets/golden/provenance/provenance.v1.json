@@ -1,0 +1,86 @@
+{
+  "schema": "donna.eval-dataset.v1",
+  "name": "provenance.v1",
+  "stage": "provenance",
+  "version": 1,
+  "description": "Provenance verifier cases: claims against a fixed synthetic transcript that must be accepted (valid) or rejected (invalid) by the deterministic verifier. False-provenance ATTACK cases live in datasets/adversarial/adversarial.v1.json; this set covers the valid/invalid boundary.",
+  "defaultMeta": {
+    "provenance": "synthetic",
+    "labeler": "labeler:product-owner",
+    "adjudicator": "labeler:product-owner",
+    "consent": "not-required-synthetic",
+    "sensitivity": "none",
+    "language": "en"
+  },
+  "cases": [
+    {
+      "id": "prov-valid-single-01",
+      "transcript": {
+        "text": "The onboarding drop-off is at step three. I promised Arjun the pricing deck by Thursday.",
+        "segments": [
+          { "id": "seg-0", "text": "The onboarding drop-off is at step three.", "startSec": 0, "endSec": 3.2 },
+          { "id": "seg-1", "text": "I promised Arjun the pricing deck by Thursday.", "startSec": 3.2, "endSec": 6.8 }
+        ]
+      },
+      "claims": [
+        { "segmentIds": ["seg-0"], "expect": "valid" },
+        { "segmentIds": ["seg-1"], "expect": "valid" },
+        { "segmentIds": ["seg-0", "seg-1"], "expect": "valid" }
+      ]
+    },
+    {
+      "id": "prov-valid-unordered-02",
+      "meta": { "notes": "verifier canonicalizes segment order — out-of-order citations are still valid" },
+      "transcript": {
+        "text": "First we ship the fix. Then we email the cohort.",
+        "segments": [
+          { "id": "seg-0", "text": "First we ship the fix.", "startSec": 0, "endSec": 2.0 },
+          { "id": "seg-1", "text": "Then we email the cohort.", "startSec": 2.0, "endSec": 4.1 }
+        ]
+      },
+      "claims": [
+        { "segmentIds": ["seg-1", "seg-0"], "expect": "valid" }
+      ]
+    },
+    {
+      "id": "prov-invalid-unknown-03",
+      "transcript": {
+        "text": "The vendor renewal is in October.",
+        "segments": [
+          { "id": "seg-0", "text": "The vendor renewal is in October.", "startSec": 0, "endSec": 2.4 }
+        ]
+      },
+      "claims": [
+        { "segmentIds": ["seg-9"], "expect": "invalid", "reason": "unknown-segment-reference" },
+        { "segmentIds": ["seg-0", "seg-9"], "expect": "invalid", "reason": "unknown-segment-reference" }
+      ]
+    },
+    {
+      "id": "prov-invalid-duplicates-04",
+      "transcript": {
+        "text": "Email Meera about the screenshots.",
+        "segments": [
+          { "id": "seg-0", "text": "Email Meera about the screenshots.", "startSec": 0, "endSec": 2.2 }
+        ]
+      },
+      "claims": [
+        { "segmentIds": ["seg-0", "seg-0"], "expect": "invalid", "reason": "duplicate-segment-references" },
+        { "segmentIds": [], "expect": "invalid", "reason": "empty-segment-references" }
+      ]
+    },
+    {
+      "id": "prov-invalid-bounds-05",
+      "meta": { "notes": "a stored segment with inverted bounds makes claims against it invalid" },
+      "transcript": {
+        "text": "Review the contract before Thursday.",
+        "segments": [
+          { "id": "seg-0", "text": "Review the contract before Thursday.", "startSec": 5.0, "endSec": 2.0 }
+        ]
+      },
+      "claims": [
+        { "segmentIds": ["seg-0"], "expect": "invalid", "reason": "invalid-segment-bounds" }
+      ]
+    }
+  ],
+  "adjudications": []
+}
