@@ -1,0 +1,308 @@
+{
+  "schema": "donna.eval-report.v1",
+  "stage": "retrieval",
+  "dataset": {
+    "name": "retrieval.v1",
+    "version": 1,
+    "sha256": "19a95e08b08f8695e8a0863bbddb2b329a98e919b15958fe0a2b73bc29e51b80",
+    "cases": 24
+  },
+  "snapshot": {
+    "schema": "donna.config-snapshot.v1",
+    "commit": "c0ffcb3600e63aa949f285965d67cb2eeafbdb10",
+    "branch": "cursor/import-mvp-scaffold-b430",
+    "dirty": true,
+    "modelsConfig": {
+      "path": "/workspace/models.config.yaml",
+      "sha256": "8a0c4462662bfe4836bbd7bc0651fa359cd2210c772dcb0ec6031e6fe5a237e3"
+    },
+    "dataset": {
+      "name": "retrieval.v1",
+      "version": 1,
+      "sha256": "19a95e08b08f8695e8a0863bbddb2b329a98e919b15958fe0a2b73bc29e51b80"
+    },
+    "versions": {
+      "organizePrompt": "donna.organize-prompt.v2",
+      "organizeSchema": "donna.organize.v1",
+      "answerPrompt": "donna.answer-prompt.v1",
+      "emotionAnalyzer": "donna.emotion-heuristic.v1"
+    },
+    "ranking": {
+      "rankingVersion": "donna.hybrid-ranking.v1",
+      "weights": {
+        "text": 0.3,
+        "semantic": 0.3,
+        "bucketAffinity": 0.1,
+        "recency": 0.1,
+        "personalization": 0.15,
+        "taskMatch": 0.05
+      },
+      "recencyHalfLifeDays": 30,
+      "candidateLimit": 100,
+      "minScore": 0.2
+    },
+    "memoryPolicy": {
+      "contextBudgets": {
+        "maxTokens": 1200,
+        "maxItems": 24,
+        "recentCaptures": 3,
+        "maxMemories": 12,
+        "maxBucketSummaries": 10,
+        "maxCorrectionExamples": 3
+      },
+      "adherenceSemanticThreshold": 0.5
+    },
+    "bucketTuning": {
+      "assignThreshold": 0.82,
+      "createThreshold": 0.65
+    },
+    "environment": {
+      "node": "v22.14.0",
+      "platform": "linux",
+      "arch": "x64",
+      "ci": false
+    },
+    "capturedAt": "2026-09-03T15:32:50.903Z"
+  },
+  "fingerprint": "3083eceffbaafad1e7148b0f3dc711c7209d920bbe29095d9ae7920895206727",
+  "startedAt": "2026-09-03T15:32:50.905Z",
+  "finishedAt": "2026-09-03T15:32:50.924Z",
+  "durationMs": 19,
+  "cases": [
+    {
+      "caseId": "stale-deleted-01",
+      "scores": {
+        "retrieval.hit_at_k": 1,
+        "retrieval.stale_excluded": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 1
+    },
+    {
+      "caseId": "stale-deleted-02",
+      "scores": {
+        "retrieval.hit_at_k": 1,
+        "retrieval.stale_excluded": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 1
+    },
+    {
+      "caseId": "topic-vendor-exact",
+      "scores": {
+        "retrieval.hit_at_k": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 0
+    },
+    {
+      "caseId": "paraphrase-vendor",
+      "scores": {
+        "retrieval.hit_at_k": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 1
+    },
+    {
+      "caseId": "person-priya",
+      "scores": {
+        "retrieval.hit_at_k": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 0
+    },
+    {
+      "caseId": "bucket-scoped",
+      "scores": {
+        "retrieval.hit_at_k": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 0
+    },
+    {
+      "caseId": "time-scoped",
+      "scores": {
+        "retrieval.hit_at_k": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 0
+    },
+    {
+      "caseId": "task-intent",
+      "scores": {
+        "retrieval.hit_at_k": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 0
+    },
+    {
+      "caseId": "recency-onboarding",
+      "scores": {
+        "retrieval.hit_at_k": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 0
+    },
+    {
+      "caseId": "paraphrase-signup",
+      "scores": {
+        "retrieval.hit_at_k": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 1
+    },
+    {
+      "caseId": "negative-tax",
+      "scores": {
+        "retrieval.hit_at_k": 1,
+        "retrieval.abstention_correct": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 0
+    },
+    {
+      "caseId": "negative-sushi",
+      "scores": {
+        "retrieval.hit_at_k": 1,
+        "retrieval.abstention_correct": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 0
+    },
+    {
+      "caseId": "multi-signal-onboarding",
+      "scores": {
+        "retrieval.hit_at_k": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 0
+    },
+    {
+      "caseId": "person-task-meera",
+      "scores": {
+        "retrieval.hit_at_k": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 0
+    },
+    {
+      "caseId": "metrics-old",
+      "scores": {
+        "retrieval.hit_at_k": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 0
+    },
+    {
+      "caseId": "contract-wording",
+      "scores": {
+        "retrieval.hit_at_k": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 0
+    },
+    {
+      "caseId": "followup-session",
+      "scores": {
+        "retrieval.hit_at_k": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 1
+    },
+    {
+      "caseId": "commitments",
+      "scores": {
+        "retrieval.hit_at_k": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 0
+    },
+    {
+      "caseId": "time-bounded-old",
+      "scores": {
+        "retrieval.hit_at_k": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 0
+    },
+    {
+      "caseId": "broad-recent",
+      "scores": {
+        "retrieval.hit_at_k": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 0
+    },
+    {
+      "caseId": "hiring-generic",
+      "scores": {
+        "retrieval.hit_at_k": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 0
+    },
+    {
+      "caseId": "errands",
+      "scores": {
+        "retrieval.hit_at_k": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 0
+    },
+    {
+      "caseId": "exact-1on1",
+      "scores": {
+        "retrieval.hit_at_k": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 1
+    },
+    {
+      "caseId": "ambiguous-review",
+      "scores": {
+        "retrieval.hit_at_k": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 0
+    }
+  ],
+  "aggregate": {
+    "casesRun": 24,
+    "casesErrored": 0,
+    "externalErrors": 0,
+    "productErrors": 0,
+    "hardFailureCount": 0,
+    "hardFailures": [],
+    "metrics": {
+      "retrieval.hit_at_k": {
+        "n": 24,
+        "missing": 0,
+        "mean": 1,
+        "min": 1,
+        "p50": 1,
+        "p90": 1,
+        "max": 1
+      },
+      "retrieval.stale_excluded": {
+        "n": 2,
+        "missing": 22,
+        "mean": 1,
+        "min": 1,
+        "p50": 1,
+        "p90": 1,
+        "max": 1
+      },
+      "retrieval.abstention_correct": {
+        "n": 2,
+        "missing": 22,
+        "mean": 1,
+        "min": 1,
+        "p50": 1,
+        "p90": 1,
+        "max": 1
+      }
+    }
+  },
+  "cohorts": [],
+  "redactionNote": "Contains case IDs, scores, model/config fingerprints, and machine tokens only. No transcript text, credentials, gateway error bodies, or personal data are recorded."
+}

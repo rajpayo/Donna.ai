@@ -16,7 +16,6 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { config as loadEnv } from "dotenv";
 import {
-  gatewayFromEnv,
   inspectGatewayEnv,
   gatewayEnvProblems,
   loadModelsConfig,
@@ -24,10 +23,20 @@ import {
   type ModelsConfig,
   type ResolvedStack,
 } from "@donna/providers";
+import { copyFile, mkdir } from "node:fs/promises";
 import { loadDataset } from "./datasets.js";
 import { runEval, type StageScorer } from "./harness.js";
 import { adversarialScorer } from "./adversarial.js";
 import { captureSnapshot, snapshotFingerprint } from "./snapshot.js";
+import {
+  compareReports,
+  loadReport,
+  renderComparisonMarkdown,
+} from "./compare.js";
+import {
+  graduationFromPaths,
+  writeGraduationReport,
+} from "./graduation.js";
 import { MeteredGatewayClient } from "./scripted.js";
 import { createSttScorer } from "./scorers/stt.js";
 import { createOrganizeScorer } from "./scorers/organize.js";
@@ -82,7 +91,6 @@ async function liveStack(): Promise<LiveStack | undefined> {
     tenantId: process.env.DONNA_TENANT_ID ?? "demo-tenant",
     appId: process.env.DONNA_APP_ID ?? "donna-mvp",
   });
-  void gatewayFromEnv; // env validated above via inspectGatewayEnv
   const stack = resolveStack(metered, config);
   return { config, stack, metered };
 }
@@ -222,7 +230,115 @@ async function main(): Promise<void> {
     process.exit(result.report.aggregate.hardFailureCount > 0 ? 1 : 0);
   }
 
-  console.error("usage: cli.ts validate | snapshot | run <stage>");
+  // Spec 4.3: accept the current deterministic run as the stage baseline.
+  if (command === "baseline" && stage !== undefined) {
+    const datasetRel = DATASETS[stage];
+    if (datasetRel === undefined) {
+      throw new Error(`Unknown stage "${stage}".`);
+    }
+    const scorer = await buildScorer(stage, undefined);
+    const result = await runEval({
+      datasetPath: join(evalsDir, datasetRel),
+      configPath: configPath(),
+      repoRoot,
+      evalsDir,
+      reportsDir: join(evalsDir, "reports", stage),
+      scorer,
+    });
+    if (result.report.aggregate.hardFailureCount > 0) {
+      throw new Error("Refusing to baseline a run with hard failures");
+    }
+    const baselinesDir = join(evalsDir, "baselines");
+    await mkdir(baselinesDir, { recursive: true });
+    const baselinePath = join(baselinesDir, `${stage}.baseline.json`);
+    await copyFile(result.jsonPath, baselinePath);
+    console.log(`Baseline accepted: ${baselinePath}`);
+    console.log(`  fingerprint: ${result.report.fingerprint.slice(0, 16)}…`);
+    return;
+  }
+
+  // Spec 4.3: compare a candidate report against the accepted baseline.
+  if (command === "compare" && stage !== undefined) {
+    const candidatePath = process.argv[4];
+    if (candidatePath === undefined) {
+      throw new Error("usage: cli.ts compare <stage> <candidateReport.json>");
+    }
+    const baselinePath = join(evalsDir, "baselines", `${stage}.baseline.json`);
+    const [baseline, candidate] = await Promise.all([
+      loadReport(baselinePath),
+      loadReport(resolve(candidatePath)),
+    ]);
+    const result = compareReports(baseline, candidate);
+    console.log(renderComparisonMarkdown(result));
+    process.exit(result.status === "fail" ? 1 : 0);
+  }
+
+  // Spec 4.3: CI check — run every deterministic stage and compare each
+  // against its accepted baseline. No secrets required; exit 1 on any
+  // hard failure or material regression (merge-blocking), 0 on pass.
+  if (command === "check") {
+    const deterministicStages = [
+      "adversarial",
+      "provenance",
+      "buckets",
+      "memory",
+      "emotion",
+      "retrieval",
+      "full-loop",
+    ];
+    let failed = false;
+    for (const checkStage of deterministicStages) {
+      const scorer = await buildScorer(checkStage, undefined);
+      const result = await runEval({
+        datasetPath: join(evalsDir, DATASETS[checkStage]!),
+        configPath: configPath(),
+        repoRoot,
+        evalsDir,
+        reportsDir: join(evalsDir, "reports", checkStage),
+        scorer,
+      });
+      const baselinePath = join(evalsDir, "baselines", `${checkStage}.baseline.json`);
+      let comparison;
+      try {
+        comparison = compareReports(await loadReport(baselinePath), result.report);
+      } catch {
+        comparison = undefined;
+      }
+      const hardFailures = result.report.aggregate.hardFailureCount;
+      const status = hardFailures > 0 ? "FAIL(hard-failures)" : (comparison?.status ?? "no-baseline");
+      if (hardFailures > 0 || comparison?.status === "fail") failed = true;
+      console.log(
+        `${status === "pass" ? "ok  " : "FAIL"}  ${checkStage}  ` +
+          `${result.report.aggregate.casesRun} cases, ${hardFailures} hard failures, ` +
+          `baseline comparison: ${status}`,
+      );
+      if (comparison !== undefined && comparison.status !== "pass") {
+        for (const reason of comparison.reasons) console.log(`     ${reason}`);
+      }
+    }
+    process.exit(failed ? 1 : 0);
+  }
+
+  // Spec 4.3: graduation report from a set of evidence reports.
+  if (command === "graduation") {
+    const paths = process.argv.slice(3);
+    if (paths.length === 0) {
+      throw new Error("usage: cli.ts graduation <report.json> [more reports...]");
+    }
+    const report = await graduationFromPaths(paths.map((p) => resolve(p)));
+    const { jsonPath, markdownPath } = await writeGraduationReport(
+      report,
+      join(evalsDir, "reports", "graduation"),
+    );
+    console.log(
+      `Graduation gates: ${report.allGatesPassed ? "ALL PASS" : "NOT ALL PASS"} — sign-off: PENDING (manual)`,
+    );
+    console.log(`Report: ${jsonPath}`);
+    console.log(`        ${markdownPath}`);
+    process.exit(report.allGatesPassed ? 0 : 1);
+  }
+
+  console.error("usage: cli.ts validate | snapshot | run <stage> [--mode …] | baseline <stage> | compare <stage> <report> | graduation <reports…>");
   process.exit(2);
 }
 

@@ -330,7 +330,73 @@ intentional regression. Do not start Specification 4.3 until accepted.
 
 ### Specification 4.3 — Regression CI and graduation decisions
 
-Status: `draft`
+Status: `in-review` (approved by the product owner 2026-09-03)
+
+> Implementation evidence (2026-09-03, implementation worker):
+>
+> - **Baselines** (`packages/evals/baselines/`): accepted deterministic
+>   baselines for all seven offline stages (adversarial, provenance,
+>   buckets, memory, emotion, retrieval, full-loop), generated via
+>   `eval:harness baseline <stage>` (refuses runs with hard failures).
+> - **Comparison rules** (`src/compare.ts`): dataset-identity check;
+>   ANY hard failure fails (SR-2); product-classified errors fail;
+>   metric regression = aggregate mean drop beyond tolerance (0.05) OR
+>   any case-level score drop beyond caseTolerance (default 0 —
+>   deterministic suites are zero-noise, so any case regression is
+>   material; live callers widen deliberately); dropped metrics fail, new
+>   metrics are noted; external-flaky errors never fail but >34% makes
+>   the run inconclusive-external, never a silent pass (FR-3). Every
+>   failure names the exact regressed cases (FR-1).
+> - **CI** (`.github/workflows/eval.yml`): the `deterministic` job runs on
+>   every PR/push — npm ci, typecheck, unit tests, dataset validation,
+>   and `eval:harness check` (all seven deterministic stages compared
+>   against baselines; merge-blocking). The `live-gateway` job runs ONLY
+>   on a guarded manual trigger (workflow_dispatch with a required
+>   reason), checks for the TrueFoundry secrets and skips successfully
+>   when absent — missing secrets can never fail a PR (SR-1: artifacts
+>   carry IDs/scores/fingerprints only).
+> - **Graduation** (`src/graduation.ts`): checks the seven locked gates
+>   (≥95% thought coverage, ≥95% task recall, ≥85% first-pass bucket
+>   acceptance, 100% valid provenance + zero invalid-provenance hard
+>   failures, ≥80% retrieval success, zero tenant leaks, zero duplicate
+>   external actions), links evidence reports with fingerprints and
+>   commits, and always records sign-off PENDING — metrics never
+>   auto-graduate (AC-5).
+> - **Proofs (live demonstrations, 2026-09-03):**
+>   - Seeded quality regression (one retrieval case flipped to a miss):
+>     `compare retrieval` → FAIL, exit 1, naming `topic-vendor-exact`
+>     (AC-1). NOTE: the first comparison rule (mean-drop-only) let this
+>     through (0.042 < 0.05 tolerance on a 24-case suite) — caught during
+>     verification and fixed by adding the zero-noise case-level rule.
+>   - Seeded tenant-leak hard failure: `compare` → FAIL, exit 1 (AC-2);
+>     graduation with a seeded tenant leak fails even with perfect
+>     metrics (tested).
+>   - `eval:harness check` on the real tree: 7/7 stages pass baselines.
+>   - **Draft graduation report from the REAL live evidence** (organize
+>     live, retrieval live, adversarial, full-loop live): **NOT ALL PASS**
+>     — thought coverage 0.889 < 0.95 and bucket acceptance 0.833 < 0.85
+>     fail on the current 3-case organize golden set; task recall 1.0,
+>     provenance 100%, retrieval 100%, and all safety gates pass. The
+>     honest read: the CLI pilot does not graduate yet; the organize set
+>     is small (one miss moves the number) and the over-tasking misfire
+>     class is the known driver. Report:
+>     `packages/evals/reports/graduation/graduation-2026-09-03T15-36-38-580Z.{json,md}`.
+> - **Docs:** `docs/evals.md` gained the Phase 4 section (datasets,
+>   stage runs, baselines, CI, credentialed internal runs, graduation).
+> - **Tests: 13 new (336 total green with Postgres live, typecheck
+>   clean).** Coverage: comparison pass/regression/tolerance/hard-failure/
+>   product-vs-external/inconclusive/dataset-mismatch/dropped-metric;
+>   graduation all-pass, seeded quality regression (AC-1), seeded tenant
+>   leak + invalid provenance (AC-2), missing-evidence fail-closed, exact
+>   gate boundaries (0.95/0.95/0.85/1.0/0.80), sign-off-never-automatic.
+> - **Known limitations:** the deterministic gate is strict by design
+>   (zero case tolerance) — live-suite comparisons need an explicit
+>   caseTolerance choice when wired into CI later; the organize baseline
+>   is live-only (no deterministic baseline exists for a model-quality
+>   stage); the graduation report consumes whatever evidence it is given —
+>   choosing the evidence set is the product owner's act.
+>
+> Awaiting product-owner examination for acceptance.
 
 Depends on: Specification 4.2 accepted
 

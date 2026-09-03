@@ -1,0 +1,163 @@
+{
+  "schema": "donna.eval-report.v1",
+  "stage": "memory",
+  "dataset": {
+    "name": "memory.v1",
+    "version": 1,
+    "sha256": "2485b297ab3e5ade8cac575239eda8a5dcafe46b33d6ec2cd1fef02779405c37",
+    "cases": 4
+  },
+  "snapshot": {
+    "schema": "donna.config-snapshot.v1",
+    "commit": "c0ffcb3600e63aa949f285965d67cb2eeafbdb10",
+    "branch": "cursor/import-mvp-scaffold-b430",
+    "dirty": true,
+    "modelsConfig": {
+      "path": "/workspace/models.config.yaml",
+      "sha256": "8a0c4462662bfe4836bbd7bc0651fa359cd2210c772dcb0ec6031e6fe5a237e3"
+    },
+    "dataset": {
+      "name": "memory.v1",
+      "version": 1,
+      "sha256": "2485b297ab3e5ade8cac575239eda8a5dcafe46b33d6ec2cd1fef02779405c37"
+    },
+    "versions": {
+      "organizePrompt": "donna.organize-prompt.v2",
+      "organizeSchema": "donna.organize.v1",
+      "answerPrompt": "donna.answer-prompt.v1",
+      "emotionAnalyzer": "donna.emotion-heuristic.v1"
+    },
+    "ranking": {
+      "rankingVersion": "donna.hybrid-ranking.v1",
+      "weights": {
+        "text": 0.3,
+        "semantic": 0.3,
+        "bucketAffinity": 0.1,
+        "recency": 0.1,
+        "personalization": 0.15,
+        "taskMatch": 0.05
+      },
+      "recencyHalfLifeDays": 30,
+      "candidateLimit": 100,
+      "minScore": 0.2
+    },
+    "memoryPolicy": {
+      "contextBudgets": {
+        "maxTokens": 1200,
+        "maxItems": 24,
+        "recentCaptures": 3,
+        "maxMemories": 12,
+        "maxBucketSummaries": 10,
+        "maxCorrectionExamples": 3
+      },
+      "adherenceSemanticThreshold": 0.5
+    },
+    "bucketTuning": {
+      "assignThreshold": 0.82,
+      "createThreshold": 0.65
+    },
+    "environment": {
+      "node": "v22.14.0",
+      "platform": "linux",
+      "arch": "x64",
+      "ci": false
+    },
+    "capturedAt": "2026-09-03T15:32:50.039Z"
+  },
+  "fingerprint": "25b246be8d9d80776744834fdd3fcd280b50c68be1f469d9df5da8b348fc389f",
+  "startedAt": "2026-09-03T15:32:50.041Z",
+  "finishedAt": "2026-09-03T15:32:50.052Z",
+  "durationMs": 11,
+  "cases": [
+    {
+      "caseId": "proposal-precision-01",
+      "scores": {
+        "memory.proposal_precision": 1
+      },
+      "hardFailures": []
+    },
+    {
+      "caseId": "correction-adherence-01",
+      "scores": {
+        "memory.correction_adherence": 0.5,
+        "memory.adherence_counts_match": 1
+      },
+      "hardFailures": [],
+      "notes": [
+        "followed:1",
+        "contradicted:1",
+        "not-applicable:1"
+      ]
+    },
+    {
+      "caseId": "conflict-handling-01",
+      "scores": {
+        "memory.conflict_handling": 1
+      },
+      "hardFailures": [],
+      "notes": [
+        "conflict-detected:true",
+        "resolved:true"
+      ]
+    },
+    {
+      "caseId": "conflict-handling-02",
+      "scores": {
+        "memory.conflict_handling": 1
+      },
+      "hardFailures": [],
+      "notes": [
+        "conflict-detected:false",
+        "resolved:true"
+      ]
+    }
+  ],
+  "aggregate": {
+    "casesRun": 4,
+    "casesErrored": 0,
+    "externalErrors": 0,
+    "productErrors": 0,
+    "hardFailureCount": 0,
+    "hardFailures": [],
+    "metrics": {
+      "memory.proposal_precision": {
+        "n": 1,
+        "missing": 3,
+        "mean": 1,
+        "min": 1,
+        "p50": 1,
+        "p90": 1,
+        "max": 1
+      },
+      "memory.correction_adherence": {
+        "n": 1,
+        "missing": 3,
+        "mean": 0.5,
+        "min": 0.5,
+        "p50": 0.5,
+        "p90": 0.5,
+        "max": 0.5
+      },
+      "memory.adherence_counts_match": {
+        "n": 1,
+        "missing": 3,
+        "mean": 1,
+        "min": 1,
+        "p50": 1,
+        "p90": 1,
+        "max": 1
+      },
+      "memory.conflict_handling": {
+        "n": 2,
+        "missing": 2,
+        "mean": 1,
+        "min": 1,
+        "p50": 1,
+        "p90": 1,
+        "max": 1
+      }
+    }
+  },
+  "cohorts": [],
+  "redactionNote": "Contains case IDs, scores, model/config fingerprints, and machine tokens only. No transcript text, credentials, gateway error bodies, or personal data are recorded."
+}
