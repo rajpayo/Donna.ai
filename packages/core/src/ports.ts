@@ -121,6 +121,19 @@ export interface Embedder {
   embed(texts: string[]): Promise<number[][]>;
 }
 
+/**
+ * Optimistic concurrency failure (Specification 3.2): a conditional
+ * write detected that the row changed underneath the caller and bounded
+ * retries did not resolve the conflict. Callers may safely retry their
+ * whole read-modify-write unit — no partial update was applied.
+ */
+export class OptimisticLockError extends Error {
+  constructor(message = "Optimistic lock conflict — safe to retry") {
+    super(message);
+    this.name = "OptimisticLockError";
+  }
+}
+
 export interface BucketStore {
   listBuckets(tenantId: string, userId: string): Promise<Bucket[]>;
   getBucketByName(
@@ -129,7 +142,14 @@ export interface BucketStore {
     name: string,
   ): Promise<Bucket | undefined>;
   createBucket(bucket: Bucket): Promise<Bucket>;
-  /** Persist the new centroid and item count after an item joins. */
+  /**
+   * Persist the new centroid and item count after an item joins.
+   * Transactional adapters (Specification 3.2) apply this as an
+   * optimistic version-checked update and may throw OptimisticLockError
+   * when a concurrent stats update could not be reconciled within the
+   * retry bound — the caller's read-modify-write may then be retried as
+   * a whole without lost updates.
+   */
   updateBucketStats(
     tenantId: string,
     userId: string,

@@ -166,7 +166,86 @@ Do not start Specification 3.2 until retrieval semantics are accepted.
 
 ### Specification 3.2 — PostgreSQL, pgvector, and row-level isolation
 
-Status: `draft`
+Status: `in-review`
+
+> Implementation evidence (2026-09-03, implementation worker):
+>
+> - **Environment:** PostgreSQL 16.15 + pgvector 0.6.0 installed via apt
+>   (`postgresql-16-pgvector`) — NO deviation; pgvector is live. Local
+>   roles: `donna_app` (non-superuser app role, RLS-bound), `donna_backup`
+>   (BYPASSRLS dump role), admin via `postgres`. Test DB `donna_test`.
+> - **Migrations** (`database/migrations/0001_init.up.sql` /
+>   `.down.sql`): versioned pair; tables captures, transcripts, buckets,
+>   items, memories, memory_proposals, memory_events (append-only),
+>   consents (append-only), corrections, retrieval_index (rebuildable
+>   projection, FK cascade from items). Every personal-data table carries
+>   tenant_id + user_id (FR-3). Constraints: composite PKs, FKs
+>   (transcripts→captures CASCADE, items→buckets, retrieval_index→items
+>   CASCADE), case-insensitive per-user unique bucket names, CHECK
+>   constraints on enums, `buckets.version` optimistic-lock column,
+>   idempotency via ON CONFLICT on natural PKs. Money rule: no monetary
+>   columns exist; the integer-minor-units-or-NUMERIC rule is documented
+>   as a review-enforced migration convention in `database/README.md`.
+> - **RLS (SR-1):** ENABLE + FORCE ROW LEVEL SECURITY on all ten tables;
+>   one `scope_isolation` policy per table bound to transaction-local
+>   `app.tenant_id`/`app.user_id` (set via parameterized
+>   `set_config(..., true)` in `scoped()`; unset context → NULL → zero
+>   rows). Append-only tables grant the app role INSERT/SELECT only.
+> - **New package `packages/storage-postgres/`:** `createPool` (runtime
+>   secrets, TLS verified by default, explicit `allowInsecureTls` escape
+>   hatch — SR-2), `scoped()` per-transaction scope pinning, migration
+>   runner (`migrateUp`/`migrateDown`, per-migration transactions,
+>   ledger), adapters for every existing port: `PostgresBucketStore`,
+>   `PostgresCaptureStore`, `PostgresTranscriptStore` (content-hash
+>   re-verified on read, fail closed), `PostgresMemoryStore`,
+>   `PostgresConsentStore`, `PostgresCorrectionStore`,
+>   `PostgresRetrievalIndex` (SQL scope+filters, pgvector `<=>` cosine
+>   with `vector_dims` guard, shared deterministic text scorer, score
+>   version `donna.pg-retrieval.v1`), `importFileFixtures` (port-based,
+>   idempotent). All SQL parameterized (SR-4). `OptimisticLockError`
+>   added to the core port contract.
+> - **Concurrency (FR-1/FR-2):** `saveItem` = one transaction: bucket row
+>   lock (SELECT … FOR UPDATE) + idempotent item insert + exact
+>   `avg(vector)` centroid/count recompute + projection upsert. This
+>   fixes the file store's read-modify-write race — concurrent placements
+>   serialize per bucket. `updateBucketStats` is optimistic
+>   version-checked with bounded retries (10) then OptimisticLockError.
+>   move/merge/delete lock affected buckets in ID order (deadlock-safe).
+> - **Tests: 9 new integration tests (236 total green with the DB live;
+>   227 green without it — the suite skips cleanly when
+>   DONNA_TEST_DATABASE_URL/DONNA_TEST_ADMIN_URL are unset), typecheck
+>   clean.** Coverage: AC-1 clean install + idempotent up + down + re-up;
+>   scoped CRUD round-trips across all stores (FR-3); AC-2/SR-1 raw
+>   unscoped queries return zero rows, faulty no-filter queries under a
+>   foreign scope see only their own rows, cross-tenant INSERT rejected
+>   by WITH CHECK; AC-3 eight concurrent saveItem calls → 8 items, exact
+>   mean centroid, no lost updates; FR-2 five concurrent stats writes →
+>   version consistency; transcript tamper → integrity failure on read;
+>   AC-4 file-fixture import runs twice without duplicates with stats
+>   recomputed; retrieval projection search/filters/rebuild/cascade;
+>   AC-5 pg_dump → restore into a fresh database preserves all scoped
+>   rows including the projection.
+> - **Docs:** `database/README.md` — roles, TLS, migration up/down,
+>   backup/restore (BYPASSRLS backup role requirement), retrieval-index
+>   rebuild procedure, monetary-column rule, and the fixed-dimension
+>   `vector(N)` + HNSW upgrade path.
+> - **Ambiguities resolved (conservative):** (1) "memory embeddings" —
+>   the Spec 2.1 `MemoryRecord` domain has no embedding field, so no
+>   memory embedding column was created; pgvector is enabled and used for
+>   thought embeddings, and a nullable `memories.embedding` migration is
+>   the documented path when semantic memory retrieval lands. (2)
+>   Embedding columns are dimensionless `vector` (float4) so the model
+>   can change without schema changes; fixed-dimension + HNSW is the
+>   documented production upgrade. (3) The CLI remains file-backed in
+>   this spec; the Postgres adapters are proven through the integration
+>   suite (a config-driven store switch is a later product decision).
+> - **Known limitations:** retrieval search fetches filtered rows and
+>   scores in JS (text) — SQL-side candidate pruning (tsv @@, HNSW) is
+>   the scale path; pgvector 0.6.0 float4 precision; sessions/emotion
+>   snapshots stay file-backed (session-scoped and ephemeral by design,
+>   not in the spec's table list).
+>
+> Awaiting product-owner examination for acceptance.
 
 Depends on: Specification 3.1 accepted
 
