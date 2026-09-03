@@ -1,6 +1,6 @@
 # Phase 2 — Private memory and personalization
 
-Status: `in-review` (all four specifications implemented and verified; awaiting product-owner examination)
+Status: `accepted` (product owner, 2026-09-03)
 
 > Product-owner directive (2026-09-03): Specifications 2.1, 2.2, 2.3, and 2.4
 > are approved and are executed in one ordered run, one specification at a
@@ -27,7 +27,7 @@ model or creating a hidden employee profile.
 
 ### Specification 2.1 — Memory domain, consent, and lifecycle
 
-Status: `in-review` (approved by product owner 2026-09-03; implementation completed 2026-09-03)
+Status: `accepted` (product owner, 2026-09-03)
 
 > Implementation evidence (2026-09-03, implementation worker):
 >
@@ -150,7 +150,7 @@ controls are accepted.
 
 ### Specification 2.2 — Context assembler with source attribution
 
-Status: `in-review` (approved by product owner 2026-09-03; implementation completed 2026-09-03)
+Status: `accepted` (product owner, 2026-09-03)
 
 > Implementation evidence (2026-09-03, implementation worker):
 >
@@ -277,7 +277,7 @@ owner reviews the exact context packet and attribution before acceptance.
 
 ### Specification 2.3 — Correction-driven personalization
 
-Status: `in-review` (approved by product owner 2026-09-03; implementation completed 2026-09-03)
+Status: `accepted` (product owner, 2026-09-03)
 
 > Implementation evidence (2026-09-03, implementation worker):
 >
@@ -406,7 +406,7 @@ source event visible. Do not start Specification 2.4 until accepted.
 
 ### Specification 2.4 — Session emotion and intent context
 
-Status: `in-review` (approved by product owner 2026-09-03; implementation completed 2026-09-03)
+Status: `accepted` (product owner, 2026-09-03)
 
 > Implementation evidence (2026-09-03, implementation worker):
 >
