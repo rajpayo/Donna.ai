@@ -1,6 +1,6 @@
 # Phase 6 — Controlled CLI pilot
 
-Status: `in-progress`
+Status: `in-review` (all three specifications in-review with evidence; the measured graduation decision is honestly REJECTED on the pre-pilot dataset — bucket acceptance 0.833 < 0.85 — and the volunteer-dependent acceptance criteria await the product owner's pilot runs)
 
 > Product-owner directive (2026-09-03): Specifications 6.1, 6.2, and 6.3 are
 > approved and are executed in one ordered run, one specification at a time,
@@ -349,9 +349,87 @@ demonstrations. Do not start Specification 6.3 until accepted.
 
 ### Specification 6.3 — Measured graduation decision
 
-Status: `in-progress` (approved by the product owner 2026-09-03)
+Status: `in-review` (approved by the product owner 2026-09-03; the honest current-state decision is **REJECTED** on bucket acceptance — awaiting product-owner examination and the volunteer pilot that grows the dataset)
 
 Depends on: Specification 6.2 accepted
+
+> Implementation evidence (2026-09-03, implementation worker):
+>
+> - **Graduation runner v2** (`packages/evals/src/graduation.ts`,
+>   `donna.graduation-runner.v1`): `buildGraduationReportV2` wraps the
+>   locked v1 gate evaluation and adds the candidate freeze (commit,
+>   branch, dirty flag, models.config.yaml sha256, prompt/schema versions,
+>   per-stage dataset name/version/content-hash, cohort window — FR-1/FR-2
+>   with an explicit held-out-alteration note), per-stage quality
+>   distributions (n/missing/mean/min/p50/p90/max), merged cohort slices
+>   (small groups already suppressed in evidence — SR-2), latency (aggregate
+>   metric with per-case latencyMs fallback) and cost (gateway-reported
+>   only, never estimated; token proxy summed across evidence), pilot
+>   extras (correction trends, misfire board, retention verification,
+>   privacy incidents, limitations), and the decision block: any failed
+>   gate, any tenant-leak/invalid-provenance/unapproved-write/
+>   duplicate-action hard failure (SR-1), any privacy incident, any
+>   unresolved blocks-graduation misfire, or any retention violation forces
+>   `rejected` with named reasons. The report carries a stable SHA-256
+>   content hash (`graduationReportHash`, canonical key-sorted
+>   serialization) as the product owner's sign-off anchor; sign-off stays
+>   `pending` — manual by construction.
+> - **Evals CLI**: `graduation-run <reports…> [--extras <file>]
+>   [--cohort-window <start>..<end>]` captures the candidate snapshot at
+>   run time and writes the versioned JSON + Markdown report under
+>   `packages/evals/reports/graduation/` (exit 1 on rejection).
+> - **Pilot extras producer** (`apps/cli`): `donna pilot
+>   graduation-extras --out <file> [--limitations-file <f>]` aggregates
+>   correction trends (totals + adherence), the misfire board (category/
+>   disposition counts, unresolved, blockers, promoted golden cases), and
+>   retention verification (per-capture audio state; 7-day policy
+>   violations counted) across every pilot scope in the data directory —
+>   counts only, de-identified (SR-2).
+> - **Decision record template**: `docs/pilot/DECISION_RECORD_TEMPLATE.md`
+>   (report-hash sign-off, gate table, evidence checklist, required
+>   reasons, remediation plan on rejection).
+> - **Honest current-state run (2026-09-03, clean commit 8a6bcd9, all four
+>   evidence reports generated at the same commit):**
+>   `packages/evals/reports/graduation/graduation-run-2026-09-03T18-41-06-379Z.{json,md}`
+>   (report hash `011e5093…`). Verdict: **REJECTED — NOT ALL PASS**:
+>   first-pass bucket acceptance 0.8333 < 0.85 on the current small
+>   organize set (3 cases; min 0.50, p50 1.0). All other gates PASS on
+>   fresh live evidence: thought coverage 1.0, task recall 1.0, provenance
+>   fidelity 1.0 with zero invalid-provenance hard failures, retrieval
+>   hit-at-k 1.0 (24 cases), zero tenant-isolation and duplicate-action
+>   failures, adversarial 8/8 blocked. Latency (live full-loop): mean
+>   15.7s, p90 21.8s; token proxy 4,669 prompt + 6,188 completion; cost
+>   not reported by the gateway (never estimated). Pilot extras from the
+>   two scratch scopes: 1 accepted correction, 2 misfires (1 fixed +
+>   1 accepted-limitation, 0 unresolved, 0 blocking, 1 promoted golden
+>   case), 1 capture with audio retained, 0 retention violations, 0
+>   privacy incidents. This REJECTED outcome on the pre-pilot dataset is
+>   the correct, expected result — the volunteer pilot exists to grow the
+>   organize evidence past the gate.
+> - **Tests: 9 new (455 total green with Postgres live, typecheck
+>   clean).** Coverage: eligible verdict only when all gates pass with no
+>   blockers; freeze fields; failing-gate rejection with named reasons;
+>   SR-1 hard-failure rejection despite perfect metrics; extras blockers
+>   (misfire blocks-graduation, privacy incident, retention violation)
+>   each force rejection; quality/cohort/latency/cost/limitation carry-over;
+>   per-case latency fallback; report-hash stability and sensitivity;
+>   Markdown rendering (reasons, evidence links, manual sign-off).
+> - **Known limitations:** the cohort window is unset (pre-pilot evidence);
+>   cost is absent until the gateway reports usage; bucket-acceptance
+>   evidence is 3 cases — statistically thin, which is precisely what the
+>   volunteer pilot must grow.
+>
+> **Volunteer-dependent acceptance criteria — AWAITING PRODUCT-OWNER
+> PILOT RUNS (not claimed):**
+>
+> - `AC-1`–`AC-6`: measured on current evidence above — AC-3 (bucket
+>   acceptance) FAILS today; all gates must pass on pilot-grown datasets
+>   before graduation.
+> - `AC-7` (product owner explicitly accepts graduation after examining
+>   the report and demonstrations): manual by design; the decision record
+>   template awaits the product owner.
+>
+> Awaiting product-owner examination for acceptance.
 
 #### Outcome
 
@@ -406,7 +484,17 @@ acceptance; Phase 9 client work remains locked until then.
 
 ## Phase exit gate
 
-- The controlled pilot is consented, supportable, and privacy-preserving.
-- Misfires feed a governed improvement loop.
-- Every graduation threshold passes with linked evidence.
-- The product owner explicitly approves moving beyond the CLI.
+- **Met (tooling side):** the controlled pilot is consented, supportable, and
+  privacy-preserving — onboarding with versioned per-setting consent, narrow
+  defaults, redacted output, verified export/deletion, and a private misfire
+  path are implemented and live-verified (Spec 6.1). Volunteer enrollment
+  itself awaits the product owner.
+- **Met (tooling side):** misfires feed a governed improvement loop — triage,
+  dispositions, and the consented de-identified golden-case path are
+  implemented and proven end-to-end on synthetic data (Spec 6.2).
+- **NOT MET (honestly):** every graduation threshold passes with linked
+  evidence — bucket acceptance measures 0.833 < 0.85 on the pre-pilot
+  dataset (Spec 6.3 report `graduation-run-2026-09-03T18-41-06-379Z`). The
+  volunteer pilot must grow the organize evidence; the runner is ready.
+- **Awaiting the product owner:** explicit approval to move beyond the CLI
+  (decision record template in `docs/pilot/`).
