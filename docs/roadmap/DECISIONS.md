@@ -61,6 +61,12 @@ decision and an update to this file.
 - The LLM may propose a bucket, but deterministic similarity and product rules
   decide placement.
 - Commitments always route to `Tasks`.
+- **The `Tasks` hard-rule is absolute (product owner, 2026-09-03):** no
+  accepted correction or preference may soften it. When a correction
+  preference conflicts with the hard rule, placement follows the hard rule and
+  adherence records "contradicted" — honest bookkeeping, not a silent override.
+  Rationale: the Tasks bucket is the agent layer's safety anchor. Revisit at
+  Phase 7 if pilot evidence demands it.
 - Corrections are first-class learning events and evaluation inputs.
 - Every thought and derived memory requires source provenance.
 

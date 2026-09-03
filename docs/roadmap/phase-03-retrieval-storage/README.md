@@ -1,6 +1,6 @@
 # Phase 3 — Retrieval and production storage
 
-Status: `in-review` (all three specifications implemented and verified;
+Status: `accepted` (product owner, 2026-09-03)
 awaiting product-owner examination)
 
 > Product-owner directive (2026-09-03): Specifications 3.1, 3.2, and 3.3
@@ -35,7 +35,7 @@ transactional, tenant-isolated store.
 
 ### Specification 3.1 — Read model and deterministic local retrieval
 
-Status: `in-review`
+Status: `accepted` (product owner, 2026-09-03)
 
 > Implementation evidence (2026-09-03, implementation worker):
 >
@@ -167,7 +167,7 @@ Do not start Specification 3.2 until retrieval semantics are accepted.
 
 ### Specification 3.2 — PostgreSQL, pgvector, and row-level isolation
 
-Status: `in-review`
+Status: `accepted` (product owner, 2026-09-03)
 
 > Implementation evidence (2026-09-03, implementation worker):
 >
@@ -311,7 +311,7 @@ product owner accepts the storage boundary.
 
 ### Specification 3.3 — Hybrid natural-language retrieval with provenance
 
-Status: `in-review`
+Status: `accepted` (product owner, 2026-09-03)
 
 > Implementation evidence (2026-09-03, implementation worker):
 >
