@@ -1,6 +1,7 @@
 # Phase 4 — Evaluation moat
 
-Status: `in-progress`
+Status: `in-review` (all three specifications implemented, verified, and
+awaiting product-owner examination)
 
 > Product-owner directive (2026-09-03): Specifications 4.1, 4.2, and 4.3
 > are approved and are executed in one ordered run, one specification at a
