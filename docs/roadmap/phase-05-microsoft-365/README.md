@@ -1,6 +1,7 @@
 # Phase 5 — Microsoft 365 grounding and destinations
 
-Status: `in-progress`
+Status: `in-review` (all four specifications implemented and verified;
+awaiting product-owner examination — only the product owner accepts)
 
 > Product-owner directive (2026-09-03): the REVISED Specifications 5.1, 5.2,
 > 5.3, and 5.4 are approved and are executed in one ordered run, one
@@ -598,8 +599,20 @@ completes only after all four specifications are accepted.
 
 ## Phase exit gate
 
-- Entra identity and delegated consent establish scope.
-- Microsoft context is selected, minimal, permission-aware, and source-linked.
-- OneNote has a real tested adapter or remains an explicit blocker.
-- Microsoft actions exist only as validated drafts for the future approval
-  service.
+- ~~Entra identity and delegated consent establish scope~~ → **met in revised
+  form (approved 2026-09-03):** the TrueFoundry-managed MCP owns Entra/OAuth;
+  Donna-side consent records per source type establish and gate scope
+  (Spec 5.1, verified live).
+- **Met:** Microsoft context is selected, minimal, permission-aware, and
+  source-linked (Spec 5.2: selection registry, consent gates, TTL cache,
+  untrusted-trust-boundary snippets with source IDs).
+- **Met in revised form:** OneNote has no page API on the managed MCP and is
+  an explicit documented deferral (approved revision); the OneDrive Markdown
+  adapter is real and tested end-to-end against live OneDrive (Spec 5.3).
+- **Met:** Microsoft actions exist only as validated drafts for the future
+  approval service (Spec 5.4: typed, validated, expiring, cancellable
+  drafts; the only live execution is create_draft — Outlook DRAFTs, never
+  sends — behind the explicit approval path).
+
+All four specifications are `in-review` with per-spec evidence above.
+415 tests green with Postgres live, typecheck clean (2026-09-03).
