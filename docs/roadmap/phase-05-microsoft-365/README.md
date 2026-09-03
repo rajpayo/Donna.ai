@@ -479,9 +479,72 @@ cycle live against OneDrive. Do not start Specification 5.4 until accepted.
 
 ### Specification 5.4 — Approval-ready Microsoft action drafts
 
-Status: `draft`
+Status: `in-review` (approved by product owner 2026-09-03)
 
 Depends on: Specification 5.3 accepted
+
+> Implementation evidence (2026-09-03, implementation worker):
+>
+> - **Typed drafts** (`packages/core/src/types.ts`, `ports.ts`):
+>   `ActionDraft` with a discriminated payload union — `email-draft`,
+>   `teams-message`, `calendar-proposal`, `file-publication`,
+>   `task-action` — source thought IDs, status
+>   (pending/cancelled/committed/expired), 24h expiry, redacted commit
+>   outcome. `ActionDraftStore` port (payload immutable; only lifecycle
+>   fields change) and the `DraftExecutor` port: the ONLY code path that
+>   turns an approved draft into an MCP call, never exposed to LLM
+>   prompts (SR-2).
+> - **Service** (`packages/destinations/src/microsoft/service.ts`):
+>   validation at creation (invalid recipients/targets/content rejected
+>   BEFORE the draft exists, FR-3); optional source-thought existence
+>   check (wired in the CLI against the bucket store); deterministic
+>   expiry via injected clock (FR-2); idempotent cancellation;
+>   commit refuses expired/cancelled/committed drafts; failed commits
+>   leave the draft pending (retryable).
+> - **Executors** (`src/microsoft/executors.ts`): `McpEmailDraftExecutor`
+>   → real managed-MCP `create_draft` (schema verified live: `to`/`cc`
+>   string arrays, `body: {content, contentType}`) — creates an Outlook
+>   DRAFT, can never send (the approval-path connection is allowlisted
+>   to `create_draft` alone; send_email is denied before any I/O by the
+>   5.1 client). Sandbox executors for teams-message, calendar-proposal,
+>   and file-publication record the intent with zero external mutation
+>   (send/post/create stay gated for the agent approval runtime).
+>   `UnavailableDraftExecutor` for task-action: the managed MCP exposes
+>   NO Planner/To Do tools (verified in the 48-tool list) — the
+>   capability report says so instead of pretending (spec scope:
+>   "sandbox adapters or capability reports").
+> - **Store** (`src/microsoft/store.file.ts`): scoped per-partition JSON
+>   files with scope re-verification and ID traversal guards. The CLI
+>   places drafts inside the M365 scoped partition so
+>   `m365 disconnect` purges them (SR-3 restrictive caching).
+> - **CLI**: `draft create <email|teams|calendar|file|task> …
+>   --thoughts <ids>`, `draft list`, `draft preview <id>` (full payload
+>   + source context, AC-3), `draft cancel <id>`, `draft commit <id>`
+>   (the approval path), `draft capabilities`.
+> - **Live verification (2026-09-03, real managed MCP, scratch user
+>   `m365-spec52-probe`):** email draft created from a real thought ID →
+>   previewed → committed via the approval path → real Outlook DRAFT
+>   created (external message ID recorded; explicitly NOT sent). Teams
+>   draft committed → sandbox-noop, zero MCP calls. Calendar draft
+>   cancelled → commit refused ("cannot commit a cancelled draft").
+>   Capabilities report printed per type. A schema-probe draft created
+>   during capability probing was deleted the same day; the Donna demo
+>   draft remains in the mailbox for product-owner inspection.
+> - **Tests: 12 new (415 total green with Postgres live, typecheck
+>   clean).** Per-type schema/validation, invalid-never-persisted,
+>   source-link enforcement (incl. dangling-thought rejection), scope
+>   isolation, deterministic expiry, cancellation terminality,
+>   email commit args + outcome recording, prompt-injection fixture
+>   (injected "send now" body cannot escalate the executor beyond
+>   create_draft — AC-2), sandbox zero-mutation, unavailable-capability
+>   reporting, redacted commit errors leaving drafts pending.
+> - **Known limitations:** drafts never auto-send by construction; send/
+>   post/publish execution for non-email types arrives with the Phase 7
+>   agent approval runtime. The CLI prints full draft payloads to the
+>   operator's own terminal (inspection requirement); telemetry remains
+>   ID/count-only.
+>
+> Awaiting product-owner examination for acceptance.
 
 #### Outcome
 

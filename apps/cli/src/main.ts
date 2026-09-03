@@ -125,10 +125,18 @@ import {
   M365SnippetCache,
   ONEDRIVE_DESTINATION_TOOLS,
   OneDriveMarkdownDestination,
+  m365ScopeDir,
   parseM365Endpoint,
   type M365SelectionType,
 } from "@donna/integrations-m365";
-import { M365_CONSENT_PURPOSES } from "@donna/core";
+import {
+  ActionDraftService,
+  FileActionDraftStore,
+  McpEmailDraftExecutor,
+  SandboxDraftExecutor,
+  UnavailableDraftExecutor,
+} from "@donna/destinations";
+import { M365_CONSENT_PURPOSES, type ActionDraft, type ActionDraftPayload } from "@donna/core";
 import { config as loadEnv } from "dotenv";
 import {
   gatewayEnvProblems,
@@ -218,7 +226,23 @@ const USAGE = `usage:
   donna publish <bucket-name> --approve  commit EXACTLY the pending preview
                                              (needs m365.destination.onedrive
                                              consent); byte-identical state
-                                             is a no-op`;
+                                             is a no-op
+  donna draft create email --to <a@b[,c]> [--cc <...>] --subject <s> --body <b> --thoughts <id,id>
+  donna draft create teams (--chat <id> | --team <id> --channel <id>) --text <t> --thoughts <id,id>
+  donna draft create calendar --title <t> --start <iso> --end <iso> [--attendees <a,b>] --thoughts <id,id>
+  donna draft create file --bucket <bucket-id> --thoughts <id,id>
+  donna draft create task --title <t> [--due <hint>] --thoughts <id,id>
+                                         prepare a typed action draft
+                                             (validated, source-linked,
+                                             24h expiry; nothing is sent)
+  donna draft list [--user <id>]         list drafts (pending first)
+  donna draft preview <id> [--user <id>] inspect a draft + source context
+  donna draft cancel <id> [--user <id>]  cancel a pending draft
+  donna draft commit <id> [--user <id>]  THE APPROVAL PATH: email drafts
+                                             create an Outlook DRAFT (never
+                                             send); other types are sandbox
+                                             commits (no external mutation)
+  donna draft capabilities               per-type execution capability`;
 
 function dataDir(): string {
   return resolve(repoRoot, process.env.DONNA_DATA_DIR ?? "data");
@@ -1944,12 +1968,263 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (command === "draft") {
+    const sub = process.argv[3];
+    const drafts = buildDraftService();
+    const scope = scope0(tenantId, userId);
+
+    if (sub === "capabilities") {
+      for (const cap of drafts.capabilities()) {
+        console.log(`• ${cap.type}: ${cap.capability} — ${cap.note}`);
+      }
+      return;
+    }
+
+    if (sub === "create") {
+      const kind = process.argv[4];
+      const thoughtsArg = arg("--thoughts");
+      if (kind === undefined || thoughtsArg === undefined) {
+        console.error(
+          "usage: donna draft create <email|teams|calendar|file|task> <type flags> --thoughts <id,id> [--user <id>]",
+        );
+        process.exit(1);
+      }
+      const sourceThoughtIds = thoughtsArg.split(",").map((s) => s.trim()).filter((s) => s !== "");
+      let payload: ActionDraftPayload;
+      if (kind === "email") {
+        const to = (arg("--to") ?? "").split(",").map((s) => s.trim()).filter((s) => s !== "");
+        const cc = (arg("--cc") ?? "").split(",").map((s) => s.trim()).filter((s) => s !== "");
+        payload = {
+          type: "email-draft",
+          to,
+          ...(cc.length > 0 ? { cc } : {}),
+          subject: arg("--subject") ?? "",
+          body: arg("--body") ?? "",
+        };
+      } else if (kind === "teams") {
+        const chatId = arg("--chat");
+        const teamId = arg("--team");
+        const channelId = arg("--channel");
+        payload = {
+          type: "teams-message",
+          target:
+            chatId !== undefined
+              ? { chatId }
+              : { teamId: teamId ?? "", channelId: channelId ?? "" },
+          text: arg("--text") ?? "",
+        };
+      } else if (kind === "calendar") {
+        const attendees = (arg("--attendees") ?? "").split(",").map((s) => s.trim()).filter((s) => s !== "");
+        payload = {
+          type: "calendar-proposal",
+          title: arg("--title") ?? "",
+          start: arg("--start") ?? "",
+          end: arg("--end") ?? "",
+          ...(attendees.length > 0 ? { attendees } : {}),
+          ...(arg("--notes") !== undefined ? { notes: arg("--notes")! } : {}),
+        };
+      } else if (kind === "file") {
+        payload = { type: "file-publication", bucketId: arg("--bucket") ?? "" };
+      } else if (kind === "task") {
+        payload = {
+          type: "task-action",
+          title: arg("--title") ?? "",
+          ...(arg("--due") !== undefined ? { dueHint: arg("--due")! } : {}),
+          ...(arg("--notes") !== undefined ? { notes: arg("--notes")! } : {}),
+        };
+      } else {
+        console.error(`unknown draft type "${kind}" (email|teams|calendar|file|task)`);
+        process.exit(1);
+      }
+      try {
+        const draft = await drafts.create(scope, { payload, sourceThoughtIds });
+        console.log(
+          `Draft ${draft.id} (${draft.type}) created — pending until ${draft.expiresAt}. Nothing was sent or posted.`,
+        );
+        console.log(`Inspect: donna draft preview ${draft.id} — Commit (approval): donna draft commit ${draft.id}`);
+      } catch (error) {
+        if (error instanceof Error && error.name === "DraftValidationError") {
+          console.error(error.message);
+        } else {
+          console.error(error instanceof Error ? error.message : String(error));
+        }
+        process.exit(1);
+      }
+      return;
+    }
+
+    if (sub === "list") {
+      const all = await drafts.list(scope);
+      if (all.length === 0) {
+        console.log("No drafts. Create one with: donna draft create ...");
+        return;
+      }
+      const ordered = [...all].sort((a, b) =>
+        a.status === b.status
+          ? b.createdAt.localeCompare(a.createdAt)
+          : a.status === "pending"
+            ? -1
+            : b.status === "pending"
+              ? 1
+              : a.status.localeCompare(b.status),
+      );
+      for (const d of ordered) {
+        console.log(`• ${d.id} (${d.type}) ${d.status} — expires ${d.expiresAt}, sources ${d.sourceThoughtIds.join(", ")}`);
+      }
+      return;
+    }
+
+    if (sub === "preview") {
+      const id = process.argv[4];
+      if (id === undefined || id.startsWith("--")) {
+        console.error("usage: donna draft preview <id> [--user <id>]");
+        process.exit(1);
+      }
+      renderDraftPreview(await drafts.get(scope, id));
+      return;
+    }
+
+    if (sub === "cancel") {
+      const id = process.argv[4];
+      if (id === undefined || id.startsWith("--")) {
+        console.error("usage: donna draft cancel <id> [--user <id>]");
+        process.exit(1);
+      }
+      const cancelled = await drafts.cancel(scope, id);
+      console.log(`Cancelled draft ${cancelled.id}. It can never be committed.`);
+      return;
+    }
+
+    if (sub === "commit") {
+      // THE APPROVAL PATH (Spec 5.4): explicit human invocation only.
+      // email-draft → create_draft (Outlook DRAFT, never send). Other
+      // types → sandbox commit (no external mutation).
+      const id = process.argv[4];
+      if (id === undefined || id.startsWith("--")) {
+        console.error("usage: donna draft commit <id> [--user <id>]");
+        process.exit(1);
+      }
+      try {
+        const committed = await drafts.commit(scope, id);
+        console.log(
+          `Committed draft ${committed.id} (${committed.type}): ${committed.commitResult?.note ?? "done"}` +
+            `${committed.commitResult?.externalId !== undefined ? ` — external ID ${committed.commitResult.externalId}` : ""}.`,
+        );
+        if (committed.type === "email-draft") {
+          console.log("An Outlook DRAFT was created in the mailbox. It was NOT sent — review and send it from Outlook.");
+        }
+      } catch (error) {
+        console.error(error instanceof Error ? error.message : String(error));
+        process.exit(1);
+      }
+      return;
+    }
+
+    console.error(USAGE);
+    process.exit(1);
+  }
+
   console.error(USAGE);
   process.exit(1);
 }
 
 function scope0(tenantId: string, userId: string): { tenantId: string; userId: string } {
   return { tenantId, userId };
+}
+
+/**
+ * The Spec 5.4 draft service. Drafts persist inside the M365 scoped
+ * partition so `m365 disconnect` purges them with everything else
+ * (SR-3). The email executor is wired only when the managed MCP is
+ * configured, on an approval-path connection allowlisted to create_draft
+ * alone — it can create an Outlook DRAFT and can never send.
+ */
+function buildDraftService(): ActionDraftService {
+  const dir = dataDir();
+  const executors = [];
+  try {
+    if (m365McpEnvProblems(inspectM365McpEnv()).length === 0) {
+      executors.push(
+        new McpEmailDraftExecutor(
+          m365ApprovalPathClient(
+            { endpointUrl: m365EndpointFromEnv(), apiKey: process.env.TRUEFOUNDRY_API_KEY! },
+            ["create_draft"],
+          ),
+        ),
+      );
+    }
+  } catch {
+    // No MCP configuration — email drafts stay creatable but uncommittable.
+  }
+  executors.push(
+    new SandboxDraftExecutor(
+      "teams-message",
+      "Posts via send_chat_message/post_channel_message — gated for the agent approval runtime; sandbox commit performs no mutation.",
+    ),
+    new SandboxDraftExecutor(
+      "calendar-proposal",
+      "Creates events via create_event — gated for the agent approval runtime; sandbox commit performs no mutation.",
+    ),
+    new SandboxDraftExecutor(
+      "file-publication",
+      "Publish through the approved OneDrive Markdown destination (donna publish); sandbox commit performs no mutation.",
+    ),
+    new UnavailableDraftExecutor(
+      "task-action",
+      "The managed MCP exposes no Planner/To Do tools (verified 2026-09-03); task execution is deferred to a future integration.",
+    ),
+  );
+  const buckets = new FileBucketStore(dir);
+  return new ActionDraftService({
+    store: new FileActionDraftStore((scope) => m365ScopeDir(dir, scope)),
+    executors,
+    now: () => new Date(),
+    thoughtExists: async (scope, thoughtId) =>
+      (await buckets.getItem(scope.tenantId, scope.userId, thoughtId)) !== undefined,
+  });
+}
+
+function renderDraftPreview(draft: ActionDraft): void {
+  console.log(`Draft ${draft.id} (${draft.type}) — ${draft.status}`);
+  console.log(`  created ${draft.createdAt}; expires ${draft.expiresAt}`);
+  if (draft.cancelledAt !== undefined) {
+    console.log(`  cancelled ${draft.cancelledAt} (${draft.cancelReason ?? "no reason"})`);
+  }
+  if (draft.committedAt !== undefined) {
+    console.log(
+      `  committed ${draft.committedAt} — ${draft.commitResult?.note ?? ""}${draft.commitResult?.externalId !== undefined ? ` (external ${draft.commitResult.externalId})` : ""}`,
+    );
+  }
+  console.log(`  source thoughts: ${draft.sourceThoughtIds.join(", ")}`);
+  const p = draft.payload;
+  switch (p.type) {
+    case "email-draft":
+      console.log(`  to: ${p.to.join(", ")}${p.cc !== undefined && p.cc.length > 0 ? ` cc: ${p.cc.join(", ")}` : ""}`);
+      console.log(`  subject: ${p.subject}`);
+      console.log(`  body:\n${p.body.split("\n").map((l) => `    ${l}`).join("\n")}`);
+      break;
+    case "teams-message":
+      console.log(
+        `  target: ${"chatId" in p.target ? `chat ${p.target.chatId}` : `team ${p.target.teamId} channel ${p.target.channelId}`}`,
+      );
+      console.log(`  text: ${p.text}`);
+      break;
+    case "calendar-proposal":
+      console.log(`  title: ${p.title}`);
+      console.log(`  when: ${p.start} → ${p.end}`);
+      if (p.attendees !== undefined && p.attendees.length > 0) {
+        console.log(`  attendees: ${p.attendees.join(", ")}`);
+      }
+      if (p.notes !== undefined) console.log(`  notes: ${p.notes}`);
+      break;
+    case "file-publication":
+      console.log(`  bucket: ${p.bucketId}`);
+      break;
+    case "task-action":
+      console.log(`  title: ${p.title}${p.dueHint !== undefined ? ` (due ${p.dueHint})` : ""}`);
+      if (p.notes !== undefined) console.log(`  notes: ${p.notes}`);
+      break;
+  }
 }
 
 main().catch((err) => {

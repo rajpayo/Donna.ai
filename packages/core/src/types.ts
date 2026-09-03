@@ -743,6 +743,86 @@ export interface ContextSnippet {
   expiresAt: string;
 }
 
+/* ------------------------------------------------------------------ */
+/* Specification 5.4 — approval-ready Microsoft action drafts          */
+/* ------------------------------------------------------------------ */
+
+/** The typed action drafts Donna can prepare (never autonomously execute). */
+export type ActionDraftType =
+  | "email-draft"
+  | "teams-message"
+  | "calendar-proposal"
+  | "file-publication"
+  | "task-action";
+
+/**
+ * Typed, validated draft payloads. Payload content is user/model-authored
+ * and remains UNTRUSTED data; validation happens Donna-side before a
+ * draft exists (FR-3), and no payload field can widen the executor's
+ * capability (SR-2 — the executor's tool allowlist is fixed by code).
+ */
+export type ActionDraftPayload =
+  | {
+      type: "email-draft";
+      to: string[];
+      cc?: string[];
+      subject: string;
+      body: string;
+    }
+  | {
+      type: "teams-message";
+      target: { chatId: string } | { teamId: string; channelId: string };
+      text: string;
+    }
+  | {
+      type: "calendar-proposal";
+      title: string;
+      /** ISO 8601 start/end; start must be before end. */
+      start: string;
+      end: string;
+      attendees?: string[];
+      notes?: string;
+    }
+  | {
+      type: "file-publication";
+      /** The Donna bucket to publish through the approved destination. */
+      bucketId: string;
+    }
+  | {
+      type: "task-action";
+      title: string;
+      dueHint?: string;
+      notes?: string;
+    };
+
+export type ActionDraftStatus = "pending" | "cancelled" | "committed" | "expired";
+
+/**
+ * A source-linked, scoped, typed, previewable action draft (FR-1). Drafts
+ * carry the source thought IDs they were prepared from, expire
+ * deterministically (FR-2), and are cancellable. `commitResult.note`
+ * distinguishes a real MCP draft creation (email-draft → Outlook DRAFT,
+ * never sent) from a sandbox commit (no external mutation).
+ */
+export interface ActionDraft {
+  id: string;
+  tenantId: string;
+  userId: string;
+  type: ActionDraftType;
+  payload: ActionDraftPayload;
+  /** Source thought IDs this draft was prepared from (FR-1). */
+  sourceThoughtIds: string[];
+  status: ActionDraftStatus;
+  createdAt: string; // ISO 8601
+  /** ISO 8601 after which the draft can no longer commit (FR-2). */
+  expiresAt: string;
+  cancelledAt?: string;
+  cancelReason?: string;
+  committedAt?: string;
+  /** Redacted commit outcome (external ID or sandbox note). */
+  commitResult?: { externalId?: string; note?: string };
+}
+
 /** End-to-end result of one capture through the loop. */
 export interface CoreLoopResult {
   capture: Capture;

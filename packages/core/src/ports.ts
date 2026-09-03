@@ -10,6 +10,7 @@
  * agents subscribe to bucket events and use the same ports.
  */
 import type {
+  ActionDraft,
   AuditEntry,
   Bucket,
   Capture,
@@ -702,4 +703,47 @@ export interface Destination {
     scope: { tenantId: string; userId: string },
     preview: DestinationPreview,
   ): Promise<DestinationCommit>;
+}
+
+/* ------------------------------------------------------------------ */
+/* Specification 5.4 — action drafts                                   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Durable store for action drafts (Specification 5.4). Scoped exactly
+ * like the memory store. The payload and source links are immutable once
+ * created; only lifecycle fields (status, cancelledAt, committedAt,
+ * commitResult) ever change.
+ */
+export interface ActionDraftStore {
+  saveDraft(draft: ActionDraft): Promise<void>;
+  getDraft(
+    tenantId: string,
+    userId: string,
+    draftId: string,
+  ): Promise<ActionDraft | undefined>;
+  listDrafts(tenantId: string, userId: string): Promise<ActionDraft[]>;
+  /** Idempotent: returns true when a draft was actually removed. */
+  deleteDraft(
+    tenantId: string,
+    userId: string,
+    draftId: string,
+  ): Promise<boolean>;
+}
+
+/**
+ * Executes the commit of ONE approved draft (Specification 5.4). This is
+ * the approval path: executors are wired by code with fixed, minimal tool
+ * allowlists and are NEVER exposed to LLM prompts (SR-2). In this phase,
+ * only the email-draft executor touches the live MCP (create_draft — it
+ * creates an Outlook DRAFT and can never send); the others are sandbox
+ * executors that record the intended mutation without performing it.
+ */
+export interface DraftExecutor {
+  readonly type: ActionDraft["type"];
+  /** "mcp-live" creates a real draft; "sandbox" performs no mutation. */
+  readonly capability: "mcp-live" | "sandbox" | "unavailable";
+  /** Human-readable capability statement (shown in previews). */
+  readonly capabilityNote: string;
+  commit(draft: ActionDraft): Promise<{ externalId?: string; note?: string }>;
 }
