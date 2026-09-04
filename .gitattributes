@@ -1,0 +1,7 @@
+# Eval dataset envelopes and the held-out freeze lock are content-hashed:
+# the sha256 is recorded in eval reports, baselines, and the Spec 6.4
+# held-out lock, and the lock is verified in CI. Force LF so the bytes —
+# and therefore the hashes — are identical on every platform
+# (core.autocrlf=true would otherwise produce CRLF working trees on
+# Windows, changing the hash of unchanged content).
+packages/evals/datasets/**/*.json text eol=lf
