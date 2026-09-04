@@ -2,7 +2,7 @@
   "schema": "donna.eval-dataset.v1",
   "name": "organize.heldout.v1",
   "stage": "organize",
-  "version": 1,
+  "version": 2,
   "description": "Organize-stage HELD-OUT partition (Spec 6.4): the frozen graduation-evidence set the bucket-acceptance gate reads. v1 freezes the three pre-pilot cases unaltered via legacyImport of ../organize.v1.json (results already known; Spec 6.3 FR-2; product-owner resolution, 2026-09-04). Changes only via the product-owner-gated dev-to-held-out batch promotion plus a new freeze lock after the next results run. Never tune against this set.",
   "defaultMeta": {
     "provenance": "synthetic",
@@ -13,7 +13,1112 @@
     "language": "en",
     "notes": "hand-labeled messy voice dumps; labels adjudicated by the product owner"
   },
-  "cases": [],
-  "legacyImport": { "path": "../organize.v1.json", "format": "organize-legacy-v1" },
-  "adjudications": []
+  "cases": [
+    {
+      "id": "organize-pilot-89ef3a098348",
+      "meta": {
+        "provenance": "de-identified",
+        "labeler": "labeler:pilot-participant",
+        "adjudicator": "labeler:product-owner",
+        "consent": "de-identified",
+        "sensitivity": "low"
+      },
+      "transcript": "ACME vendor contract renewal is scheduled for October.",
+      "expected": {
+        "thoughts": [
+          {
+            "kind": "note",
+            "bucket": "Negotiations",
+            "contains": [
+              "acme",
+              "vendor"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "organize-pilot-7bd4f7f0533a",
+      "meta": {
+        "provenance": "de-identified",
+        "labeler": "labeler:pilot-participant",
+        "adjudicator": "labeler:product-owner",
+        "consent": "de-identified",
+        "sensitivity": "low"
+      },
+      "transcript": "Add quiet mode to vendor portal to hide badges",
+      "expected": {
+        "thoughts": [
+          {
+            "kind": "note",
+            "bucket": "Vendor Portal",
+            "contains": [
+              "quiet",
+              "mode"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "organize-pilot-d82de0586650",
+      "meta": {
+        "provenance": "de-identified",
+        "labeler": "labeler:pilot-participant",
+        "adjudicator": "labeler:product-owner",
+        "consent": "de-identified",
+        "sensitivity": "low",
+        "notes": "scenario-class:meetings"
+      },
+      "transcript": "Meeting: launch readiness download with Priya and Tushar",
+      "expected": {
+        "thoughts": [
+          {
+            "kind": "note",
+            "bucket": "Launch Readiness",
+            "contains": [
+              "meeting",
+              "launch"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "organize-pilot-9c10f9e252fc",
+      "meta": {
+        "provenance": "de-identified",
+        "labeler": "labeler:pilot-participant",
+        "adjudicator": "labeler:product-owner",
+        "consent": "de-identified",
+        "sensitivity": "low",
+        "notes": "scenario-class:meetings"
+      },
+      "transcript": "Move product demo to Friday",
+      "expected": {
+        "thoughts": [
+          {
+            "kind": "note",
+            "bucket": "Launch Readiness",
+            "contains": [
+              "move",
+              "product"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "organize-pilot-8c33b41e18b5",
+      "meta": {
+        "provenance": "de-identified",
+        "labeler": "labeler:pilot-participant",
+        "adjudicator": "labeler:product-owner",
+        "consent": "de-identified",
+        "sensitivity": "low",
+        "notes": "scenario-class:meetings"
+      },
+      "transcript": "Priya to share update slides tomorrow afternoon",
+      "expected": {
+        "thoughts": [
+          {
+            "kind": "task",
+            "bucket": "Tasks",
+            "contains": [
+              "priya",
+              "share"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "organize-pilot-d6e0e93b2c5e",
+      "meta": {
+        "provenance": "de-identified",
+        "labeler": "labeler:pilot-participant",
+        "adjudicator": "labeler:product-owner",
+        "consent": "de-identified",
+        "sensitivity": "low",
+        "notes": "scenario-class:tasks; variants:V-PACE"
+      },
+      "transcript": "Send revised agenda to Priya",
+      "expected": {
+        "thoughts": [
+          {
+            "kind": "task",
+            "bucket": "Tasks",
+            "contains": [
+              "send",
+              "revised"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "organize-pilot-2fb8388ec012",
+      "meta": {
+        "provenance": "de-identified",
+        "labeler": "labeler:pilot-participant",
+        "adjudicator": "labeler:product-owner",
+        "consent": "de-identified",
+        "sensitivity": "low",
+        "notes": "scenario-class:tasks; variants:V-PACE"
+      },
+      "transcript": "Send updated checklist to Tushar",
+      "expected": {
+        "thoughts": [
+          {
+            "kind": "task",
+            "bucket": "Tasks",
+            "contains": [
+              "send",
+              "updated"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "organize-pilot-85565af98f01",
+      "meta": {
+        "provenance": "de-identified",
+        "labeler": "labeler:pilot-participant",
+        "adjudicator": "labeler:product-owner",
+        "consent": "de-identified",
+        "sensitivity": "low",
+        "notes": "scenario-class:tasks; variants:V-PACE"
+      },
+      "transcript": "Tell the team the demo moved to Friday",
+      "expected": {
+        "thoughts": [
+          {
+            "kind": "task",
+            "bucket": "Tasks",
+            "contains": [
+              "tell",
+              "team"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "organize-pilot-d1433f374b73",
+      "meta": {
+        "provenance": "de-identified",
+        "labeler": "labeler:pilot-participant",
+        "adjudicator": "labeler:product-owner",
+        "consent": "de-identified",
+        "sensitivity": "low",
+        "notes": "scenario-class:ideas; variants:V-CORRECT"
+      },
+      "transcript": "Auto-group repeated-project mentions",
+      "expected": {
+        "thoughts": [
+          {
+            "kind": "note",
+            "bucket": "Product Ideas",
+            "contains": [
+              "auto",
+              "group"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "organize-pilot-857e61b6f2aa",
+      "meta": {
+        "provenance": "de-identified",
+        "labeler": "labeler:pilot-participant",
+        "adjudicator": "labeler:product-owner",
+        "consent": "de-identified",
+        "sensitivity": "low",
+        "notes": "scenario-class:ideas; variants:V-CORRECT"
+      },
+      "transcript": "Note that auto-grouping already exists",
+      "expected": {
+        "thoughts": [
+          {
+            "kind": "note",
+            "bucket": "Product Ideas",
+            "contains": [
+              "note",
+              "that"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "organize-pilot-17d036e067fe",
+      "meta": {
+        "provenance": "de-identified",
+        "labeler": "labeler:pilot-participant",
+        "adjudicator": "labeler:product-owner",
+        "consent": "de-identified",
+        "sensitivity": "low",
+        "notes": "scenario-class:ideas; variants:V-CORRECT"
+      },
+      "transcript": "Weekly digest of open loops",
+      "expected": {
+        "thoughts": [
+          {
+            "kind": "note",
+            "bucket": "Product Ideas",
+            "contains": [
+              "weekly",
+              "digest"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "organize-pilot-78c3d7ff25ab",
+      "meta": {
+        "provenance": "de-identified",
+        "labeler": "labeler:pilot-participant",
+        "adjudicator": "labeler:product-owner",
+        "consent": "de-identified",
+        "sensitivity": "low",
+        "notes": "scenario-class:follow-ups; variants:V-NOISE"
+      },
+      "transcript": "Check slide deck with Priya — she said she'd send it tomorrow; check by evening.",
+      "expected": {
+        "thoughts": [
+          {
+            "kind": "task",
+            "bucket": "Tasks",
+            "contains": [
+              "check",
+              "slide"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "organize-pilot-68eb95bf2984",
+      "meta": {
+        "provenance": "de-identified",
+        "labeler": "labeler:pilot-participant",
+        "adjudicator": "labeler:product-owner",
+        "consent": "de-identified",
+        "sensitivity": "low",
+        "notes": "scenario-class:follow-ups; variants:V-NOISE"
+      },
+      "transcript": "Chase Tushar about the demo checklist that's been pending since Tuesday.",
+      "expected": {
+        "thoughts": [
+          {
+            "kind": "task",
+            "bucket": "Tasks",
+            "contains": [
+              "chase",
+              "tushar"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "organize-pilot-e501fcfeed47",
+      "meta": {
+        "provenance": "de-identified",
+        "labeler": "labeler:pilot-participant",
+        "adjudicator": "labeler:product-owner",
+        "consent": "de-identified",
+        "sensitivity": "low",
+        "notes": "scenario-class:follow-ups; variants:V-NOISE"
+      },
+      "transcript": "Follow up on vendor portal renewal before Monday to avoid losing access.",
+      "expected": {
+        "thoughts": [
+          {
+            "kind": "task",
+            "bucket": "Tasks",
+            "contains": [
+              "follow",
+              "vendor"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "organize-pilot-6051b9bc24f0",
+      "meta": {
+        "provenance": "de-identified",
+        "labeler": "labeler:pilot-participant",
+        "adjudicator": "labeler:product-owner",
+        "consent": "de-identified",
+        "sensitivity": "low",
+        "notes": "scenario-class:decisions"
+      },
+      "transcript": "Move the demo to Friday because analytics build isn't ready; avoiding a broken dashboard is worth a two-day delay.",
+      "expected": {
+        "thoughts": [
+          {
+            "kind": "note",
+            "bucket": "Launch Readiness",
+            "contains": [
+              "move",
+              "demo"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "organize-pilot-0358ecbb892c",
+      "meta": {
+        "provenance": "de-identified",
+        "labeler": "labeler:pilot-participant",
+        "adjudicator": "labeler:product-owner",
+        "consent": "de-identified",
+        "sensitivity": "low",
+        "notes": "scenario-class:decisions"
+      },
+      "transcript": "Keep the vendor portal in scope for this release to avoid manual workarounds for three teams.",
+      "expected": {
+        "thoughts": [
+          {
+            "kind": "note",
+            "bucket": "Launch Readiness",
+            "contains": [
+              "keep",
+              "vendor"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "organize-pilot-9a2d1e456c75",
+      "meta": {
+        "provenance": "de-identified",
+        "labeler": "labeler:pilot-participant",
+        "adjudicator": "labeler:product-owner",
+        "consent": "de-identified",
+        "sensitivity": "low",
+        "notes": "scenario-class:decisions"
+      },
+      "transcript": "Defer changing the pricing page this quarter; plan to revisit after the next cohort.",
+      "expected": {
+        "thoughts": [
+          {
+            "kind": "task",
+            "bucket": "Tasks",
+            "contains": [
+              "defer",
+              "changing"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "organize-pilot-de92126fa5ca",
+      "meta": {
+        "provenance": "de-identified",
+        "labeler": "labeler:pilot-participant",
+        "adjudicator": "labeler:product-owner",
+        "consent": "de-identified",
+        "sensitivity": "low",
+        "notes": "scenario-class:people; variants:V-ACCENT"
+      },
+      "transcript": "Priya owns the launch deck end-to-end.",
+      "expected": {
+        "thoughts": [
+          {
+            "kind": "note",
+            "bucket": "Launch Readiness",
+            "contains": [
+              "priya",
+              "owns"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "organize-pilot-61f4aeee034b",
+      "meta": {
+        "provenance": "de-identified",
+        "labeler": "labeler:pilot-participant",
+        "adjudicator": "labeler:product-owner",
+        "consent": "de-identified",
+        "sensitivity": "low",
+        "notes": "scenario-class:people; variants:V-ACCENT"
+      },
+      "transcript": "Priya is the right person for anything design-related.",
+      "expected": {
+        "thoughts": [
+          {
+            "kind": "note",
+            "bucket": "Launch Readiness",
+            "contains": [
+              "priya",
+              "right"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "organize-pilot-12f1ba7f7013",
+      "meta": {
+        "provenance": "de-identified",
+        "labeler": "labeler:pilot-participant",
+        "adjudicator": "labeler:product-owner",
+        "consent": "de-identified",
+        "sensitivity": "low",
+        "notes": "scenario-class:people; variants:V-ACCENT"
+      },
+      "transcript": "Tushar is handling the demo logistics.",
+      "expected": {
+        "thoughts": [
+          {
+            "kind": "note",
+            "bucket": "Launch Readiness",
+            "contains": [
+              "tushar",
+              "handling"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "organize-pilot-aa1af141a845",
+      "meta": {
+        "provenance": "de-identified",
+        "labeler": "labeler:pilot-participant",
+        "adjudicator": "labeler:product-owner",
+        "consent": "de-identified",
+        "sensitivity": "low",
+        "notes": "scenario-class:projects; variants:V-INTERRUPT"
+      },
+      "transcript": "Demo moved to Friday",
+      "expected": {
+        "thoughts": [
+          {
+            "kind": "note",
+            "bucket": "Launch Readiness",
+            "contains": [
+              "demo",
+              "moved"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "organize-pilot-14e47c6d5a89",
+      "meta": {
+        "provenance": "de-identified",
+        "labeler": "labeler:pilot-participant",
+        "adjudicator": "labeler:product-owner",
+        "consent": "de-identified",
+        "sensitivity": "low",
+        "notes": "scenario-class:projects; variants:V-INTERRUPT"
+      },
+      "transcript": "Rehearsal for the demo is still unbooked (risk)",
+      "expected": {
+        "thoughts": [
+          {
+            "kind": "note",
+            "bucket": "Launch Readiness",
+            "contains": [
+              "rehearsal",
+              "demo"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "organize-pilot-6a5531bbbcb1",
+      "meta": {
+        "provenance": "de-identified",
+        "labeler": "labeler:pilot-participant",
+        "adjudicator": "labeler:product-owner",
+        "consent": "de-identified",
+        "sensitivity": "low",
+        "notes": "scenario-class:projects; variants:V-INTERRUPT"
+      },
+      "transcript": "Website redesign is stuck",
+      "expected": {
+        "thoughts": [
+          {
+            "kind": "note",
+            "bucket": "Website Redesign",
+            "contains": [
+              "website",
+              "redesign"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "organize-pilot-9a541fbece9d",
+      "meta": {
+        "provenance": "de-identified",
+        "labeler": "labeler:pilot-participant",
+        "adjudicator": "labeler:product-owner",
+        "consent": "de-identified",
+        "sensitivity": "low",
+        "notes": "scenario-class:mixed/emotional"
+      },
+      "transcript": "Vendor portal renewal has been pending on my list for a week",
+      "expected": {
+        "thoughts": [
+          {
+            "kind": "note",
+            "bucket": "Launch Readiness",
+            "contains": [
+              "vendor",
+              "portal"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "organize-pilot-b58213d29669",
+      "meta": {
+        "provenance": "de-identified",
+        "labeler": "labeler:pilot-participant",
+        "adjudicator": "labeler:product-owner",
+        "consent": "de-identified",
+        "sensitivity": "low",
+        "notes": "scenario-class:mixed/emotional"
+      },
+      "transcript": "Vendor portal renewal expires Monday (no one told me)",
+      "expected": {
+        "thoughts": [
+          {
+            "kind": "note",
+            "bucket": "Launch Readiness",
+            "contains": [
+              "vendor",
+              "portal"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "organize-pilot-4b24202d3d37",
+      "meta": {
+        "provenance": "de-identified",
+        "labeler": "labeler:pilot-participant",
+        "adjudicator": "labeler:product-owner",
+        "consent": "de-identified",
+        "sensitivity": "low",
+        "notes": "scenario-class:mixed/emotional"
+      },
+      "transcript": "Book rehearsal (not yet booked)",
+      "expected": {
+        "thoughts": [
+          {
+            "kind": "task",
+            "bucket": "Tasks",
+            "contains": [
+              "book",
+              "rehearsal"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "organize-pilot-d20fc70b8838",
+      "meta": {
+        "provenance": "de-identified",
+        "labeler": "labeler:pilot-participant",
+        "adjudicator": "labeler:product-owner",
+        "consent": "de-identified",
+        "sensitivity": "low",
+        "notes": "scenario-class:multi-capture"
+      },
+      "transcript": "Expect demo date question to come up in the launch sync",
+      "expected": {
+        "thoughts": [
+          {
+            "kind": "note",
+            "bucket": "Launch Readiness",
+            "contains": [
+              "expect",
+              "demo"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "organize-pilot-052ef140d382",
+      "meta": {
+        "provenance": "de-identified",
+        "labeler": "labeler:pilot-participant",
+        "adjudicator": "labeler:product-owner",
+        "consent": "de-identified",
+        "sensitivity": "low",
+        "notes": "scenario-class:multi-capture"
+      },
+      "transcript": "Priya will want the slides locked",
+      "expected": {
+        "thoughts": [
+          {
+            "kind": "note",
+            "bucket": "Launch Readiness",
+            "contains": [
+              "priya",
+              "will"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "organize-pilot-f828463f400a",
+      "meta": {
+        "provenance": "de-identified",
+        "labeler": "labeler:pilot-participant",
+        "adjudicator": "labeler:product-owner",
+        "consent": "de-identified",
+        "sensitivity": "low",
+        "notes": "scenario-class:multi-capture"
+      },
+      "transcript": "Raise the rehearsal booking (action)",
+      "expected": {
+        "thoughts": [
+          {
+            "kind": "task",
+            "bucket": "Tasks",
+            "contains": [
+              "raise",
+              "rehearsal"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "legacyImport": {
+    "path": "../organize.v1.json",
+    "format": "organize-legacy-v1"
+  },
+  "adjudications": [
+    {
+      "at": "2026-09-04T13:49:00.354Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-89ef3a098348",
+      "change": "expected.bucket: 'Vendor Contracts' → 'Negotiations'",
+      "reason": "pilot correction 52e90ff0-7690-4289-afed-c25fdd0af990 accepted; promoted de-identified with eval-sharing consent"
+    },
+    {
+      "at": "2026-09-04T13:49:01.400Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-7bd4f7f0533a",
+      "change": "expected.bucket: 'Product Ideas' → 'Vendor Portal'",
+      "reason": "pilot correction 4d7e4b5c-1e44-4dbd-8abf-8c361f4488ff accepted; promoted de-identified with eval-sharing consent"
+    },
+    {
+      "at": "2026-09-04T17:32:20.939Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-d82de0586650",
+      "change": "new case: first-pass accepted placement 'Launch Readiness'",
+      "reason": "pilot decision a4368ef6-e7a2-4635-a0bc-2a018ee50b71 (explicit accept); promoted de-identified with eval-sharing consent"
+    },
+    {
+      "at": "2026-09-04T17:32:31.182Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-9c10f9e252fc",
+      "change": "new case: first-pass accepted placement 'Launch Readiness'",
+      "reason": "pilot decision d0d4ab81-cabe-4696-9245-1ed62530788f (explicit accept); promoted de-identified with eval-sharing consent"
+    },
+    {
+      "at": "2026-09-04T17:32:42.481Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-8c33b41e18b5",
+      "change": "new case: first-pass accepted placement 'Tasks'",
+      "reason": "pilot decision 1aa469a8-9689-4875-bbe2-ecf72bd37891 (explicit accept); promoted de-identified with eval-sharing consent"
+    },
+    {
+      "at": "2026-09-04T17:33:37.690Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-d6e0e93b2c5e",
+      "change": "new case: first-pass accepted placement 'Tasks'",
+      "reason": "pilot decision 200cbd07-26e3-45fe-aa58-aa946f16be54 (explicit accept); promoted de-identified with eval-sharing consent"
+    },
+    {
+      "at": "2026-09-04T17:33:49.016Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-2fb8388ec012",
+      "change": "new case: first-pass accepted placement 'Tasks'",
+      "reason": "pilot decision 2d50c378-01e8-44b5-94d4-43933f228b01 (explicit accept); promoted de-identified with eval-sharing consent"
+    },
+    {
+      "at": "2026-09-04T17:34:00.415Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-85565af98f01",
+      "change": "new case: first-pass accepted placement 'Tasks'",
+      "reason": "pilot decision 228afcf9-3729-447f-8157-a834a54419cf (explicit accept); promoted de-identified with eval-sharing consent"
+    },
+    {
+      "at": "2026-09-04T17:34:44.535Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-d1433f374b73",
+      "change": "new case: first-pass accepted placement 'Product Ideas'",
+      "reason": "pilot decision 6244970c-395a-42cd-90c7-93ac96c019b3 (explicit accept); promoted de-identified with eval-sharing consent"
+    },
+    {
+      "at": "2026-09-04T17:34:55.210Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-857e61b6f2aa",
+      "change": "new case: first-pass accepted placement 'Product Ideas'",
+      "reason": "pilot decision e9b316fd-167a-4939-bd1f-467fff40d99b (explicit accept); promoted de-identified with eval-sharing consent"
+    },
+    {
+      "at": "2026-09-04T17:35:05.576Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-17d036e067fe",
+      "change": "new case: first-pass accepted placement 'Product Ideas'",
+      "reason": "pilot decision 3b09b525-22a2-4ca3-a1d9-ce574b4130fd (explicit accept); promoted de-identified with eval-sharing consent"
+    },
+    {
+      "at": "2026-09-04T17:35:48.030Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-78c3d7ff25ab",
+      "change": "new case: first-pass accepted placement 'Tasks'",
+      "reason": "pilot decision 477ef2e9-c45c-49b8-ae87-e081e17aec69 (explicit accept); promoted de-identified with eval-sharing consent"
+    },
+    {
+      "at": "2026-09-04T17:35:58.859Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-68eb95bf2984",
+      "change": "new case: first-pass accepted placement 'Tasks'",
+      "reason": "pilot decision faa6887a-c362-4143-8b89-45d8fb3b4d71 (explicit accept); promoted de-identified with eval-sharing consent"
+    },
+    {
+      "at": "2026-09-04T17:36:09.582Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-e501fcfeed47",
+      "change": "new case: first-pass accepted placement 'Tasks'",
+      "reason": "pilot decision 96336b4f-26fb-4560-974c-3b0e35825387 (explicit accept); promoted de-identified with eval-sharing consent"
+    },
+    {
+      "at": "2026-09-04T17:36:42.953Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-6051b9bc24f0",
+      "change": "new case: first-pass accepted placement 'Launch Readiness'",
+      "reason": "pilot decision 9c247b39-428a-4b74-b5f5-ca141de3fa56 (explicit accept); promoted de-identified with eval-sharing consent"
+    },
+    {
+      "at": "2026-09-04T17:36:54.090Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-0358ecbb892c",
+      "change": "new case: first-pass accepted placement 'Launch Readiness'",
+      "reason": "pilot decision a6561306-9af3-4c4d-aee3-bc91d4a65bd2 (explicit accept); promoted de-identified with eval-sharing consent"
+    },
+    {
+      "at": "2026-09-04T17:37:04.894Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-9a2d1e456c75",
+      "change": "new case: first-pass accepted placement 'Tasks'",
+      "reason": "pilot decision e3ba3a28-a3c6-4614-b9fa-2321c079506b (explicit accept); promoted de-identified with eval-sharing consent"
+    },
+    {
+      "at": "2026-09-04T17:37:15.813Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-de92126fa5ca",
+      "change": "new case: first-pass accepted placement 'Launch Readiness'",
+      "reason": "pilot decision f98578e4-d1d8-4188-8d9d-f25d0998ffe8 (explicit accept); promoted de-identified with eval-sharing consent"
+    },
+    {
+      "at": "2026-09-04T17:37:26.171Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-61f4aeee034b",
+      "change": "new case: first-pass accepted placement 'Launch Readiness'",
+      "reason": "pilot decision 706b7980-218f-494e-a36d-31bb679cb178 (explicit accept); promoted de-identified with eval-sharing consent"
+    },
+    {
+      "at": "2026-09-04T17:37:36.868Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-12f1ba7f7013",
+      "change": "new case: first-pass accepted placement 'Launch Readiness'",
+      "reason": "pilot decision d8b731d3-b7d5-4515-a40d-3bd24bc42b61 (explicit accept); promoted de-identified with eval-sharing consent"
+    },
+    {
+      "at": "2026-09-04T17:38:43.068Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-aa1af141a845",
+      "change": "new case: first-pass accepted placement 'Launch Readiness'",
+      "reason": "pilot decision 5123114a-7edb-47e4-b746-66c38ac9314d (explicit accept); promoted de-identified with eval-sharing consent"
+    },
+    {
+      "at": "2026-09-04T17:38:54.410Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-14e47c6d5a89",
+      "change": "new case: first-pass accepted placement 'Launch Readiness'",
+      "reason": "pilot decision a3310b87-2db6-4b78-8a19-2e39ff921a25 (explicit accept); promoted de-identified with eval-sharing consent"
+    },
+    {
+      "at": "2026-09-04T17:39:05.238Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-6a5531bbbcb1",
+      "change": "new case: first-pass accepted placement 'Website Redesign'",
+      "reason": "pilot decision 638efa00-1170-4eaa-a9de-f02d5e97da8a (explicit accept); promoted de-identified with eval-sharing consent"
+    },
+    {
+      "at": "2026-09-04T17:40:00.620Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-9a541fbece9d",
+      "change": "new case: first-pass accepted placement 'Launch Readiness'",
+      "reason": "pilot decision 20ca47bb-46f5-41c6-a043-95569b7fcac7 (explicit accept); promoted de-identified with eval-sharing consent"
+    },
+    {
+      "at": "2026-09-04T17:40:11.880Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-b58213d29669",
+      "change": "new case: first-pass accepted placement 'Launch Readiness'",
+      "reason": "pilot decision 41f38196-0fc5-4ece-8a05-79b14817c46e (explicit accept); promoted de-identified with eval-sharing consent"
+    },
+    {
+      "at": "2026-09-04T17:40:23.064Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-4b24202d3d37",
+      "change": "new case: first-pass accepted placement 'Tasks'",
+      "reason": "pilot decision af50efa5-b336-416c-91ab-f167c6d160f4 (explicit accept); promoted de-identified with eval-sharing consent"
+    },
+    {
+      "at": "2026-09-04T17:41:08.122Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-d20fc70b8838",
+      "change": "new case: first-pass accepted placement 'Launch Readiness'",
+      "reason": "pilot decision b8c8b8f7-6067-4c14-b3fd-89df2ce8a34a (explicit accept); promoted de-identified with eval-sharing consent"
+    },
+    {
+      "at": "2026-09-04T17:41:19.560Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-052ef140d382",
+      "change": "new case: first-pass accepted placement 'Launch Readiness'",
+      "reason": "pilot decision 6d2869c8-a79d-44d7-97fb-c13065bc4a0b (explicit accept); promoted de-identified with eval-sharing consent"
+    },
+    {
+      "at": "2026-09-04T17:41:30.744Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-f828463f400a",
+      "change": "new case: first-pass accepted placement 'Tasks'",
+      "reason": "pilot decision 981c1afb-4073-4187-ae8b-ed002186467f (explicit accept); promoted de-identified with eval-sharing consent"
+    },
+    {
+      "at": "2026-09-04T19:36:01.000Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-d82de0586650",
+      "change": "partition: dev → held-out (from organize.dev.v1 v58)",
+      "reason": "Stratified batch (product-owner approved 2026-09-05): first 3 cases per scenario class in chronological envelope order plus both legacy corrected-kind seeds; 29 cases, >=2 per class, satisfying the >=20 total / >=2 per-class held-out minimum."
+    },
+    {
+      "at": "2026-09-04T19:36:01.000Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-9c10f9e252fc",
+      "change": "partition: dev → held-out (from organize.dev.v1 v58)",
+      "reason": "Stratified batch (product-owner approved 2026-09-05): first 3 cases per scenario class in chronological envelope order plus both legacy corrected-kind seeds; 29 cases, >=2 per class, satisfying the >=20 total / >=2 per-class held-out minimum."
+    },
+    {
+      "at": "2026-09-04T19:36:01.000Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-8c33b41e18b5",
+      "change": "partition: dev → held-out (from organize.dev.v1 v58)",
+      "reason": "Stratified batch (product-owner approved 2026-09-05): first 3 cases per scenario class in chronological envelope order plus both legacy corrected-kind seeds; 29 cases, >=2 per class, satisfying the >=20 total / >=2 per-class held-out minimum."
+    },
+    {
+      "at": "2026-09-04T19:36:01.000Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-d6e0e93b2c5e",
+      "change": "partition: dev → held-out (from organize.dev.v1 v58)",
+      "reason": "Stratified batch (product-owner approved 2026-09-05): first 3 cases per scenario class in chronological envelope order plus both legacy corrected-kind seeds; 29 cases, >=2 per class, satisfying the >=20 total / >=2 per-class held-out minimum."
+    },
+    {
+      "at": "2026-09-04T19:36:01.000Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-2fb8388ec012",
+      "change": "partition: dev → held-out (from organize.dev.v1 v58)",
+      "reason": "Stratified batch (product-owner approved 2026-09-05): first 3 cases per scenario class in chronological envelope order plus both legacy corrected-kind seeds; 29 cases, >=2 per class, satisfying the >=20 total / >=2 per-class held-out minimum."
+    },
+    {
+      "at": "2026-09-04T19:36:01.000Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-85565af98f01",
+      "change": "partition: dev → held-out (from organize.dev.v1 v58)",
+      "reason": "Stratified batch (product-owner approved 2026-09-05): first 3 cases per scenario class in chronological envelope order plus both legacy corrected-kind seeds; 29 cases, >=2 per class, satisfying the >=20 total / >=2 per-class held-out minimum."
+    },
+    {
+      "at": "2026-09-04T19:36:01.000Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-d1433f374b73",
+      "change": "partition: dev → held-out (from organize.dev.v1 v58)",
+      "reason": "Stratified batch (product-owner approved 2026-09-05): first 3 cases per scenario class in chronological envelope order plus both legacy corrected-kind seeds; 29 cases, >=2 per class, satisfying the >=20 total / >=2 per-class held-out minimum."
+    },
+    {
+      "at": "2026-09-04T19:36:01.000Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-857e61b6f2aa",
+      "change": "partition: dev → held-out (from organize.dev.v1 v58)",
+      "reason": "Stratified batch (product-owner approved 2026-09-05): first 3 cases per scenario class in chronological envelope order plus both legacy corrected-kind seeds; 29 cases, >=2 per class, satisfying the >=20 total / >=2 per-class held-out minimum."
+    },
+    {
+      "at": "2026-09-04T19:36:01.000Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-17d036e067fe",
+      "change": "partition: dev → held-out (from organize.dev.v1 v58)",
+      "reason": "Stratified batch (product-owner approved 2026-09-05): first 3 cases per scenario class in chronological envelope order plus both legacy corrected-kind seeds; 29 cases, >=2 per class, satisfying the >=20 total / >=2 per-class held-out minimum."
+    },
+    {
+      "at": "2026-09-04T19:36:01.000Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-78c3d7ff25ab",
+      "change": "partition: dev → held-out (from organize.dev.v1 v58)",
+      "reason": "Stratified batch (product-owner approved 2026-09-05): first 3 cases per scenario class in chronological envelope order plus both legacy corrected-kind seeds; 29 cases, >=2 per class, satisfying the >=20 total / >=2 per-class held-out minimum."
+    },
+    {
+      "at": "2026-09-04T19:36:01.000Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-68eb95bf2984",
+      "change": "partition: dev → held-out (from organize.dev.v1 v58)",
+      "reason": "Stratified batch (product-owner approved 2026-09-05): first 3 cases per scenario class in chronological envelope order plus both legacy corrected-kind seeds; 29 cases, >=2 per class, satisfying the >=20 total / >=2 per-class held-out minimum."
+    },
+    {
+      "at": "2026-09-04T19:36:01.000Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-e501fcfeed47",
+      "change": "partition: dev → held-out (from organize.dev.v1 v58)",
+      "reason": "Stratified batch (product-owner approved 2026-09-05): first 3 cases per scenario class in chronological envelope order plus both legacy corrected-kind seeds; 29 cases, >=2 per class, satisfying the >=20 total / >=2 per-class held-out minimum."
+    },
+    {
+      "at": "2026-09-04T19:36:01.000Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-6051b9bc24f0",
+      "change": "partition: dev → held-out (from organize.dev.v1 v58)",
+      "reason": "Stratified batch (product-owner approved 2026-09-05): first 3 cases per scenario class in chronological envelope order plus both legacy corrected-kind seeds; 29 cases, >=2 per class, satisfying the >=20 total / >=2 per-class held-out minimum."
+    },
+    {
+      "at": "2026-09-04T19:36:01.000Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-0358ecbb892c",
+      "change": "partition: dev → held-out (from organize.dev.v1 v58)",
+      "reason": "Stratified batch (product-owner approved 2026-09-05): first 3 cases per scenario class in chronological envelope order plus both legacy corrected-kind seeds; 29 cases, >=2 per class, satisfying the >=20 total / >=2 per-class held-out minimum."
+    },
+    {
+      "at": "2026-09-04T19:36:01.000Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-9a2d1e456c75",
+      "change": "partition: dev → held-out (from organize.dev.v1 v58)",
+      "reason": "Stratified batch (product-owner approved 2026-09-05): first 3 cases per scenario class in chronological envelope order plus both legacy corrected-kind seeds; 29 cases, >=2 per class, satisfying the >=20 total / >=2 per-class held-out minimum."
+    },
+    {
+      "at": "2026-09-04T19:36:01.000Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-de92126fa5ca",
+      "change": "partition: dev → held-out (from organize.dev.v1 v58)",
+      "reason": "Stratified batch (product-owner approved 2026-09-05): first 3 cases per scenario class in chronological envelope order plus both legacy corrected-kind seeds; 29 cases, >=2 per class, satisfying the >=20 total / >=2 per-class held-out minimum."
+    },
+    {
+      "at": "2026-09-04T19:36:01.000Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-61f4aeee034b",
+      "change": "partition: dev → held-out (from organize.dev.v1 v58)",
+      "reason": "Stratified batch (product-owner approved 2026-09-05): first 3 cases per scenario class in chronological envelope order plus both legacy corrected-kind seeds; 29 cases, >=2 per class, satisfying the >=20 total / >=2 per-class held-out minimum."
+    },
+    {
+      "at": "2026-09-04T19:36:01.000Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-12f1ba7f7013",
+      "change": "partition: dev → held-out (from organize.dev.v1 v58)",
+      "reason": "Stratified batch (product-owner approved 2026-09-05): first 3 cases per scenario class in chronological envelope order plus both legacy corrected-kind seeds; 29 cases, >=2 per class, satisfying the >=20 total / >=2 per-class held-out minimum."
+    },
+    {
+      "at": "2026-09-04T19:36:01.000Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-aa1af141a845",
+      "change": "partition: dev → held-out (from organize.dev.v1 v58)",
+      "reason": "Stratified batch (product-owner approved 2026-09-05): first 3 cases per scenario class in chronological envelope order plus both legacy corrected-kind seeds; 29 cases, >=2 per class, satisfying the >=20 total / >=2 per-class held-out minimum."
+    },
+    {
+      "at": "2026-09-04T19:36:01.000Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-14e47c6d5a89",
+      "change": "partition: dev → held-out (from organize.dev.v1 v58)",
+      "reason": "Stratified batch (product-owner approved 2026-09-05): first 3 cases per scenario class in chronological envelope order plus both legacy corrected-kind seeds; 29 cases, >=2 per class, satisfying the >=20 total / >=2 per-class held-out minimum."
+    },
+    {
+      "at": "2026-09-04T19:36:01.000Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-6a5531bbbcb1",
+      "change": "partition: dev → held-out (from organize.dev.v1 v58)",
+      "reason": "Stratified batch (product-owner approved 2026-09-05): first 3 cases per scenario class in chronological envelope order plus both legacy corrected-kind seeds; 29 cases, >=2 per class, satisfying the >=20 total / >=2 per-class held-out minimum."
+    },
+    {
+      "at": "2026-09-04T19:36:01.000Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-9a541fbece9d",
+      "change": "partition: dev → held-out (from organize.dev.v1 v58)",
+      "reason": "Stratified batch (product-owner approved 2026-09-05): first 3 cases per scenario class in chronological envelope order plus both legacy corrected-kind seeds; 29 cases, >=2 per class, satisfying the >=20 total / >=2 per-class held-out minimum."
+    },
+    {
+      "at": "2026-09-04T19:36:01.000Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-b58213d29669",
+      "change": "partition: dev → held-out (from organize.dev.v1 v58)",
+      "reason": "Stratified batch (product-owner approved 2026-09-05): first 3 cases per scenario class in chronological envelope order plus both legacy corrected-kind seeds; 29 cases, >=2 per class, satisfying the >=20 total / >=2 per-class held-out minimum."
+    },
+    {
+      "at": "2026-09-04T19:36:01.000Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-4b24202d3d37",
+      "change": "partition: dev → held-out (from organize.dev.v1 v58)",
+      "reason": "Stratified batch (product-owner approved 2026-09-05): first 3 cases per scenario class in chronological envelope order plus both legacy corrected-kind seeds; 29 cases, >=2 per class, satisfying the >=20 total / >=2 per-class held-out minimum."
+    },
+    {
+      "at": "2026-09-04T19:36:01.000Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-d20fc70b8838",
+      "change": "partition: dev → held-out (from organize.dev.v1 v58)",
+      "reason": "Stratified batch (product-owner approved 2026-09-05): first 3 cases per scenario class in chronological envelope order plus both legacy corrected-kind seeds; 29 cases, >=2 per class, satisfying the >=20 total / >=2 per-class held-out minimum."
+    },
+    {
+      "at": "2026-09-04T19:36:01.000Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-052ef140d382",
+      "change": "partition: dev → held-out (from organize.dev.v1 v58)",
+      "reason": "Stratified batch (product-owner approved 2026-09-05): first 3 cases per scenario class in chronological envelope order plus both legacy corrected-kind seeds; 29 cases, >=2 per class, satisfying the >=20 total / >=2 per-class held-out minimum."
+    },
+    {
+      "at": "2026-09-04T19:36:01.000Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-f828463f400a",
+      "change": "partition: dev → held-out (from organize.dev.v1 v58)",
+      "reason": "Stratified batch (product-owner approved 2026-09-05): first 3 cases per scenario class in chronological envelope order plus both legacy corrected-kind seeds; 29 cases, >=2 per class, satisfying the >=20 total / >=2 per-class held-out minimum."
+    },
+    {
+      "at": "2026-09-04T19:36:01.000Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-89ef3a098348",
+      "change": "partition: dev → held-out (from organize.dev.v1 v58)",
+      "reason": "Stratified batch (product-owner approved 2026-09-05): first 3 cases per scenario class in chronological envelope order plus both legacy corrected-kind seeds; 29 cases, >=2 per class, satisfying the >=20 total / >=2 per-class held-out minimum."
+    },
+    {
+      "at": "2026-09-04T19:36:01.000Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-7bd4f7f0533a",
+      "change": "partition: dev → held-out (from organize.dev.v1 v58)",
+      "reason": "Stratified batch (product-owner approved 2026-09-05): first 3 cases per scenario class in chronological envelope order plus both legacy corrected-kind seeds; 29 cases, >=2 per class, satisfying the >=20 total / >=2 per-class held-out minimum."
+    }
+  ]
 }
