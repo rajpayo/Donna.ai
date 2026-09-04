@@ -2,17 +2,20 @@
 id: "6.5"
 title: "In-context organize evaluation (capture-time bucket snapshots)"
 phase: "06"
-status: "draft"
+status: "approved"
 depends_on: ["6.4"]
 ---
 
 # Specification 6.5 — In-context organize evaluation (capture-time bucket snapshots)
 
-> **Open-question resolutions (product owner, 2026-09-05):** the product owner
-> answered all five open questions; the binding resolutions are recorded
-> inline under each question in
-> [Open questions](#open-questions-for-the-product-owner) and applied in the
-> body. The specification remains `draft` pending approval for implementation.
+> **Approval (product owner, 2026-09-05):** the product owner approved this
+> specification for implementation, including all five resolutions recorded
+> inline under [Open questions](#open-questions-for-the-product-owner). The
+> product owner instructed the implementer to use engineering and product
+> judgment within the accepted product boundaries rather than follow wording
+> mechanically; any material change to product behavior, privacy or consent,
+> gate meaning or threshold, or architecture still requires a pause and an
+> explicit product-owner decision.
 
 ## Outcome
 
