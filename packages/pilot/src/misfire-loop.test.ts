@@ -10,6 +10,7 @@ import {
   collectRunDecisions,
   FileMisfireRegisterStore,
   FilePilotRunStore,
+  findRunForCapture,
   MisfireNotFoundError,
   MisfireRegister,
   PilotRunBook,
@@ -259,6 +260,31 @@ describe("pilot run instrumentation (Spec 6.2 FR-1)", () => {
     );
     assert.deepEqual(decisions.corrections, { "bucket.move": 2, "retrieval.relevance": 1 });
     assert.deepEqual(decisions.correctionIds, ["c1", "c2", "c3"]);
+  });
+
+  it("findRunForCapture resolves the capture→run mapping for unlinked decisions (Spec 6.4 FR-12 fix)", () => {
+    const mkRun = (id: string, scenarioId: string, captureIds: string[]): PilotRunRecord =>
+      ({
+        schema: "donna.pilot-run.v1",
+        id,
+        tenantId: "t",
+        userId: "u",
+        participantId: "P-01",
+        scenarioId,
+        startedAt: "2026-09-03T10:00:00.000Z",
+        endedAt: "2026-09-03T11:00:00.000Z",
+        configFingerprint: "fp",
+        captureIds,
+        decisions: { corrections: {}, correctionIds: [], memoryApprovals: 0, memoryRejections: 0, memoryEventIds: [] },
+      }) as PilotRunRecord;
+    const runs = [
+      mkRun("run-1", "SC-MEET-01", ["cap-a"]),
+      mkRun("run-2", "SC-TASK-01", ["cap-b", "cap-c"]),
+    ];
+    assert.equal(findRunForCapture(runs, "cap-c")?.scenarioId, "SC-TASK-01");
+    assert.equal(findRunForCapture(runs, "cap-a")?.id, "run-1");
+    assert.equal(findRunForCapture(runs, "cap-missing"), undefined);
+    assert.equal(findRunForCapture([], "cap-a"), undefined);
   });
 });
 

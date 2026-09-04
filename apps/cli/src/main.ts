@@ -135,6 +135,7 @@ import {
   FilePilotDecisionStore,
   FilePilotProfileStore,
   FilePilotRunStore,
+  findRunForCapture,
   MisfireRegister,
   MISFIRE_CATEGORIES,
   MISFIRE_DISPOSITIONS,
@@ -504,13 +505,27 @@ async function resolvePromotionSource(
   let decision = decisions.find((d) => d.id === id);
 
   const cohortFor = async (d: PilotDecision | undefined): Promise<PromotionCohort> => {
-    if (d?.scenarioId === undefined) return {};
+    if (d === undefined) return {};
+    // Spec 6.4 FR-12 post-acceptance fix (product-owner approved 2026-09-04):
+    // decisions recorded outside an open run (the sanctioned explicit review
+    // of pre-6.4 placements) resolve their cohort via the capture→run mapping.
+    let scenarioId = d.scenarioId;
+    let runId = d.runId;
+    if (scenarioId === undefined && d.captureId !== undefined) {
+      const runs = await buildRunBook().list(scope).catch(() => []);
+      const match = findRunForCapture(runs, d.captureId);
+      if (match !== undefined) {
+        scenarioId = match.scenarioId;
+        runId = match.id;
+      }
+    }
+    if (scenarioId === undefined) return {};
     const cohort: PromotionCohort = {};
-    const scenarioClass = SCENARIO_CLASSES[d.scenarioId];
+    const scenarioClass = SCENARIO_CLASSES[scenarioId];
     if (scenarioClass !== undefined) cohort.scenarioClass = scenarioClass;
-    if (d.runId !== undefined) {
+    if (runId !== undefined) {
       const run = await buildRunBook()
-        .get(scope, d.runId)
+        .get(scope, runId)
         .catch(() => undefined);
       const variants = variantsFromNotes(run?.notes);
       if (variants.length > 0) cohort.variants = variants;

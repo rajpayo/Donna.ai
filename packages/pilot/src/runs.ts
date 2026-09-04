@@ -127,6 +127,20 @@ export class RunNotFoundError extends Error {
   }
 }
 
+/**
+ * Find the run that captured a given capture ID (Spec 6.4 FR-12
+ * post-acceptance fix, product-owner approved 2026-09-04): decisions
+ * recorded outside an open run — the sanctioned explicit review of pre-6.4
+ * placements — still carry cohort metadata via this capture→run mapping.
+ * Pure; the caller lists runs in scope.
+ */
+export function findRunForCapture(
+  runs: PilotRunRecord[],
+  captureId: string,
+): PilotRunRecord | undefined {
+  return runs.find((run) => run.captureIds.includes(captureId));
+}
+
 export class PilotRunBook {
   constructor(
     private readonly store: PilotRunStore,
