@@ -2,7 +2,7 @@
 id: "6.5"
 title: "In-context organize evaluation (capture-time bucket snapshots)"
 phase: "06"
-status: "blocked"
+status: "in-review"
 depends_on: ["6.4"]
 ---
 
@@ -17,13 +17,14 @@ depends_on: ["6.4"]
 > gate meaning or threshold, or architecture still requires a pause and an
 > explicit product-owner decision.
 >
-> **Implementation blocker (2026-09-05):** the sanctioned dry run found 55
-> cases reconstructible exactly and two legacy correction-derived inline
-> cases whose source corrections and capture links no longer exist in the
-> authorized participant scope. Per the binding ambiguity resolution, their
-> snapshots/origins will not be guessed and held-out v3 will not be run until
-> the product owner batch-adjudicates those two entries in
-> `organize.snapshot-drift.v3.json`.
+> **Blocker resolved (product owner, 2026-09-05):** the sanctioned dry run
+> found 55 cases reconstructible exactly and two correction-derived inline
+> cases whose source corrections and capture links no longer exist. The
+> product owner explicitly batch-adjudicated both as fresh first captures
+> with `existingBuckets: []` and `bucketOrigin: "minted"` under rationale
+> `product-owner-adjudicated-fresh-first-capture`. This is binding evidence,
+> not an inferred reconstruction; neither empty snapshot contains its expected
+> label.
 
 ## Outcome
 
@@ -528,14 +529,16 @@ scopes for writes:
 
 ## Completion evidence
 
-Implementation is complete through the pre-amendment gate but cannot move to
-`in-review` until the blocker above is adjudicated.
+Implementation and verification are complete. The specification is in review;
+the product-owner acceptance decision remains manual and pending.
 
 ### Commits so far
 
 - `f812e79` — `docs: approve spec 6.5 in-context organize evaluation`
 - `d43fa03` — `feat: implement spec 6.5 in-context organize evaluation`
 - `423dbe5` — `fix: harden snapshot amendment and CI timeout test`
+- `dcce361` — `docs: record spec 6.5 reconstruction blocker`
+- `e62e860` — `evals: freeze adjudicated organize held-out v3`
 
 ### Implemented interfaces and safety checks
 
@@ -554,7 +557,7 @@ Implementation is complete through the pre-amendment gate but cannot move to
   records retain the minimum inverse values required for reconstruction.
 - The gate block in `packages/evals/src/graduation.ts` is byte-untouched.
 
-### Verification completed before the blocker
+### Verification
 
 - Focused Spec 6.5 suites: 62/62 passed, followed by the final amendment +
   promotion rerun at 39/39 passed.
@@ -571,8 +574,19 @@ Implementation is complete through the pre-amendment gate but cannot move to
   additive-only amendment, byte-identical rerun, v2→v3 lock discipline,
   leak rejection, consent revoke-between-preview/confirm, and
   born-with-snapshot preview-hash equality.
+- Post-adjudication focused eval suite: **152 total / 151 passed / 0 failed /
+  1 DB-gated skip**. Full repository suite: **516 total / 515 passed /
+  0 failed / 1 DB-gated skip**.
+- Post-amendment `npm run typecheck`: clean across every workspace.
+- Post-amendment dataset validation: all registered envelopes green;
+  held-out `organize.heldout.v1` v3 has 32 cases and sha256
+  `7c66e17c52186e19f6e1c8bf544e8f5f78b4af9c91ea6c92b1667103151d6a89`;
+  dev v60 has 28 cases.
+- Deterministic baseline check: **59 cases** across adversarial (8),
+  provenance (5), buckets (3), memory (4), emotion (8), retrieval (24), and
+  full-loop (7); every stage passed its baseline with zero hard failures.
 
-### Reconstruction drift and required decision
+### Reconstruction drift and adjudication
 
 The read-only reconstruction dry run examined 57 inline cases: 55 were exact;
 two were flagged with `correction-not-found` + `capture-link-missing`:
@@ -581,20 +595,97 @@ two were flagged with `correction-not-found` + `capture-link-missing`:
 - `organize-pilot-7bd4f7f0533a`
 
 These are the two pre-6.4 correction-envelope seeds, not the three
-`legacyImport` cases that are already approved to remain cold. Treating the
-two seeds as additional cold cases would change the approved instrument and
-gate input, so engineering judgment cannot silently choose it. The product
-owner must provide each case's capture-time `existingBuckets` and
-`bucketOrigin`, or explicitly revise the product ruling.
+`legacyImport` cases that are already approved to remain cold. On 2026-09-05
+the product owner resolved both entries with `existingBuckets: []`,
+`bucketOrigin: "minted"`, and rationale
+`product-owner-adjudicated-fresh-first-capture`:
 
-Held-out v2, its lock, and the official cold report remain unchanged. The live
-v3 run, additive-diff artifact, v3 freeze, before/after metrics, graduation
-linkage, final commits, and final CI result are intentionally pending this
-adjudication.
+- `organize-pilot-89ef3a098348`: Phase 2 records a fresh first capture
+  creating auto `Vendor Contracts`, followed by the accepted correction
+  creating pinned `Negotiations`; neither resulting bucket existed in the
+  organizer's capture-time input.
+- `organize-pilot-7bd4f7f0533a`: Phase 6 records a fresh SC-IDEA capture
+  landing in generic `Product Ideas`, followed by the accepted correction
+  creating pinned `Vendor Portal`; the organizer's capture-time input
+  preceded both resulting placements.
+
+The adjudication is strict and non-leaking: neither expected label appears in
+the empty input snapshot.
+
+The gated amendment machinery then reported **55 reconstructed + 2 explicit
+overrides + 0 unresolved**. The committed drift report is clean. The committed
+v2→v3 diff proves `onlyPermittedChanges: true`, `sameCaseIds: true`, 28 dev
+and 29 held-out inline cases amended, and exactly one adjudication appended
+per amended case. The three `legacyImport` pre-pilot cases remain cold.
+The exact v2 lock is archived at
+`organize.heldout.v2.lock.json` with dataset sha256
+`93c9cf09858757653886dbfb4cd2da3d42bab70d0975a484546805b51a67146d`.
+
+### Live held-out v3 result and before/after
+
+The first valid TrueFoundry live result is
+`reports/organize/organize.heldout.v1-2026-09-04T21-06-39-450Z.json`:
+32 cases, 0 errored, 0 external errors, 0 product errors, and 0 hard failures.
+It used the unchanged `donna.organize-prompt.v2`, unchanged model/config hash
+`018ecc96a70abf4ea635c27d72e607f8baa65ea7dff6f6edf14bd6e05c310319`,
+and the unchanged exact-match gate semantics.
+
+- `organize.thought_coverage`: **0.9375**
+- `organize.task_recall`: **0.96875**
+- `organize.provenance_fidelity`: **1.0**
+- `organize.bucket_acceptance`: **0.484375**
+- `organize.bucket_acceptance_minted`: **0.2222222222222222** (`n=9`)
+- `organize.bucket_acceptance_joined`: **0.6** (`n=20`)
+- `organize.bucket_name_equivalence`: **0.2222222222222222** (`n=9`,
+  diagnostic only)
+
+The official cold v2 report measured `0.453125` on the identical 32 case IDs.
+V3 therefore improves exact bucket acceptance by **0.03125**, but the
+unchanged **0.85 gate fails**. Atomic-thought coverage also misses its 0.95
+graduation gate. No retry was performed because this run was valid; no
+snapshot, label, model, prompt, threshold, or gate was changed after results.
+
+### Freeze, linkage, safety, and limitations
+
+Held-out v3 was frozen from that first valid report. The lock records dataset
+sha256
+`7c66e17c52186e19f6e1c8bf544e8f5f78b4af9c91ea6c92b1667103151d6a89`
+and first-results report sha256
+`c08f952f29a2d3ce168c9e3dbfc918809e70ccf6c7823df03eb1da90bbc5ced1`;
+post-freeze validation reports the lock intact.
+
+The linked graduation report is
+`reports/graduation/graduation-run-2026-09-04T21-13-40-673Z.json`, report hash
+`3a934de2f4a844c23b82ae3bcc628cafa41dd74d5b31b95dfe0cc9b808c7e1d3`.
+Its freeze names `organize.heldout.v1` v3 and the exact dataset hash above.
+It honestly returns **REJECTED / NOT ALL PASS**: thought coverage and bucket
+acceptance fail; task recall, provenance, retrieval, tenant isolation, and
+duplicate-action gates pass. Sign-off stays pending.
+
+Safety evidence: every amended envelope passed sensitive-content and
+joined/minted anti-label-leak validation; both overrides use empty snapshots;
+the legacy imports remain unchanged and cold; the prior v2 lock was intact at
+transition and archived; and `packages/evals/src/graduation.ts`,
+`models.config.yaml`, and prompt inputs have no diff. The lock-discipline and
+tamper-rejection paths remain covered by focused tests.
+
+Known limitations are unchanged: bucket-list-only context omits memory and
+correction-preference context, exact-match minted scoring remains
+conservative, and the live v3 result demonstrates that in-context snapshots
+alone do not bring the current model to graduation quality. There were no
+material product, privacy/consent, architecture, threshold, or gate-semantic
+deviations. The only implementation refinement after adjudication made
+reconstructed and overridden drift counts disjoint so evidence reports the
+binding **55 + 2** split accurately.
 
 ### Product-owner decision
 
-**PENDING — blocked on the two-case batch adjudication above.**
+**PENDING.** For acceptance, examine the two explicit empty-snapshot
+adjudications and their Phase 2/Phase 6 rationale; the clean drift report and
+additive-only v2→v3 diff; representative minted/joined per-case outcomes in
+the live report; the frozen v3 lock and archived v2 lock; and the linked
+graduation report's honest failures at 0.9375 thought coverage and 0.484375
+bucket acceptance.
 
 ## Review gate
 
