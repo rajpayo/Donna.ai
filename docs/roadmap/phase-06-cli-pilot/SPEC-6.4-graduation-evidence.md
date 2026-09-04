@@ -97,6 +97,15 @@ This is a remediation of the Phase 6 pilot-evidence loop. It depends on Spec
 - No auto-graduation: product-owner sign-off stays manual
   (`graduation.ts:357–360`, `:496–499`).
 - No retroactive reclassification of pre-6.4 implicit accepts.
+  - **Resolved (product owner, 2026-09-04):** pre-6.4 placements may receive
+    explicit `pilot decide` review after the fact. Each such decision is a
+    genuine, timestamped review act by the participant (every pre-6.4 run was
+    adjudicated with the product owner at capture time; all placements remain
+    in Donna's original buckets). What remains forbidden is silently counting
+    implicit accepts WITHOUT an explicit `pilot decide` record. Two
+    misfire-flagged thoughts (the spurious meta-phrase extraction and the
+    emotion-as-content thought) are excluded from acceptance evidence and stay
+    undecided.
 
 ## Expected repository changes
 
