@@ -1,0 +1,18 @@
+{
+  "schema": "donna.eval-dataset.v1",
+  "name": "organize.dev.v1",
+  "stage": "organize",
+  "version": 1,
+  "description": "Organize-stage DEVELOPMENT partition (Spec 6.4): de-identified pilot placements land here via the preview/confirm promotion flow. Explicitly legal for config/prompt tuning experiments, each evidenced by report diffs (product-owner resolution, 2026-09-04). Cases move to the held-out partition only via the product-owner-gated dev-to-held-out batch promotion.",
+  "defaultMeta": {
+    "provenance": "de-identified",
+    "labeler": "labeler:pilot-participant",
+    "adjudicator": "labeler:product-owner",
+    "consent": "de-identified",
+    "sensitivity": "low",
+    "language": "en",
+    "notes": "de-identified pilot placements promoted with eval-sharing consent; adjudicator of record is the product owner at batch review"
+  },
+  "cases": [],
+  "adjudications": []
+}

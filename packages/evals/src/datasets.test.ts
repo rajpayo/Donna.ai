@@ -174,6 +174,37 @@ describe("dataset envelope validation (AC-2)", () => {
     const raw = JSON.parse(await readFile(path, "utf8")) as { adjudications: unknown[] };
     assert.equal(raw.adjudications.length, 1);
   });
+
+  it("allows partition-move entries referencing cases that moved out (Spec 6.4 FR-8)", async () => {
+    const ok = envelope({
+      adjudications: [
+        {
+          at: "2026-09-04T12:00:00.000Z",
+          adjudicator: "labeler:product-owner",
+          caseId: "organize-pilot-movedaway",
+          change: "partition: dev → held-out (to organize.heldout.v1 v2)",
+          reason: "stratified batch promotion, product-owner gated",
+        },
+      ],
+    });
+    const path = await writeDataset("partition-move.json", ok);
+    const dataset = await loadDataset(path);
+    assert.equal(dataset.adjudications.length, 1);
+    // A NON-partition entry referencing an absent case still fails.
+    const bad = envelope({
+      adjudications: [
+        {
+          at: "2026-09-04T12:00:00.000Z",
+          adjudicator: "labeler:product-owner",
+          caseId: "organize-pilot-movedaway",
+          change: "expected.bucket: 'A' → 'B'",
+          reason: "label change against a case that is not here",
+        },
+      ],
+    });
+    const badPath = await writeDataset("partition-move-bad.json", bad);
+    await assert.rejects(loadDataset(badPath), /unknown case id/);
+  });
 });
 
 describe("shipped datasets are all valid", () => {
@@ -193,5 +224,20 @@ describe("shipped datasets are all valid", () => {
       const dataset = await loadDataset(resolve(evalsDir, rel));
       assert.ok(dataset.cases.length > 0, `${rel} has no cases`);
     }
+  });
+
+  it("the Spec 6.4 organize partitions validate (held-out seeds the 3 pre-pilot cases)", async () => {
+    const heldout = await loadDataset(
+      resolve(evalsDir, "datasets/golden/organize/organize.heldout.v1.json"),
+    );
+    assert.equal(heldout.name, "organize.heldout.v1");
+    assert.equal(heldout.cases.length, 3); // the frozen pre-pilot cases via legacyImport
+    assert.ok(heldout.cases.every((c) => c.meta.provenance === "synthetic"));
+    // The dev partition validates whether empty or seeded (inline cases only).
+    const dev = await loadDataset(
+      resolve(evalsDir, "datasets/golden/organize/organize.dev.v1.json"),
+    );
+    assert.equal(dev.name, "organize.dev.v1");
+    assert.ok(dev.cases.every((c) => c.id.startsWith("organize-pilot-")));
   });
 });

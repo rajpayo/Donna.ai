@@ -481,9 +481,12 @@ export async function loadDataset<T = Record<string, unknown>>(
     cases.push({ id: caseData.id, meta, payload: payload as T });
   }
 
-  // FR-3: adjudications must reference real cases.
+  // FR-3: adjudications must reference real cases. Partition-move entries
+  // (Spec 6.4 FR-8, `change` starting with "partition:") are the exception:
+  // a dev→held-out move leaves a history entry in the source envelope for a
+  // case that now lives in the other partition.
   for (const adj of envelope.adjudications) {
-    if (!seenIds.has(adj.caseId)) {
+    if (!seenIds.has(adj.caseId) && !adj.change.startsWith("partition:")) {
       problems.push(`adjudications: unknown case id "${adj.caseId}"`);
     }
   }

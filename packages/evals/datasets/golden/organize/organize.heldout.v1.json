@@ -1,0 +1,19 @@
+{
+  "schema": "donna.eval-dataset.v1",
+  "name": "organize.heldout.v1",
+  "stage": "organize",
+  "version": 1,
+  "description": "Organize-stage HELD-OUT partition (Spec 6.4): the frozen graduation-evidence set the bucket-acceptance gate reads. v1 freezes the three pre-pilot cases unaltered via legacyImport of ../organize.v1.json (results already known; Spec 6.3 FR-2; product-owner resolution, 2026-09-04). Changes only via the product-owner-gated dev-to-held-out batch promotion plus a new freeze lock after the next results run. Never tune against this set.",
+  "defaultMeta": {
+    "provenance": "synthetic",
+    "labeler": "labeler:product-owner",
+    "adjudicator": "labeler:product-owner",
+    "consent": "not-required-synthetic",
+    "sensitivity": "none",
+    "language": "en",
+    "notes": "hand-labeled messy voice dumps; labels adjudicated by the product owner"
+  },
+  "cases": [],
+  "legacyImport": { "path": "../organize.v1.json", "format": "organize-legacy-v1" },
+  "adjudications": []
+}

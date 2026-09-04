@@ -1,9 +1,13 @@
 /**
- * Eval harness CLI (Specification 4.1 + 4.2).
+ * Eval harness CLI (Specification 4.1 + 4.2 + 6.4).
  *
  *   tsx src/cli.ts validate                          # schema-validate every dataset
  *   tsx src/cli.ts run <stage> [--mode live|deterministic] [--personalization on|off]
+ *                                                    [--dataset <path>]
  *   tsx src/cli.ts snapshot                          # print the config fingerprint
+ *   tsx src/cli.ts heldout-freeze [--dataset <path>] --report <report.json>
+ *                                                    # lock a held-out version after
+ *                                                    # its first results run (Spec 6.4)
  *
  * Deterministic stages (adversarial, provenance, buckets, memory,
  * retrieval, emotion, full-loop in deterministic mode) run with no
@@ -11,6 +15,12 @@
  * organize, full-loop --mode live) fail closed with a classified
  * external-flaky error when credentials are absent — never a crash,
  * never a fake pass.
+ *
+ * Spec 6.4: the organize stage's registry default is the HELD-OUT envelope
+ * (the partition the graduation gate reads). `--dataset` points a run at
+ * another partition (e.g. the development envelope for tuning experiments).
+ * A locked held-out envelope whose content hash differs from its lock is a
+ * hard validation failure (SR-6).
  */
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -26,6 +36,12 @@ import {
 import { copyFile, mkdir, readFile } from "node:fs/promises";
 import { loadDataset } from "./datasets.js";
 import { runEval, type StageScorer } from "./harness.js";
+import {
+  checkHeldoutLock,
+  freezeHeldoutEnvelope,
+  heldoutLockPath,
+  isHeldoutEnvelopePath,
+} from "./promote-organize.js";
 import { adversarialScorer } from "./adversarial.js";
 import { captureSnapshot, snapshotFingerprint } from "./snapshot.js";
 import {
@@ -57,7 +73,10 @@ loadEnv({ path: resolve(repoRoot, ".env"), quiet: true });
 
 const DATASETS: Record<string, string> = {
   transcribe: "datasets/golden/transcribe/transcribe.v1.json",
-  organize: "datasets/golden/organize/organize.v1.json",
+  // Spec 6.4: the organize registry default is the HELD-OUT partition — the
+  // set the graduation gate reads. The development partition is reachable
+  // via `run organize --dataset datasets/golden/organize/organize.dev.v1.json`.
+  organize: "datasets/golden/organize/organize.heldout.v1.json",
   provenance: "datasets/golden/provenance/provenance.v1.json",
   buckets: "datasets/golden/buckets/buckets.v1.json",
   memory: "datasets/golden/memory/memory.v1.json",
@@ -66,6 +85,36 @@ const DATASETS: Record<string, string> = {
   "full-loop": "datasets/golden/full-loop/full-loop.v1.json",
   adversarial: "datasets/adversarial/adversarial.v1.json",
 };
+
+/**
+ * Supplementary envelopes `validate` covers alongside the registry
+ * (Spec 6.4): the organize development partition and the pre-pilot
+ * organize envelope (kept valid though no longer the registry default).
+ */
+const EXTRA_VALIDATE: Record<string, string> = {
+  "organize-dev": "datasets/golden/organize/organize.dev.v1.json",
+  "organize-prepilot": "datasets/golden/organize/organize.v1.json",
+};
+
+/**
+ * SR-6: when a held-out envelope carries a freeze lock, its content must
+ * match the lock at the locked version — a hard failure otherwise. Prints
+ * the lock state for reviewable output.
+ */
+async function assertHeldoutLockFor(datasetPath: string): Promise<void> {
+  if (!isHeldoutEnvelopePath(datasetPath)) return;
+  const check = await checkHeldoutLock(datasetPath);
+  if (check.status === "intact") {
+    console.log(
+      `held-out lock intact: ${check.lock!.name} v${check.lock!.version} sha256:${check.lock!.sha256.slice(0, 12)}…`,
+    );
+  } else if (check.status === "unfrozen-new-version") {
+    console.log(
+      `note: held-out envelope is ahead of the lock (locked ${check.lock!.name} v${check.lock!.version}) — ` +
+        "this run produces results for the new version; freeze it with heldout-freeze afterward (FR-9)",
+    );
+  }
+}
 
 function configPath(): string {
   return resolve(repoRoot, process.env.DONNA_MODELS_CONFIG ?? "models.config.yaml");
@@ -171,10 +220,11 @@ async function buildScorer(stage: string, live: LiveStack | undefined): Promise<
 
 async function validateAll(): Promise<boolean> {
   let ok = true;
-  for (const [stage, rel] of Object.entries(DATASETS)) {
+  for (const [stage, rel] of [...Object.entries(DATASETS), ...Object.entries(EXTRA_VALIDATE)]) {
     const path = join(evalsDir, rel);
     try {
       const dataset = await loadDataset(path);
+      await assertHeldoutLockFor(path);
       console.log(
         `ok  ${stage}  ${dataset.name} v${dataset.version}  ${dataset.cases.length} cases  sha256:${dataset.sha256.slice(0, 12)}…`,
       );
@@ -209,13 +259,21 @@ async function main(): Promise<void> {
     if (datasetRel === undefined) {
       throw new Error(`Unknown stage "${stage}". Known: ${Object.keys(DATASETS).join(", ")}`);
     }
+    // Spec 6.4 FR-10: --dataset points the run at another partition (e.g.
+    // the development envelope); the registry default stays the held-out set.
+    const datasetOverride = arg("--dataset");
+    const datasetPath = datasetOverride !== undefined
+      ? resolve(process.cwd(), datasetOverride)
+      : join(evalsDir, datasetRel);
+    // SR-6: a locked held-out envelope whose content drifted fails hard.
+    await assertHeldoutLockFor(datasetPath);
     const live = await liveStack();
     const scorer = await buildScorer(stage, live);
     if (live === undefined && ["transcribe", "organize"].includes(stage)) {
       console.error(`note: no gateway credentials — ${stage} cases will error external-flaky`);
     }
     const result = await runEval({
-      datasetPath: join(evalsDir, datasetRel),
+      datasetPath,
       configPath: configPath(),
       repoRoot,
       evalsDir,
@@ -231,6 +289,37 @@ async function main(): Promise<void> {
     console.log(`        ${result.markdownPath}`);
     // Hard failures fail the run loudly — they never average out.
     process.exit(result.report.aggregate.hardFailureCount > 0 ? 1 : 0);
+  }
+
+  // Spec 6.4 FR-9: freeze a held-out version after its first results run.
+  // Writes the lock (name, version, envelope content hash, frozen-at,
+  // first-results report hash); the report must be a results run against
+  // this exact envelope content. Re-freezing a frozen version is refused.
+  if (command === "heldout-freeze") {
+    const datasetOverride = arg("--dataset");
+    const envelopePath = datasetOverride !== undefined
+      ? resolve(process.cwd(), datasetOverride)
+      : join(evalsDir, DATASETS["organize"]!);
+    const reportPath = arg("--report");
+    if (reportPath === undefined) {
+      throw new Error(
+        "usage: cli.ts heldout-freeze [--dataset <path>] --report <report.json>",
+      );
+    }
+    if (!isHeldoutEnvelopePath(envelopePath)) {
+      throw new Error("heldout-freeze applies to held-out envelopes only (organize.heldout.*)");
+    }
+    const lock = await freezeHeldoutEnvelope({
+      envelopePath,
+      reportPath: resolve(process.cwd(), reportPath),
+      now: () => new Date(),
+    });
+    console.log(
+      `Held-out frozen: ${lock.name} v${lock.version} sha256:${lock.sha256.slice(0, 12)}…`,
+    );
+    console.log(`  first-results report sha256: ${lock.firstResultsReportSha256.slice(0, 12)}…`);
+    console.log(`  lock: ${heldoutLockPath(envelopePath)}`);
+    return;
   }
 
   // Spec 4.3: accept the current deterministic run as the stage baseline.
@@ -402,7 +491,7 @@ async function main(): Promise<void> {
     process.exit(report.decision.verdict === "eligible-for-signoff" ? 0 : 1);
   }
 
-  console.error("usage: cli.ts validate | snapshot | run <stage> [--mode …] | baseline <stage> | compare <stage> <report> | graduation <reports…>");
+  console.error("usage: cli.ts validate | snapshot | run <stage> [--mode …] [--dataset <path>] | heldout-freeze [--dataset <path>] --report <report.json> | baseline <stage> | compare <stage> <report> | graduation <reports…> | graduation-run <reports…> [--extras <f>] [--cohort-window <s>..<e>]");
   process.exit(2);
 }
 

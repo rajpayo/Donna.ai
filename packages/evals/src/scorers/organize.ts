@@ -63,6 +63,10 @@ export function createOrganizeScorer(options: OrganizeScorerOptions): StageScore
   const verifier = new DeterministicProvenanceVerifier();
   return {
     stage: "organize",
+    // Spec 6.4 (FR-12/SR-4): promoted pilot cases carry cohort metadata
+    // (language/accent/noise) through the case-meta fields; slices smaller
+    // than MIN_COHORT_SIZE stay suppressed in reports.
+    cohortKeys: ["language", "accent", "noise"],
     async score(testCase: LoadedCase, _context: StageContext): Promise<CaseOutcome[]> {
       const payload = testCase.payload as unknown as OrganizePayload;
       if (options.organizer === undefined) {
