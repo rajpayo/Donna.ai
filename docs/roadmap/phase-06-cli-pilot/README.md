@@ -498,3 +498,8 @@ acceptance; Phase 9 client work remains locked until then.
   volunteer pilot must grow the organize evidence; the runner is ready.
 - **Awaiting the product owner:** explicit approval to move beyond the CLI
   (decision record template in `docs/pilot/`).
+
+Post-acceptance Windows portability, private-file ACL, and full PostgreSQL CI
+maintenance evidence is recorded in
+[`docs/pilot/LOCAL_WINDOWS_MAINTENANCE_2026-09-04.md`](../../pilot/LOCAL_WINDOWS_MAINTENANCE_2026-09-04.md).
+It does not change the unmet graduation gate above.
