@@ -2,7 +2,7 @@
 id: "6.5"
 title: "In-context organize evaluation (capture-time bucket snapshots)"
 phase: "06"
-status: "in-progress"
+status: "blocked"
 depends_on: ["6.4"]
 ---
 
@@ -16,6 +16,14 @@ depends_on: ["6.4"]
 > mechanically; any material change to product behavior, privacy or consent,
 > gate meaning or threshold, or architecture still requires a pause and an
 > explicit product-owner decision.
+>
+> **Implementation blocker (2026-09-05):** the sanctioned dry run found 55
+> cases reconstructible exactly and two legacy correction-derived inline
+> cases whose source corrections and capture links no longer exist in the
+> authorized participant scope. Per the binding ambiguity resolution, their
+> snapshots/origins will not be guessed and held-out v3 will not be run until
+> the product owner batch-adjudicates those two entries in
+> `organize.snapshot-drift.v3.json`.
 
 ## Outcome
 
@@ -520,8 +528,73 @@ scopes for writes:
 
 ## Completion evidence
 
-Leave empty until implementation. Record commits, changed interfaces, test
-results, metrics, demo evidence, limitations, and the product-owner decision.
+Implementation is complete through the pre-amendment gate but cannot move to
+`in-review` until the blocker above is adjudicated.
+
+### Commits so far
+
+- `f812e79` — `docs: approve spec 6.5 in-context organize evaluation`
+- `d43fa03` — `feat: implement spec 6.5 in-context organize evaluation`
+- `423dbe5` — `fix: harden snapshot amendment and CI timeout test`
+
+### Implemented interfaces and safety checks
+
+- `datasets.ts`: additive `existingBuckets` and `bucketOrigin`; normalized
+  joined/minted consistency and label-leak checks on every load.
+- `scorers/organize.ts`: passes a fresh copy of each snapshot to the existing
+  organizer port; exact-only minted/joined gate scoring; deterministic
+  `token-set-v1` name-equivalence diagnostic that never feeds the gate.
+- `amend-organize-snapshots.ts`: read-only source reconstruction by
+  `capturedAt`/`createdAt`, inverse rename/merge replay, fail-closed ambiguity,
+  product-owner override path, stable IDs, one adjudication per amended case,
+  v2-lock precondition, idempotency, and a content-free additive-only proof.
+- Promotion and pilot decision flow: new decisions capture the reconstructed
+  bucket list before promotion; preview prints and screens names/descriptions
+  and hashes the exact born-with-snapshot case. Future rename/merge correction
+  records retain the minimum inverse values required for reconstruction.
+- The gate block in `packages/evals/src/graduation.ts` is byte-untouched.
+
+### Verification completed before the blocker
+
+- Focused Spec 6.5 suites: 62/62 passed, followed by the final amendment +
+  promotion rerun at 39/39 passed.
+- Full local suite after the final test additions: **516 total / 515 passed /
+  0 failed / 1 DB-gated skip**.
+- `npm run typecheck`: clean across every workspace.
+- Dataset validation: all registered envelopes green; held-out v2 lock intact
+  at sha256 `93c9cf09858757653886dbfb4cd2da3d42bab70d0975a484546805b51a67146d`;
+  held-out 32 cases and dev 28 cases.
+- Deterministic eval check: adversarial, provenance, buckets, memory, emotion,
+  retrieval, and full-loop all pass their baselines with zero hard failures.
+- Synthetic scratch tests demonstrate createdAt existence filtering,
+  rename/merge rollback, ambiguity blocking, product-owner override,
+  additive-only amendment, byte-identical rerun, v2→v3 lock discipline,
+  leak rejection, consent revoke-between-preview/confirm, and
+  born-with-snapshot preview-hash equality.
+
+### Reconstruction drift and required decision
+
+The read-only reconstruction dry run examined 57 inline cases: 55 were exact;
+two were flagged with `correction-not-found` + `capture-link-missing`:
+
+- `organize-pilot-89ef3a098348`
+- `organize-pilot-7bd4f7f0533a`
+
+These are the two pre-6.4 correction-envelope seeds, not the three
+`legacyImport` cases that are already approved to remain cold. Treating the
+two seeds as additional cold cases would change the approved instrument and
+gate input, so engineering judgment cannot silently choose it. The product
+owner must provide each case's capture-time `existingBuckets` and
+`bucketOrigin`, or explicitly revise the product ruling.
+
+Held-out v2, its lock, and the official cold report remain unchanged. The live
+v3 run, additive-diff artifact, v3 freeze, before/after metrics, graduation
+linkage, final commits, and final CI result are intentionally pending this
+adjudication.
+
+### Product-owner decision
+
+**PENDING — blocked on the two-case batch adjudication above.**
 
 ## Review gate
 

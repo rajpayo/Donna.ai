@@ -486,10 +486,21 @@ acceptance; Phase 9 client work remains locked until then.
 
 ### Specification 6.4 — Pilot decision capture and graduation-evidence promotion
 
-Status: `in-review` (product-owner examination pending) — see
+Status: `accepted` (product owner, 2026-09-04) — see
 [`SPEC-6.4-graduation-evidence.md`](SPEC-6.4-graduation-evidence.md) for the
-approved specification, binding open-question resolutions, and completion
+accepted specification, binding open-question resolutions, and completion
 evidence.
+
+---
+
+### Specification 6.5 — In-context organize evaluation
+
+Status: `blocked` (implementation complete through reconstruction dry run;
+two legacy correction-derived cases require product-owner batch
+adjudication) — see
+[`SPEC-6.5-incontext-organize-eval.md`](SPEC-6.5-incontext-organize-eval.md)
+for the approved behavior, content-free drift report, completed verification,
+and exact decision required before held-out v3 can run.
 
 ---
 
