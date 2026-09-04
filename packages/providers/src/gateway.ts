@@ -13,7 +13,15 @@ export interface GatewayConfig {
   apiKey: string;
   tenantId: string;
   appId: string;
+  /**
+   * Per-request timeout (default 120s). Without it, a gateway call whose
+   * connection drops mid-flight can hang the caller forever (observed on
+   * Windows: an idle keep-alive socket loss never rejects the fetch).
+   */
+  timeoutMs?: number;
 }
+
+const DEFAULT_TIMEOUT_MS = 120_000;
 
 export class GatewayError extends Error {
   constructor(
@@ -51,6 +59,7 @@ export class GatewayClient {
       method: "POST",
       headers: this.metadataHeaders(stage),
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(this.config.timeoutMs ?? DEFAULT_TIMEOUT_MS),
     });
     if (!res.ok) {
       const text = await res.text();
@@ -75,6 +84,7 @@ export class GatewayClient {
       method: "POST",
       headers,
       body: form,
+      signal: AbortSignal.timeout(this.config.timeoutMs ?? DEFAULT_TIMEOUT_MS),
     });
     if (!res.ok) {
       const text = await res.text();

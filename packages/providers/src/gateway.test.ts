@@ -1,11 +1,39 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  GatewayClient,
   GatewayPrerequisiteError,
   gatewayEnvProblems,
   gatewayFromEnv,
   inspectGatewayEnv,
 } from "./gateway.js";
+
+describe("GatewayClient request timeout", () => {
+  it("rejects a hung request instead of waiting forever", async () => {
+    const client = new GatewayClient({
+      baseUrl: "https://gateway.example",
+      apiKey: "test-key",
+      tenantId: "t",
+      appId: "a",
+      timeoutMs: 50,
+    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = ((_input: unknown, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () =>
+          reject(new DOMException("The operation was aborted", "AbortError")),
+        );
+      })) as typeof fetch;
+    try {
+      await assert.rejects(
+        () => client.postJson("/chat/completions", {}, "test"),
+        /abort/i,
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
 
 describe("inspectGatewayEnv", () => {
   it("classifies unset variables", () => {
