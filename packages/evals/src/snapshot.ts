@@ -90,6 +90,17 @@ async function gitSafe(repoRoot: string, args: string[]): Promise<string> {
   }
 }
 
+/** Resolve detached-head CI metadata without hard-coding a feature branch. */
+export function resolveSnapshotBranch(
+  gitBranch: string,
+  githubHeadRef = process.env.GITHUB_HEAD_REF,
+  githubRefName = process.env.GITHUB_REF_NAME,
+): string {
+  const direct = gitBranch.trim();
+  if (direct !== "" && direct !== "unknown") return direct;
+  return githubHeadRef?.trim() || githubRefName?.trim() || direct || "unknown";
+}
+
 export interface CaptureSnapshotOptions {
   repoRoot: string;
   configPath: string;
@@ -106,11 +117,12 @@ export async function captureSnapshot(
     await readFile(options.configPath, "utf8"),
     await loadModelsConfig(options.configPath),
   ];
-  const [commit, branch, status] = await Promise.all([
+  const [commit, gitBranch, status] = await Promise.all([
     gitSafe(options.repoRoot, ["rev-parse", "HEAD"]),
     gitSafe(options.repoRoot, ["branch", "--show-current"]),
     gitSafe(options.repoRoot, ["status", "--porcelain"]),
   ]);
+  const branch = resolveSnapshotBranch(gitBranch);
 
   return {
     schema: "donna.config-snapshot.v1",

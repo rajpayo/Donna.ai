@@ -7,13 +7,14 @@
  * (which purges the whole scoped partition). Selection requires the
  * matching Donna-side consent grant at selection time.
  */
-import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import {
   m365ReadConsentPurpose,
   type M365ConsentPurpose,
   type M365ResourceType,
 } from "@donna/core";
+import { writePrivateFile } from "@donna/file-security";
 import { m365ScopeDir } from "./connection.js";
 
 /** Selectable resource categories and how each is fetched. */
@@ -147,8 +148,7 @@ export class M365SelectionStore {
 
   private async save(scope: Scope, selections: M365Selection[]): Promise<void> {
     const file = this.fileFor(scope);
-    await mkdir(dirname(file), { recursive: true });
-    await writeFile(file, JSON.stringify(selections, null, 2), "utf8");
+    await writePrivateFile(file, JSON.stringify(selections, null, 2));
   }
 
   /** Idempotent per (type, resourceId): re-selecting refreshes selectedAt. */

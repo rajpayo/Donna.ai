@@ -9,9 +9,10 @@
  * whole partition. Promotion to durable memory is a separate visible
  * proposal — nothing here ever becomes durable silently.
  */
-import { mkdir, readFile, rm, writeFile, readdir } from "node:fs/promises";
+import { readFile, rm, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { sha256Hex, type ContextSnippet } from "@donna/core";
+import { writePrivateFile } from "@donna/file-security";
 import { m365ScopeDir } from "./connection.js";
 
 interface Scope {
@@ -68,12 +69,9 @@ export class M365SnippetCache {
     if (snippet.tenantId !== scope.tenantId || snippet.userId !== scope.userId) {
       throw new Error("Snippet scope does not match the cache partition");
     }
-    const dir = this.dirFor(scope);
-    await mkdir(dir, { recursive: true });
-    await writeFile(
+    await writePrivateFile(
       this.fileFor(scope, snippet.id),
       JSON.stringify(snippet, null, 2),
-      "utf8",
     );
   }
 
@@ -131,9 +129,7 @@ export class M365SnippetCache {
     memberIds: string[],
     expiresAt: string,
   ): Promise<void> {
-    const dir = this.dirFor(scope);
-    await mkdir(dir, { recursive: true });
-    await writeFile(
+    await writePrivateFile(
       this.selectionFileFor(scope, selectionKey),
       JSON.stringify({
         tenantId: scope.tenantId,
@@ -141,7 +137,6 @@ export class M365SnippetCache {
         memberIds,
         expiresAt,
       }),
-      "utf8",
     );
   }
 

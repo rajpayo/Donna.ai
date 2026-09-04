@@ -12,6 +12,7 @@
     "@donna/core": "*",
     "@donna/destinations": "*",
     "@donna/evals": "*",
+    "@donna/file-security": "*",
     "@donna/integrations-m365": "*",
     "@donna/memory": "*",
     "@donna/pipeline": "*",

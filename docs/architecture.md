@@ -24,6 +24,10 @@ iterate toward perfect.
 5. **Telemetry from request one.** Every gateway call is tagged
    (app/tenant/stage) so cost per successful core loop is measured, not
    estimated.
+6. **Private files fail closed.** File adapters write through
+   `packages/file-security`: POSIX hosts enforce `0700` directories and
+   `0600` files; Windows enforces owner+SYSTEM NTFS ACLs. The CLI refuses
+   personal-data processing when the configured data root cannot be secured.
 
 ## The dynamic bucket engine
 

@@ -1,5 +1,5 @@
 {
-  "name": "@donna/retrieval",
+  "name": "@donna/file-security",
   "version": "0.1.0",
   "type": "module",
   "main": "./src/index.ts",
@@ -8,11 +8,6 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "tsx --test src/*.test.ts"
-  },
-  "dependencies": {
-    "@donna/buckets": "*",
-    "@donna/core": "*",
-    "@donna/file-security": "*"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

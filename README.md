@@ -41,6 +41,7 @@ Donna.ai/
 │   └── roadmap/              # phase folders, specifications, and review gates
 ├── packages/
 │   ├── core/                 # domain types + ports (interfaces) — no vendor code
+│   ├── file-security/        # POSIX modes + Windows owner-only ACL adapter
 │   ├── providers/            # gateway client + per-vendor adapters + registry
 │   ├── buckets/              # dynamic bucket engine (assign-or-create) + stores
 │   ├── pipeline/             # core-loop orchestration + model routing/escalation
@@ -78,6 +79,16 @@ npm run eval
 npm test          # unit tests (bucket engine, scorers) — no API keys needed
 npm run typecheck
 ```
+
+The pull-request workflow also runs the PostgreSQL + pgvector integration
+suite. To run those database tests locally, configure the non-production
+`DONNA_TEST_DATABASE_URL` and `DONNA_TEST_ADMIN_URL` values described in
+[`database/README.md`](database/README.md).
+
+On Windows, use a real Git checkout (evaluation snapshots record its commit
+and branch) and point `DONNA_DATA_DIR` at an owner-controlled directory such
+as `%LOCALAPPDATA%\Donna.ai\data`. Donna applies an owner+SYSTEM NTFS ACL
+there and fails closed if private-state permissions cannot be enforced.
 
 ## Delivery roadmap
 

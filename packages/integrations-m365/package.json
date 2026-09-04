@@ -11,7 +11,8 @@
   },
   "dependencies": {
     "@donna/core": "*",
-    "@donna/destinations": "*"
+    "@donna/destinations": "*",
+    "@donna/file-security": "*"
   },
   "devDependencies": {
     "@donna/memory": "*",

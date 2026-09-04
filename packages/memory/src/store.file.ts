@@ -11,8 +11,8 @@
  * fails closed with an error instead of being served. Files are written
  * 0600 inside 0700 directories, matching the other file-backed stores.
  */
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import type {
   ConsentRecord,
   ConsentStore,
@@ -23,6 +23,7 @@ import type {
   MemoryRecord,
   MemoryStore,
 } from "@donna/core";
+import { writePrivateFile } from "@donna/file-security";
 
 const PARTITION_ID = /^[A-Za-z0-9][A-Za-z0-9._@-]{0,127}$/;
 const RECORD_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
@@ -58,8 +59,7 @@ function assertScope(
 }
 
 async function writeJson0600(path: string, value: unknown): Promise<void> {
-  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-  await writeFile(path, JSON.stringify(value, null, 2), { mode: 0o600 });
+  await writePrivateFile(path, JSON.stringify(value, null, 2));
 }
 
 export class FileMemoryStore implements MemoryStore {

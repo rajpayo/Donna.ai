@@ -3,9 +3,10 @@
  * DONNA_DATA_DIR. Deliberately boring — the Postgres + pgvector production
  * store implements the same BucketStore port later without pipeline changes.
  */
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import type { Bucket, BucketStore, Thought } from "@donna/core";
+import { writePrivateFile } from "@donna/file-security";
 
 interface UserFile {
   buckets: Bucket[];
@@ -71,8 +72,7 @@ export class FileBucketStore implements BucketStore {
     data: UserFile,
   ): Promise<void> {
     const file = this.fileFor(tenantId, userId);
-    await mkdir(dirname(file), { recursive: true, mode: 0o700 });
-    await writeFile(file, JSON.stringify(data, null, 2), { mode: 0o600 });
+    await writePrivateFile(file, JSON.stringify(data, null, 2));
   }
 
   async listBuckets(tenantId: string, userId: string): Promise<Bucket[]> {

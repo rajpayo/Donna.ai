@@ -8,9 +8,10 @@
  * events gathered from the existing correction/memory stores. Run records
  * carry IDs and counts only, never content (SR-2).
  */
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { CorrectionEvent, MemoryEvent } from "@donna/core";
+import { writePrivateFile } from "@donna/file-security";
 import { pilotScopeDir } from "./profile.js";
 
 export const PILOT_RUN_SCHEMA = "donna.pilot-run.v1";
@@ -76,11 +77,7 @@ export class FilePilotRunStore implements PilotRunStore {
 
   async saveAll(tenantId: string, userId: string, records: PilotRunRecord[]): Promise<void> {
     const file = this.fileFor(tenantId, userId);
-    await mkdir(pilotScopeDir(this.dataDir, { tenantId, userId }), {
-      recursive: true,
-      mode: 0o700,
-    });
-    await writeFile(file, JSON.stringify(records, null, 2) + "\n", { mode: 0o600 });
+    await writePrivateFile(file, JSON.stringify(records, null, 2) + "\n");
   }
 }
 

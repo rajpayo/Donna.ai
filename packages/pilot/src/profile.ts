@@ -5,9 +5,10 @@
  * The profile carries settings and pseudonymous identity only — never
  * captured content.
  */
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import type { M365ReadSourceType } from "@donna/core";
+import { writePrivateFile } from "@donna/file-security";
 import type { PilotDataClass } from "./policy.js";
 
 export const PILOT_PROFILE_SCHEMA = "donna.pilot-profile.v1";
@@ -91,7 +92,6 @@ export class FilePilotProfileStore implements PilotProfileStore {
 
   async save(profile: PilotProfile): Promise<void> {
     const file = this.fileFor(profile.tenantId, profile.userId);
-    await mkdir(dirname(file), { recursive: true, mode: 0o700 });
-    await writeFile(file, JSON.stringify(profile, null, 2) + "\n", { mode: 0o600 });
+    await writePrivateFile(file, JSON.stringify(profile, null, 2) + "\n");
   }
 }

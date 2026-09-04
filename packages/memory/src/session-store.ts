@@ -11,13 +11,14 @@
  * session here — durable promotion (with explicit opt-in consent) is the
  * EmotionalContextService's job, executed BEFORE the sweep deletes.
  */
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import type {
   EmotionalSnapshot,
   IntentSignal,
   Session,
 } from "@donna/core";
+import { writePrivateFile } from "@donna/file-security";
 import { assertPartitionId, assertRecordId } from "./store.file.js";
 
 interface SessionFile {
@@ -122,8 +123,7 @@ export class FileSessionStore implements SessionStore {
     data: SessionFile,
   ): Promise<void> {
     const file = this.fileFor(tenantId, userId);
-    await mkdir(dirname(file), { recursive: true, mode: 0o700 });
-    await writeFile(file, JSON.stringify(data, null, 2), { mode: 0o600 });
+    await writePrivateFile(file, JSON.stringify(data, null, 2));
   }
 
   async saveSession(session: Session): Promise<void> {

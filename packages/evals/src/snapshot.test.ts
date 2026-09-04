@@ -7,7 +7,11 @@ import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
-import { captureSnapshot, snapshotFingerprint } from "./snapshot.js";
+import {
+  captureSnapshot,
+  resolveSnapshotBranch,
+  snapshotFingerprint,
+} from "./snapshot.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "../../..");
@@ -24,7 +28,8 @@ describe("captureSnapshot (FR-1)", () => {
       now: () => new Date("2026-09-03T12:00:00.000Z"),
     });
     assert.match(snapshot.commit, /^[0-9a-f]{40}$/);
-    assert.equal(snapshot.branch, "cursor/import-mvp-scaffold-b430");
+    assert.notEqual(snapshot.branch, "");
+    assert.notEqual(snapshot.branch, "unknown");
     assert.equal(snapshot.modelsConfig.sha256.length, 64);
     assert.equal(snapshot.versions.organizePrompt, "donna.organize-prompt.v2");
     assert.equal(snapshot.versions.organizeSchema, "donna.organize.v1");
@@ -34,6 +39,15 @@ describe("captureSnapshot (FR-1)", () => {
     assert.equal(snapshot.memoryPolicy.adherenceSemanticThreshold, 0.5);
     assert.equal(snapshot.bucketTuning.assignThreshold, 0.82);
     assert.equal(snapshot.capturedAt, "2026-09-03T12:00:00.000Z");
+  });
+
+  it("uses GitHub metadata for a detached-head checkout", () => {
+    assert.equal(
+      resolveSnapshotBranch("", "cursor/import-mvp-scaffold-b430", "1/merge"),
+      "cursor/import-mvp-scaffold-b430",
+    );
+    assert.equal(resolveSnapshotBranch("", undefined, "main"), "main");
+    assert.equal(resolveSnapshotBranch("", undefined, undefined), "unknown");
   });
 
   it("fingerprint is stable across captures and changes with the config", async () => {

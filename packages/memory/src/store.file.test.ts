@@ -1,11 +1,14 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
 import { mkdtemp, rm, stat, readFile, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import type { ConsentRecord, MemoryEvent, MemoryProposal, MemoryRecord } from "@donna/core";
 import { FileConsentStore, FileMemoryStore } from "./store.file.js";
 
+const execFileAsync = promisify(execFile);
 const T = "tenant-a";
 const U = "user-1";
 
@@ -91,6 +94,17 @@ describe("FileMemoryStore", () => {
   it("writes owner-only files inside owner-only directories", async () => {
     await store.saveMemory(memory("m-1"));
     const file = join(dir, T, U, "memory.json");
+    if (process.platform === "win32") {
+      const [{ stdout: fileAcl }, { stdout: directoryAcl }] = await Promise.all([
+        execFileAsync("icacls.exe", [file], { windowsHide: true }),
+        execFileAsync("icacls.exe", [join(dir, T, U)], { windowsHide: true }),
+      ]);
+      assert.doesNotMatch(
+        `${fileAcl}\n${directoryAcl}`,
+        /Everyone|Authenticated Users|BUILTIN\\Users/i,
+      );
+      return;
+    }
     const fileMode = (await stat(file)).mode & 0o777;
     assert.equal(fileMode, 0o600);
     const dirMode = ((await stat(join(dir, T, U))).mode & 0o777);

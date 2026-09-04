@@ -12,8 +12,9 @@
  * partition (Specification 6.1: the reporting path feeds the eval
  * pipeline WITH consent state).
  */
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { writePrivateFile } from "@donna/file-security";
 import { pilotScopeDir } from "./profile.js";
 
 export const MISFIRE_CATEGORIES = [
@@ -110,11 +111,7 @@ export class FileMisfireRegisterStore implements MisfireRegisterStore {
 
   async saveAll(tenantId: string, userId: string, records: MisfireRecord[]): Promise<void> {
     const file = this.fileFor(tenantId, userId);
-    await mkdir(pilotScopeDir(this.dataDir, { tenantId, userId }), {
-      recursive: true,
-      mode: 0o700,
-    });
-    await writeFile(file, JSON.stringify(records, null, 2) + "\n", { mode: 0o600 });
+    await writePrivateFile(file, JSON.stringify(records, null, 2) + "\n");
   }
 }
 

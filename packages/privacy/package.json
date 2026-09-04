@@ -10,7 +10,8 @@
     "test": "tsx --test src/*.test.ts"
   },
   "dependencies": {
-    "@donna/core": "*"
+    "@donna/core": "*",
+    "@donna/file-security": "*"
   },
   "devDependencies": {
     "@donna/buckets": "*",

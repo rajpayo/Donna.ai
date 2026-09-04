@@ -9,9 +9,10 @@
  * a malicious ID cannot traverse the tree or select another scope's object
  * (SR-3). All deletes are idempotent.
  */
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { readFile, rm } from "node:fs/promises";
+import { join } from "node:path";
 import type { AudioStore } from "@donna/core";
+import { writePrivateFile } from "@donna/file-security";
 import { decryptAudio, encryptAudio } from "./crypto.js";
 
 const PARTITION_ID = /^[A-Za-z0-9][A-Za-z0-9._@-]{0,127}$/;
@@ -55,8 +56,7 @@ export class EncryptedFileAudioStore implements AudioStore {
   ): Promise<void> {
     const file = this.fileFor(tenantId, userId, captureId);
     const ciphertext = encryptAudio(this.key, audio);
-    await mkdir(dirname(file), { recursive: true, mode: 0o700 });
-    await writeFile(file, ciphertext, { mode: 0o600 });
+    await writePrivateFile(file, ciphertext);
   }
 
   async get(

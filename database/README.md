@@ -38,6 +38,18 @@ GRANT SELECT ON ALL TABLES IN SCHEMA public TO donna_backup;
 GRANT SELECT, USAGE ON ALL SEQUENCES IN SCHEMA public TO donna_backup;
 ```
 
+Run the integration suite with runtime-injected, non-production URLs:
+
+```bash
+DONNA_TEST_DATABASE_URL=<donna_app connection URL>
+DONNA_TEST_ADMIN_URL=<migration/admin connection URL>
+DONNA_TEST_BACKUP_URL=<optional BYPASSRLS backup URL>
+npm test --workspace @donna/storage-postgres
+```
+
+The pull-request workflow provisions a pinned pgvector container and runs this
+suite automatically. Local test URLs remain outside the repository.
+
 ## Credentials and TLS (SR-2)
 
 Connection strings come from runtime secrets (e.g. `DONNA_DATABASE_URL`),

@@ -138,6 +138,36 @@ describe("snippet normalization (Spec 5.2, FR-1, SR-3)", () => {
     assert.ok(snippet.excerpt.length <= 281);
   });
 
+  it("calendar normalization honors an explicit ISO offset on every host", () => {
+    const snippet = normalizeCalendarEvent(
+      {
+        ...EVENT_IN_WINDOW,
+        start: {
+          dateTime: "2026-09-03T13:00:00+05:30",
+          timeZone: "India Standard Time",
+        },
+      },
+      ctx,
+    );
+    assert.equal(snippet?.sourceTimestamp, "2026-09-03T07:30:00.000Z");
+  });
+
+  it("calendar normalization fails closed for a suffix-free unsupported zone", () => {
+    const snippet = normalizeCalendarEvent(
+      {
+        ...EVENT_IN_WINDOW,
+        start: {
+          dateTime: "2026-09-03T13:00:00",
+          timeZone: "India Standard Time",
+        },
+      },
+      ctx,
+    );
+    assert.ok(snippet !== undefined);
+    assert.equal(snippet.sourceTimestamp, undefined);
+    assert.doesNotMatch(snippet.excerpt, /starts /);
+  });
+
   it("email/teams/file normalization minimizes to preview + identifiers", () => {
     const mailCtx = { ...ctx, consentPurpose: "m365.read.mail" as const, tool: "get_email" };
     const email = normalizeEmail(EMAIL_1, mailCtx);

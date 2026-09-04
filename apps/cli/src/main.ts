@@ -74,7 +74,7 @@
  * into organized, bucketed, provenance-linked thoughts.
  */
 import { randomUUID } from "node:crypto";
-import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { readdir, readFile, rm, stat } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createInterface } from "node:readline";
@@ -86,6 +86,10 @@ import {
   runCompatibilityCheck,
   snapshotFingerprint,
 } from "@donna/evals";
+import {
+  ensurePrivateDirectory,
+  writePrivateFile,
+} from "@donna/file-security";
 import {
   ContextAssembler,
   CorrectionService,
@@ -736,6 +740,7 @@ async function buildPipeline(): Promise<{ pipeline: DonnaPipeline; store: FileBu
 
 async function main(): Promise<void> {
   const command = process.argv[2];
+  await ensurePrivateDirectory(dataDir());
   const tenantId = process.env.DONNA_TENANT_ID ?? "demo-tenant";
   const userId = arg("--user") ?? "demo-user";
 
@@ -2565,10 +2570,9 @@ async function main(): Promise<void> {
         misfires: await buildMisfireRegister().list(scope),
       });
       const outPath = resolve(invocationDir, out);
-      await mkdir(dirname(outPath), { recursive: true, mode: 0o700 });
-      await writeFile(outPath, JSON.stringify(bundle, null, 2) + "\n", { mode: 0o600 });
+      await writePrivateFile(outPath, JSON.stringify(bundle, null, 2) + "\n");
       console.log(
-        `Export written to ${outPath} (mode 0600): ${bundle.captures.length} capture(s), ` +
+        `Export written to ${outPath} (owner-only): ${bundle.captures.length} capture(s), ` +
           `${bundle.memory.memories.length} memor(ies), ${bundle.corrections.length} correction(s), ` +
           `${bundle.misfires.length} misfire report(s), ${bundle.memory.consents.length} consent record(s).`,
       );
@@ -2593,9 +2597,8 @@ async function main(): Promise<void> {
         misfires: await buildMisfireRegister().list(scope),
       });
       const outPath = resolve(invocationDir, out);
-      await mkdir(dirname(outPath), { recursive: true, mode: 0o700 });
-      await writeFile(outPath, JSON.stringify(bundle, null, 2) + "\n", { mode: 0o600 });
-      console.log(`Exported everything to ${outPath} (mode 0600) before leaving.`);
+      await writePrivateFile(outPath, JSON.stringify(bundle, null, 2) + "\n");
+      console.log(`Exported everything to ${outPath} (owner-only) before leaving.`);
 
       // 2. Disconnect Microsoft 365 (revokes m365.* grants, purges cache).
       const disconnect = await disconnectM365(buildMemoryService(), scope, dir, "pilot:leave");
@@ -2904,8 +2907,7 @@ async function main(): Promise<void> {
         limitations,
       };
       const outPath = resolve(invocationDir, out);
-      await mkdir(dirname(outPath), { recursive: true, mode: 0o700 });
-      await writeFile(outPath, JSON.stringify(extras, null, 2) + "\n", { mode: 0o600 });
+      await writePrivateFile(outPath, JSON.stringify(extras, null, 2) + "\n");
       console.log(
         `Graduation extras written to ${outPath}: ${scopes.length} pilot scope(s), ` +
           `${trendTotals.total} correction(s), ${board.total} misfire(s) (${board.blocksGraduation} blocking), ` +

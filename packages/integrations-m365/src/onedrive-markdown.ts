@@ -23,7 +23,7 @@
  *   - AC-4: share links are organization-scoped; the response scope is
  *     verified and anything else fails closed.
  */
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import {
   sha256Hex,
@@ -34,6 +34,7 @@ import {
   type McpConnection,
 } from "@donna/core";
 import { bucketDocumentName, renderBucketMarkdown } from "@donna/destinations";
+import { writePrivateFile } from "@donna/file-security";
 import {
   m365ScopeDir,
   requireM365Consent,
@@ -156,17 +157,17 @@ export class OneDriveMarkdownDestination implements Destination {
   }
 
   private async saveState(scope: Scope, state: OneDriveDestinationState): Promise<void> {
-    await mkdir(this.stateDir(scope), { recursive: true });
-    await writeFile(this.stateFile(scope, state.bucketId), JSON.stringify(state, null, 2), "utf8");
+    await writePrivateFile(
+      this.stateFile(scope, state.bucketId),
+      JSON.stringify(state, null, 2),
+    );
   }
 
   /** Pending (approved-awaiting) preview record for the two-step CLI. */
   async savePendingPreview(scope: Scope, bucketId: string, preview: DestinationPreview): Promise<void> {
-    await mkdir(this.stateDir(scope), { recursive: true });
-    await writeFile(
+    await writePrivateFile(
       join(this.stateDir(scope), `pending-${sha256Hex(bucketId)}.json`),
       JSON.stringify({ bucketId, preview, previewedAt: this.now().toISOString() }, null, 2),
-      "utf8",
     );
   }
 

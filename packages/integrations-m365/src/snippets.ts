@@ -33,13 +33,25 @@ function asString(value: unknown): string | undefined {
 
 /**
  * Graph {dateTime, timeZone} or plain ISO string → canonical ISO 8601.
- * Graph dateTimes often carry no zone suffix; re-parsing normalizes them
- * so window comparisons are reliable. Unparseable values fail closed.
+ * Graph dateTimes often carry no suffix and MUST use the accompanying zone;
+ * parsing a suffix-free value with `new Date` would silently use the host
+ * timezone. Graph returns calendar values in UTC by default, so UTC/GMT
+ * objects are normalized explicitly. Unsupported suffix-free zones fail
+ * closed rather than shifting an event according to the machine running Donna.
  */
 function graphTime(value: unknown): string | undefined {
-  const direct = asString(value) ?? asString(asRecord(value)["dateTime"]);
+  const record = asRecord(value);
+  const direct = (asString(value) ?? asString(record["dateTime"]))?.trim();
   if (direct === undefined) return undefined;
-  const parsed = new Date(direct);
+  const hasExplicitZone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(direct);
+  const timeZone = asString(record["timeZone"])?.trim().toUpperCase();
+  const utcZone =
+    timeZone === "UTC" ||
+    timeZone === "ETC/UTC" ||
+    timeZone === "GMT" ||
+    timeZone === "ETC/GMT";
+  if (!hasExplicitZone && !utcZone) return undefined;
+  const parsed = new Date(hasExplicitZone ? direct : `${direct}Z`);
   return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
 }
 

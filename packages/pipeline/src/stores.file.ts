@@ -12,8 +12,8 @@
  * fails closed with an error instead of falling back to an empty file; and
  * transcript reads re-verify the content hash so tampering is detected.
  */
-import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { readFile, readdir, rm } from "node:fs/promises";
+import { join } from "node:path";
 import {
   hashTranscriptContent,
   type CaptureRecord,
@@ -21,6 +21,7 @@ import {
   type TranscriptRecord,
   type TranscriptStore,
 } from "@donna/core";
+import { writePrivateFile } from "@donna/file-security";
 
 const PARTITION_ID = /^[A-Za-z0-9][A-Za-z0-9._@-]{0,127}$/;
 const CAPTURE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
@@ -51,8 +52,7 @@ async function writeJson0600(
   path: string,
   value: unknown,
 ): Promise<void> {
-  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-  await writeFile(path, JSON.stringify(value, null, 2), { mode: 0o600 });
+  await writePrivateFile(path, JSON.stringify(value, null, 2));
 }
 
 async function readJsonIfPresent(path: string): Promise<unknown | undefined> {

@@ -85,12 +85,36 @@ describe("stt scorer", () => {
     scratchDir: dir,
     snapshot: undefined as never,
   });
+  const fixtureGenerator = async () => ({
+    path: join(dir, "test-case.wav"),
+    hashMatch: false,
+  });
 
   it("errors external-flaky without a transcriber (never a fake pass)", async () => {
     const scorer = createSttScorer({ fixturesDir: dir });
     const [outcome] = await scorer.score(testCase, context());
     assert.equal(outcome!.error?.class, "external-flaky");
     assert.equal(outcome!.error?.token, "gateway-credentials-absent");
+  });
+
+  it("classifies an unavailable fixture generator without faking scores", async () => {
+    const transcriber: Transcriber = {
+      modelId: "stub-stt",
+      async transcribe() {
+        throw new Error("must not be called");
+      },
+    };
+    const scorer = createSttScorer({
+      transcriber,
+      fixturesDir: dir,
+      fixtureGenerator: async () => {
+        throw new Error("fixture generator unavailable");
+      },
+    });
+    const [outcome] = await scorer.score(testCase, context());
+    assert.deepEqual(outcome!.scores, {});
+    assert.equal(outcome!.error?.class, "external-flaky");
+    assert.equal(outcome!.error?.token, "espeak-ng-unavailable");
   });
 
   it("scores WER and preservation with a stubbed transcriber", async () => {
@@ -105,7 +129,11 @@ describe("stt scorer", () => {
         };
       },
     };
-    const scorer = createSttScorer({ transcriber, fixturesDir: dir });
+    const scorer = createSttScorer({
+      transcriber,
+      fixturesDir: dir,
+      fixtureGenerator,
+    });
     const [outcome] = await scorer.score(testCase, context());
     assert.equal(outcome!.error, undefined);
     assert.equal(outcome!.scores["stt.wer"], 0);
@@ -128,7 +156,11 @@ describe("stt scorer", () => {
         };
       },
     };
-    const scorer = createSttScorer({ transcriber: badTranscriber, fixturesDir: dir });
+    const scorer = createSttScorer({
+      transcriber: badTranscriber,
+      fixturesDir: dir,
+      fixtureGenerator,
+    });
     const [outcome] = await scorer.score(testCase, context());
     assert.ok(outcome!.scores["stt.wer"]! > 0.5);
     assert.equal(outcome!.scores["stt.entity_preservation"], 0);

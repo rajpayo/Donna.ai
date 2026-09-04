@@ -21,8 +21,8 @@
  * Logging (SR-2): this adapter never logs; callers log timing and hit
  * counts only, never query or result text.
  */
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import type {
   Bucket,
   BucketStore,
@@ -33,6 +33,7 @@ import type {
   RetrievalQuery,
   Thought,
 } from "@donna/core";
+import { writePrivateFile } from "@donna/file-security";
 import {
   combinedScore,
   LOCAL_SCORE_VERSION,
@@ -135,16 +136,14 @@ export class LocalRetrievalIndex implements RetrievalIndex {
     data: IndexFile,
   ): Promise<void> {
     const file = this.fileFor(tenantId, userId);
-    await mkdir(dirname(file), { recursive: true, mode: 0o700 });
     // Entries are stored sorted by thought ID so a rebuild over unchanged
     // source records produces a byte-identical index (FR-3).
     const ordered = [...data.entries].sort((a, b) =>
       a.thought.id.localeCompare(b.thought.id),
     );
-    await writeFile(
+    await writePrivateFile(
       file,
       JSON.stringify({ schema: INDEX_SCHEMA, entries: ordered }, null, 2),
-      { mode: 0o600 },
     );
   }
 

@@ -8,9 +8,10 @@
  * only — never audio, transcript text, key material, or personal data
  * (SR-2).
  */
-import { appendFile, mkdir, readFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import type { AuditEntry, AuditLog } from "@donna/core";
+import { appendPrivateFile } from "@donna/file-security";
 
 const PARTITION_ID = /^[A-Za-z0-9][A-Za-z0-9._@-]{0,127}$/;
 
@@ -33,8 +34,7 @@ export class FileAuditLog implements AuditLog {
     if (entry.tenantId !== undefined) assertPartitionId("tenant", entry.tenantId);
     if (entry.userId !== undefined) assertPartitionId("user", entry.userId);
     const file = this.fileFor(entry.tenantId, entry.userId);
-    await mkdir(dirname(file), { recursive: true, mode: 0o700 });
-    await appendFile(file, JSON.stringify(entry) + "\n", { mode: 0o600 });
+    await appendPrivateFile(file, JSON.stringify(entry) + "\n");
   }
 
   async list(tenantId: string, userId: string): Promise<AuditEntry[]> {

@@ -10,9 +10,10 @@
  * can place drafts inside the M365 cache partition (purged by
  * `m365 disconnect`, SR-3 restrictive caching).
  */
-import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { readFile, readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import type { ActionDraft, ActionDraftStore } from "@donna/core";
+import { writePrivateFile } from "@donna/file-security";
 
 interface Scope {
   tenantId: string;
@@ -42,10 +43,7 @@ export class FileActionDraftStore implements ActionDraftStore {
       { tenantId: draft.tenantId, userId: draft.userId },
       draft.id,
     );
-    await mkdir(join(this.dirFor({ tenantId: draft.tenantId, userId: draft.userId }), "drafts"), {
-      recursive: true,
-    });
-    await writeFile(file, JSON.stringify(draft, null, 2), "utf8");
+    await writePrivateFile(file, JSON.stringify(draft, null, 2));
   }
 
   async getDraft(

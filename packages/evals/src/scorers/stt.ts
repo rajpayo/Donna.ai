@@ -126,6 +126,14 @@ export interface SttScorerOptions {
   transcriber?: Transcriber;
   /** Directory fixtures are regenerated into (must be isolated). */
   fixturesDir: string;
+  /**
+   * Test seam for hermetic scorer tests. Production runs omit this and use
+   * the real espeak-ng generator above.
+   */
+  fixtureGenerator?: (
+    payload: TranscribePayload,
+    audioDir: string,
+  ) => Promise<{ path: string; hashMatch: boolean }>;
 }
 
 export function createSttScorer(options: SttScorerOptions): StageScorer {
@@ -146,7 +154,10 @@ export function createSttScorer(options: SttScorerOptions): StageScorer {
       const started = Date.now();
       let fixture;
       try {
-        fixture = await ensureFixture(payload, options.fixturesDir);
+        fixture = await (options.fixtureGenerator ?? ensureFixture)(
+          payload,
+          options.fixturesDir,
+        );
       } catch {
         return [{
           caseId: testCase.id,
