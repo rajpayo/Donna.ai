@@ -2,7 +2,7 @@
 id: "6.4"
 title: "Pilot decision capture and graduation-evidence promotion"
 phase: "06"
-status: "in-review"
+status: "accepted"
 depends_on: ["6.3"]
 ---
 
@@ -576,8 +576,15 @@ participant IDs only.
 
 ### Product-owner decision
 
-PENDING — awaiting examination (the demonstration above is the review-gate
-plan, executed on synthetic data and scratch scopes).
+**ACCEPTED (product owner, 2026-09-04).** The product owner examined the
+completion evidence, the synthetic demonstration, and the five recorded
+deviations (datasets.ts partition-entry relaxation; library-only
+dev→held-out gate; seeded `note` kind on the two legacy cases; the
+.gitattributes LF rule; scratch-copy demo steps) and accepted them. The
+known limitation stands: held-out v1 remains the 3 pre-pilot cases, below
+the approved ≥20 total / ≥2 per scenario-class minimum — growing it happens
+through the now-accepted pilot decision → preview/confirm → dev → gated
+batch → held-out flow, never by fabrication.
 
 ## Review gate
 
