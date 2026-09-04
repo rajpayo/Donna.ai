@@ -495,13 +495,13 @@ evidence.
 
 ### Specification 6.5 — In-context organize evaluation
 
-Status: `in-review` (implementation complete; product-owner acceptance
-pending). The adjudicated held-out v3 live run measured exact in-context
+Status: `accepted` (product owner, 2026-09-05). The adjudicated held-out v3
+live run measured exact in-context
 bucket acceptance at 0.484375 versus the cold v2 baseline 0.453125, so the
 unchanged 0.85 graduation gate still fails honestly — see
 [`SPEC-6.5-incontext-organize-eval.md`](SPEC-6.5-incontext-organize-eval.md)
-for the approved behavior, clean drift/additive-diff evidence, frozen report
-and lock hashes, completed verification, and product-owner review checklist.
+for the accepted behavior, clean drift/additive-diff evidence, frozen report
+and lock hashes, completed verification, and product-owner decision.
 
 ---
 

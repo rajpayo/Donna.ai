@@ -2,7 +2,7 @@
 id: "6.5"
 title: "In-context organize evaluation (capture-time bucket snapshots)"
 phase: "06"
-status: "in-review"
+status: "accepted"
 depends_on: ["6.4"]
 ---
 
@@ -686,12 +686,15 @@ binding **55 + 2** split accurately.
 
 ### Product-owner decision
 
-**PENDING.** For acceptance, examine the two explicit empty-snapshot
-adjudications and their Phase 2/Phase 6 rationale; the clean drift report and
-additive-only v2→v3 diff; representative minted/joined per-case outcomes in
-the live report; the frozen v3 lock and archived v2 lock; and the linked
-graduation report's honest failures at 0.9375 thought coverage and 0.484375
-bucket acceptance.
+**ACCEPTED (product owner, 2026-09-05).** The product owner examined the two
+explicit empty-snapshot adjudications and their Phase 2/Phase 6 rationale; the
+clean drift report and additive-only v2→v3 diff; representative minted/joined
+outcomes; the frozen v3 and archived v2 locks; and the honest gate failures at
+0.9375 thought coverage and 0.484375 bucket acceptance. Acceptance confirms
+that the instrument now measures in-context placement faithfully. It does
+**not** accept Phase 6 graduation or authorize Phase 7; organizer quality
+requires a separately approved remediation specification and a clean,
+fully evidenced graduation rerun.
 
 ## Review gate
 
