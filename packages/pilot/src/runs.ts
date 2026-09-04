@@ -12,6 +12,11 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { CorrectionEvent, MemoryEvent } from "@donna/core";
 import { writePrivateFile } from "@donna/file-security";
+import {
+  collectPlacementDecisions,
+  type PilotDecision,
+  type PlacementDecisionCounts,
+} from "./decisions.js";
 import { pilotScopeDir } from "./profile.js";
 
 export const PILOT_RUN_SCHEMA = "donna.pilot-run.v1";
@@ -41,6 +46,13 @@ export interface PilotRunRecord {
     memoryApprovals: number;
     memoryRejections: number;
     memoryEventIds: string[];
+    /**
+     * Explicit placement decisions (Specification 6.4, FR-2): latest-per-
+     * thought accept/move counts in the window and the window-capture
+     * thoughts still undecided at run end. Optional so pre-6.4 run
+     * records remain readable.
+     */
+    placement?: PlacementDecisionCounts;
   };
   notes?: string;
 }
@@ -166,6 +178,13 @@ export class PilotRunBook {
       captures: Array<{ id: string; capturedAt: string }>;
       corrections: CorrectionEvent[];
       memoryEvents: MemoryEvent[];
+      /**
+       * Specification 6.4: the scope's placement decisions and thoughts
+       * (thought ID + capture ID), so the run record carries explicit
+       * accept/move counts and the undecided-thought count (AC-1).
+       */
+      decisions?: PilotDecision[];
+      thoughts?: Array<{ id: string; captureId?: string }>;
     },
     notes?: string,
   ): Promise<PilotRunRecord> {
@@ -184,7 +203,19 @@ export class PilotRunBook {
       ...record,
       endedAt,
       captureIds,
-      decisions: collectRunDecisions(window, gather.corrections, gather.memoryEvents),
+      decisions: {
+        ...collectRunDecisions(window, gather.corrections, gather.memoryEvents),
+        ...(gather.decisions !== undefined && gather.thoughts !== undefined
+          ? {
+              placement: collectPlacementDecisions(
+                window,
+                gather.decisions,
+                gather.thoughts,
+                captureIds,
+              ),
+            }
+          : {}),
+      },
       ...(notes !== undefined ? { notes } : {}),
     };
     await this.store.saveAll(

@@ -2,7 +2,7 @@
 id: "6.4"
 title: "Pilot decision capture and graduation-evidence promotion"
 phase: "06"
-status: "approved"
+status: "in-progress"
 depends_on: ["6.3"]
 ---
 
