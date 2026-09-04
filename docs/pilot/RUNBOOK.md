@@ -74,27 +74,32 @@ intended privacy behavior, not missing data.
 donna pilot run start --scenario SC-MEET-01      # opens the instrumented run
 donna capture <recording> [--session <id>]       # one or more captures
 donna pilot review                               # work the review queue
-donna correct move <thought-id> --to <bucket>    # explicit decisions…
+donna pilot decide accept <thought-id>           # explicit accept (Spec 6.4)
+donna pilot decide move <thought-id> --to <bucket>   # explicit move (queues + links the correction)
 donna corrections accept <id>
 donna memory approve|reject <proposal-id>
 donna retrieval-feedback <thought-id> --verdict relevant|irrelevant --query "<text>"
+donna pilot decisions                            # accept/move counts + first-pass acceptance rate
 donna pilot run end <run-id> --notes "V-NOISE, café"
 ```
 
 The run record captures the pseudonymous participant ID, scenario ID,
 config fingerprint, window capture IDs, and decision counts — never
-content.
+content. Since Specification 6.4, placement decisions are EXPLICIT:
+every thought surfaced in `pilot review` should receive `pilot decide
+accept` or `pilot decide move`; `pilot run end` prints the window's
+accept/move counts and the count of reviewed thoughts left undecided.
 
 **Decision mapping** (every explicit output decision is recorded through
 the existing services):
 
 | Decision | Command |
 |---|---|
-| accept placement | (implicit — no correction filed) |
-| move | `donna correct move` + `donna corrections accept` |
+| accept placement | `donna pilot decide accept <thought-id>` (explicit since Spec 6.4; pre-6.4 accepts were implicit and are not reclassified) |
+| move | `donna pilot decide move <thought-id> --to <bucket>` (wraps `donna correct move` + links the correction) + `donna corrections accept` |
 | split / merge | `donna correct merge`; split: `donna correct edit-thought` + move |
 | edit | `donna correct edit-thought` |
-| reject placement | `donna correct move` to a better bucket (or reject the correction) |
+| reject placement | `donna pilot decide move` to a better bucket (or reject the correction) |
 | memory approve / reject | `donna memory approve|reject` |
 | retrieval relevance | `donna retrieval-feedback … --verdict …` |
 
@@ -129,23 +134,66 @@ Every misfire ends in exactly one disposition: **fixed**,
 **accepted-limitation** (documented in the graduation report), or
 **blocks-graduation** (must clear before any graduation pass).
 
-## 5. From misfire to shared golden case (separate consent)
+## 5. From pilot evidence to a shared organize case (separate consent)
 
-A misfire becomes a shared evaluation case ONLY when ALL hold:
+Since Specification 6.4, both first-pass-accepted placements and corrected
+placements can become de-identified cases in the **development partition**
+(`packages/evals/datasets/golden/organize/organize.dev.v1.json`) — the
+envelope the tuning loop iterates against. The held-out partition
+(`organize.heldout.v1.json`) is the frozen graduation-evidence set and
+never receives cases directly from participants.
 
-1. the fix exists as an **accepted** correction (`donna corrections accept`);
+A decision or correction becomes a shared case ONLY when ALL hold:
+
+1. it exists in the participant's scope — an explicit accept decision
+   (`donna pilot decide accept`) or an **accepted** `bucket.move`
+   correction (`donna corrections accept`);
 2. the participant holds an **active** `eval-sharing` consent
-   (`donna consent grant eval-sharing`) — separate from enrollment;
-3. the de-identified fields pass the sensitive-content screen.
+   (`donna consent grant eval-sharing`) — separate from enrollment,
+   checked at preview AND again at confirm (revocation between the two
+   blocks the confirm);
+3. the de-identified fields pass the sensitive-content screen at both
+   steps.
 
 ```bash
-donna pilot misfire promote <misfire-id> --correction <accepted-correction-id>
+donna pilot promote preview <decision-id|correction-id>
+# shows EXACTLY the shared fields (summary text, expected bucket, scenario
+# class, variant labels, proposed case ID, target partition) + payload hash
+donna pilot promote confirm <decision-id|correction-id> --partition dev
+# writes byte-identical content (hash equals the preview), bumps the dev
+# envelope version, and appends one adjudication entry
 ```
 
-Without consent the command fails closed and the case stays private.
-Promoted cases carry no tenant/user/capture IDs — only the correction type
-and the minimal before/after labels. Revoking `eval-sharing` stops further
-promotions immediately (already-shared cases stay de-identified).
+Without consent both steps fail closed and nothing is written. Promoted
+cases carry no raw audio paths, full transcripts, or
+capture/tenant/user/participant IDs — the case text is the de-identified
+thought summary only (product-owner resolution, 2026-09-04). Re-promoting
+the same decision or correction is a no-op ("already shared").
+
+**Dev → held-out promotion (product owner only).** Cases move from the
+development partition to the held-out partition only as a product-owner-
+gated, stratified batch with a recorded rationale
+(`promoteOrganizeCasesToHeldout` in `packages/evals/src/promote-organize.ts`;
+adjudicator of record: the product owner at batch review). A case never
+exists in both partitions; both envelopes append adjudication entries and
+bump their versions. After the first eval run against a new held-out
+version, freeze it:
+
+```bash
+npm run eval:harness --workspace @donna/evals -- run organize            # held-out is the registry default
+npm run eval:harness --workspace @donna/evals -- heldout-freeze --report <report.json>
+```
+
+Thereafter any hand-edit to the locked held-out content fails validation
+(`donna evals validate` / `run organize` hard-fail on the mismatch). The
+minimum held-out size before the next graduation attempt is **≥ 20 cases
+total, ≥ 2 per core scenario class** (product-owner resolution,
+2026-09-04).
+
+**Legacy path.** `donna pilot misfire promote <misfire-id> --correction
+<id>` still writes to the flat `corrections.v1.json` (unchanged); the two
+pre-6.4 cases there were re-promoted into the development envelope under
+the new mechanics (product-owner resolution, 2026-09-04).
 
 ## 6. Retention and deletion verification (weekly during the pilot)
 
