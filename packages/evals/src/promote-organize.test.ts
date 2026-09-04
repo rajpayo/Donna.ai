@@ -374,6 +374,31 @@ describe("confirm writes (FR-7, AC-4/AC-5/AC-6, AC-11)", () => {
     assert.equal(organizeCasePayloadHash(written), preview.payloadHash);
   });
 
+  it("Spec 6.5 AC-7: a new decision preview/confirm writes the screened snapshot and origin", async () => {
+    consented = true;
+    const source = acceptedSource({
+      existingBuckets: [
+        { name: "Tasks", description: "Commitments" },
+        { name: "Product Ideas", description: "Ideas to explore" },
+      ],
+    });
+    const preview = await previewOrganizePromotion(deps(), source);
+    assert.deepEqual(
+      Object.keys(preview.case).sort(),
+      ["existingBuckets", "expected", "id", "meta", "transcript"],
+    );
+    assert.equal(preview.case.expected.thoughts[0]!.bucketOrigin, "joined");
+    const confirmed = await confirmOrganizePromotion(
+      { ...deps(), envelopePath: devPath },
+      source,
+    );
+    assert.equal(confirmed.payloadHash, preview.payloadHash);
+    const written = ((await readRaw(devPath))["cases"] as OrganizeInlineCase[])[0]!;
+    assert.deepEqual(written.existingBuckets, source.existingBuckets);
+    assert.equal(written.expected.thoughts[0]!.bucketOrigin, "joined");
+    assert.equal(organizeCasePayloadHash(written), preview.payloadHash);
+  });
+
   it("idempotency: re-promotion reports already shared and leaves the envelope byte-identical (AC-11)", async () => {
     consented = true;
     await confirmOrganizePromotion({ ...deps(), envelopePath: devPath }, correctedSource());

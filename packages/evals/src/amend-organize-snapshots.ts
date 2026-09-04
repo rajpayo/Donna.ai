@@ -84,6 +84,13 @@ export function reconstructCaptureTimeBuckets(input: {
     input.currentBuckets.map((bucket) => [bucket.id, { ...bucket }]),
   );
   const reasons = new Set<string>();
+  if (
+    input.currentBuckets.some((bucket) =>
+      Number.isNaN(Date.parse(bucket.createdAt)),
+    )
+  ) {
+    reasons.add("bucket-created-at-invalid");
+  }
   let correctionsRolledBack = 0;
   const later = input.corrections
     .filter(
@@ -192,6 +199,7 @@ export interface SnapshotDriftReport {
   reconstructibleCases: number;
   overriddenCases: number;
   unresolvedCases: number;
+  /** Flagged cases only; reconstructible cases are represented by the count. */
   cases: SnapshotDriftEntry[];
 }
 
@@ -569,7 +577,7 @@ export async function amendOrganizeSnapshotEnvelopes(input: {
     reconstructibleCases: reconstructible.length,
     overriddenCases,
     unresolvedCases: unresolved.length,
-    cases: [...reconstructible, ...unresolved].sort((a, b) =>
+    cases: unresolved.sort((a, b) =>
       a.caseId.localeCompare(b.caseId),
     ),
   };

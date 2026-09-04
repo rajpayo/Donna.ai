@@ -217,6 +217,19 @@ drift report. Every flagged case must be adjudicated in one local JSON override
 file before apply; no case is guessed or silently left cold. Apply is an
 explicit product-owner gate:
 
+```json
+[
+  {
+    "caseId": "organize-pilot-…",
+    "existingBuckets": [
+      { "name": "Example bucket", "description": "What belongs here" }
+    ],
+    "bucketOrigin": "joined",
+    "reason": "po-reviewed-capture-history"
+  }
+]
+```
+
 ```bash
 npm run eval:harness --workspace @donna/evals -- amend-organize-snapshots \
   --source-data <read-only-data-dir> --tenant <scope> --user <scope> \

@@ -18,6 +18,10 @@ describe("GatewayClient request timeout", () => {
       timeoutMs: 50,
     });
     const originalFetch = globalThis.fetch;
+    // AbortSignal.timeout() deliberately uses an unref'ed timer in Node.
+    // Keep this isolated fake-fetch test alive long enough for that timer
+    // on Linux CI; a real undici request owns its own active socket handle.
+    const keepAlive = setTimeout(() => undefined, 500);
     globalThis.fetch = ((_input: unknown, init?: RequestInit) =>
       new Promise<Response>((_resolve, reject) => {
         init?.signal?.addEventListener("abort", () =>
@@ -30,6 +34,7 @@ describe("GatewayClient request timeout", () => {
         /abort/i,
       );
     } finally {
+      clearTimeout(keepAlive);
       globalThis.fetch = originalFetch;
     }
   });

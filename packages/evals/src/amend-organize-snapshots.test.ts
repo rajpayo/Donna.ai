@@ -346,6 +346,11 @@ describe("organize snapshot amendment (Spec 6.5 AC-3/AC-4)", () => {
       ).length,
       2,
     );
+    const evidenceText =
+      (await readFile(driftPath, "utf8")) +
+      (await readFile(diffPath, "utf8"));
+    assert.ok(!evidenceText.includes("Commitments"));
+    assert.ok(!evidenceText.includes("Launch preparation"));
 
     const once = await readFile(devPath, "utf8");
     await amendOrganizeSnapshotEnvelopes({
