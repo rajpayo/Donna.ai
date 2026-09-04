@@ -128,3 +128,15 @@ CLI graduation requires:
 
 Security, privacy, or provenance failures are hard blockers even when aggregate
 quality metrics pass.
+
+## Specification documentation
+
+- **End-user-experience notes are mandatory (product owner, 2026-09-05):**
+  every functional requirement and every user-facing action in a
+  specification must carry a short "End-user experience" note describing
+  concretely what the user sees or does in the final product when using it —
+  the exact CLI command and what it prints, or the future desktop-UI surface
+  it feeds — so the product owner can check from the specification what is
+  actually being built. Applies to all future specifications and to
+  amendments of existing ones. The convention is encoded in
+  [`SPEC_TEMPLATE.md`](SPEC_TEMPLATE.md).

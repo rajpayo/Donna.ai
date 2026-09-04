@@ -34,7 +34,13 @@ until the specification is approved.
 
 ## Functional requirements
 
-Number every testable requirement as `FR-N`.
+Number every testable requirement as `FR-N`. Every `FR-N` — and every
+user-facing action elsewhere in the specification — carries a short
+`End-user experience:` note describing concretely what the user sees or does
+in the final product when using it: the exact CLI command and what it
+prints, or the future desktop-UI surface it feeds. The product owner uses
+these notes to check what is actually being built (product-owner directive,
+2026-09-05).
 
 ## Security, privacy, and provenance requirements
 
@@ -62,7 +68,9 @@ checks. Name the expected report or artifact.
 ## Demonstration
 
 Describe exactly what the product owner will examine before accepting the
-specification.
+specification. Each demonstration step carries its own `End-user
+experience:` note — the exact command the product owner runs or the exact
+screen or artifact they open.
 
 ## Completion evidence
 
