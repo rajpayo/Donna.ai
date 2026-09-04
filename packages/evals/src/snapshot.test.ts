@@ -46,8 +46,8 @@ describe("captureSnapshot (FR-1)", () => {
       resolveSnapshotBranch("", "cursor/import-mvp-scaffold-b430", "1/merge"),
       "cursor/import-mvp-scaffold-b430",
     );
-    assert.equal(resolveSnapshotBranch("", undefined, "main"), "main");
-    assert.equal(resolveSnapshotBranch("", undefined, undefined), "unknown");
+    assert.equal(resolveSnapshotBranch("", "", "main"), "main");
+    assert.equal(resolveSnapshotBranch("", "", ""), "unknown");
   });
 
   it("fingerprint is stable across captures and changes with the config", async () => {
