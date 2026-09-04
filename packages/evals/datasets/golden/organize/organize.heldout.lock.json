@@ -1,8 +1,8 @@
 {
   "schema": "donna.heldout-lock.v1",
   "name": "organize.heldout.v1",
-  "version": 2,
-  "sha256": "93c9cf09858757653886dbfb4cd2da3d42bab70d0975a484546805b51a67146d",
-  "frozenAt": "2026-09-04T20:00:36.343Z",
-  "firstResultsReportSha256": "f0e7eebbe068eefa73e1b3578822f58e4a8e2aa011e8182d7e5c0857e32dd8c6"
+  "version": 3,
+  "sha256": "7c66e17c52186e19f6e1c8bf544e8f5f78b4af9c91ea6c92b1667103151d6a89",
+  "frozenAt": "2026-09-04T21:13:01.800Z",
+  "firstResultsReportSha256": "c08f952f29a2d3ce168c9e3dbfc918809e70ccf6c7823df03eb1da90bbc5ced1"
 }

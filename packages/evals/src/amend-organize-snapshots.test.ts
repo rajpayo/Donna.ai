@@ -407,6 +407,7 @@ describe("organize snapshot amendment (Spec 6.5 AC-3/AC-4)", () => {
       now: () => new Date("2026-09-05T13:00:00.000Z"),
     });
     assert.equal(applied.applied, true);
+    assert.equal(applied.drift.reconstructibleCases, 0);
     assert.equal(applied.drift.overriddenCases, 2);
     assert.equal(applied.drift.unresolvedCases, 0);
   });

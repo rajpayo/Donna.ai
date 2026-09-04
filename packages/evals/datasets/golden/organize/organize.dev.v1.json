@@ -2,7 +2,7 @@
   "schema": "donna.eval-dataset.v1",
   "name": "organize.dev.v1",
   "stage": "organize",
-  "version": 59,
+  "version": 60,
   "description": "Organize-stage DEVELOPMENT partition (Spec 6.4): de-identified pilot placements land here via the preview/confirm promotion flow. Explicitly legal for config/prompt tuning experiments, each evidenced by report diffs (product-owner resolution, 2026-09-04). Cases move to the held-out partition only via the product-owner-gated dev-to-held-out batch promotion.",
   "defaultMeta": {
     "provenance": "de-identified",
@@ -33,10 +33,12 @@
             "contains": [
               "send",
               "revised"
-            ]
+            ],
+            "bucketOrigin": "minted"
           }
         ]
-      }
+      },
+      "existingBuckets": []
     },
     {
       "id": "organize-pilot-2e92c926d69e",
@@ -57,10 +59,12 @@
             "contains": [
               "arrange",
               "minute"
-            ]
+            ],
+            "bucketOrigin": "minted"
           }
         ]
-      }
+      },
+      "existingBuckets": []
     },
     {
       "id": "organize-pilot-adfc1c7c9ba0",
@@ -81,10 +85,12 @@
             "contains": [
               "dashboard",
               "layout"
-            ]
+            ],
+            "bucketOrigin": "minted"
           }
         ]
-      }
+      },
+      "existingBuckets": []
     },
     {
       "id": "organize-pilot-22e900b5241e",
@@ -105,10 +111,12 @@
             "contains": [
               "discuss",
               "onboarding"
-            ]
+            ],
+            "bucketOrigin": "minted"
           }
         ]
-      }
+      },
+      "existingBuckets": []
     },
     {
       "id": "organize-pilot-3e5db92a8889",
@@ -129,10 +137,21 @@
             "contains": [
               "book",
               "rehearsal"
-            ]
+            ],
+            "bucketOrigin": "joined"
           }
         ]
-      }
+      },
+      "existingBuckets": [
+        {
+          "name": "Launch Readiness",
+          "description": "Notes, decisions, and open items related to the product launch."
+        },
+        {
+          "name": "Tasks",
+          "description": "Commitments and action items extracted from voice notes, awaiting agent pickup or user review."
+        }
+      ]
     },
     {
       "id": "organize-pilot-33bfa698bcf7",
@@ -153,10 +172,21 @@
             "contains": [
               "renew",
               "vendor"
-            ]
+            ],
+            "bucketOrigin": "joined"
           }
         ]
-      }
+      },
+      "existingBuckets": [
+        {
+          "name": "Launch Readiness",
+          "description": "Notes, decisions, and open items related to the product launch."
+        },
+        {
+          "name": "Tasks",
+          "description": "Commitments and action items extracted from voice notes, awaiting agent pickup or user review."
+        }
+      ]
     },
     {
       "id": "organize-pilot-3745612ca3d6",
@@ -177,10 +207,21 @@
             "contains": [
               "send",
               "summary"
-            ]
+            ],
+            "bucketOrigin": "joined"
           }
         ]
-      }
+      },
+      "existingBuckets": [
+        {
+          "name": "Launch Readiness",
+          "description": "Notes, decisions, and open items related to the product launch."
+        },
+        {
+          "name": "Tasks",
+          "description": "Commitments and action items extracted from voice notes, awaiting agent pickup or user review."
+        }
+      ]
     },
     {
       "id": "organize-pilot-c6574e37f556",
@@ -201,10 +242,21 @@
             "contains": [
               "nudge",
               "when"
-            ]
+            ],
+            "bucketOrigin": "minted"
           }
         ]
-      }
+      },
+      "existingBuckets": [
+        {
+          "name": "Launch Readiness",
+          "description": "Notes, decisions, and open items related to the product launch."
+        },
+        {
+          "name": "Tasks",
+          "description": "Commitments and action items extracted from voice notes, awaiting agent pickup or user review."
+        }
+      ]
     },
     {
       "id": "organize-pilot-e9233092bf82",
@@ -225,10 +277,21 @@
             "contains": [
               "proactively",
               "draft"
-            ]
+            ],
+            "bucketOrigin": "minted"
           }
         ]
-      }
+      },
+      "existingBuckets": [
+        {
+          "name": "Launch Readiness",
+          "description": "Notes, decisions, and open items related to the product launch."
+        },
+        {
+          "name": "Tasks",
+          "description": "Commitments and action items extracted from voice notes, awaiting agent pickup or user review."
+        }
+      ]
     },
     {
       "id": "organize-pilot-096ee9b9c59c",
@@ -249,10 +312,21 @@
             "contains": [
               "quiet",
               "mode"
-            ]
+            ],
+            "bucketOrigin": "minted"
           }
         ]
-      }
+      },
+      "existingBuckets": [
+        {
+          "name": "Launch Readiness",
+          "description": "Notes, decisions, and open items related to the product launch."
+        },
+        {
+          "name": "Tasks",
+          "description": "Commitments and action items extracted from voice notes, awaiting agent pickup or user review."
+        }
+      ]
     },
     {
       "id": "organize-pilot-9202859574c3",
@@ -273,10 +347,25 @@
             "contains": [
               "remind",
               "team"
-            ]
+            ],
+            "bucketOrigin": "joined"
           }
         ]
-      }
+      },
+      "existingBuckets": [
+        {
+          "name": "Launch Readiness",
+          "description": "Notes, decisions, and open items related to the product launch."
+        },
+        {
+          "name": "Tasks",
+          "description": "Commitments and action items extracted from voice notes, awaiting agent pickup or user review."
+        },
+        {
+          "name": "Product Ideas",
+          "description": "Feature ideas and suggested improvements for the voice-first notes product."
+        }
+      ]
     },
     {
       "id": "organize-pilot-3a789117ded6",
@@ -297,10 +386,25 @@
             "contains": [
               "circle",
               "back"
-            ]
+            ],
+            "bucketOrigin": "joined"
           }
         ]
-      }
+      },
+      "existingBuckets": [
+        {
+          "name": "Launch Readiness",
+          "description": "Notes, decisions, and open items related to the product launch."
+        },
+        {
+          "name": "Tasks",
+          "description": "Commitments and action items extracted from voice notes, awaiting agent pickup or user review."
+        },
+        {
+          "name": "Product Ideas",
+          "description": "Feature ideas and suggested improvements for the voice-first notes product."
+        }
+      ]
     },
     {
       "id": "organize-pilot-7fb14eea3904",
@@ -321,10 +425,25 @@
             "contains": [
               "tushar",
               "stretched"
-            ]
+            ],
+            "bucketOrigin": "joined"
           }
         ]
-      }
+      },
+      "existingBuckets": [
+        {
+          "name": "Launch Readiness",
+          "description": "Notes, decisions, and open items related to the product launch."
+        },
+        {
+          "name": "Tasks",
+          "description": "Commitments and action items extracted from voice notes, awaiting agent pickup or user review."
+        },
+        {
+          "name": "Product Ideas",
+          "description": "Feature ideas and suggested improvements for the voice-first notes product."
+        }
+      ]
     },
     {
       "id": "organize-pilot-69cdc746bf08",
@@ -345,10 +464,25 @@
             "contains": [
               "arjun",
               "pricing"
-            ]
+            ],
+            "bucketOrigin": "joined"
           }
         ]
-      }
+      },
+      "existingBuckets": [
+        {
+          "name": "Launch Readiness",
+          "description": "Notes, decisions, and open items related to the product launch."
+        },
+        {
+          "name": "Tasks",
+          "description": "Commitments and action items extracted from voice notes, awaiting agent pickup or user review."
+        },
+        {
+          "name": "Product Ideas",
+          "description": "Feature ideas and suggested improvements for the voice-first notes product."
+        }
+      ]
     },
     {
       "id": "organize-pilot-bcd0ed72ba08",
@@ -369,10 +503,25 @@
             "contains": [
               "anything",
               "revenue"
-            ]
+            ],
+            "bucketOrigin": "joined"
           }
         ]
-      }
+      },
+      "existingBuckets": [
+        {
+          "name": "Launch Readiness",
+          "description": "Notes, decisions, and open items related to the product launch."
+        },
+        {
+          "name": "Tasks",
+          "description": "Commitments and action items extracted from voice notes, awaiting agent pickup or user review."
+        },
+        {
+          "name": "Product Ideas",
+          "description": "Feature ideas and suggested improvements for the voice-first notes product."
+        }
+      ]
     },
     {
       "id": "organize-pilot-d477d2b44296",
@@ -393,10 +542,25 @@
             "contains": [
               "meera",
               "vendor"
-            ]
+            ],
+            "bucketOrigin": "joined"
           }
         ]
-      }
+      },
+      "existingBuckets": [
+        {
+          "name": "Launch Readiness",
+          "description": "Notes, decisions, and open items related to the product launch."
+        },
+        {
+          "name": "Tasks",
+          "description": "Commitments and action items extracted from voice notes, awaiting agent pickup or user review."
+        },
+        {
+          "name": "Product Ideas",
+          "description": "Feature ideas and suggested improvements for the voice-first notes product."
+        }
+      ]
     },
     {
       "id": "organize-pilot-718ad79bc294",
@@ -417,10 +581,25 @@
             "contains": [
               "meera",
               "main"
-            ]
+            ],
+            "bucketOrigin": "joined"
           }
         ]
-      }
+      },
+      "existingBuckets": [
+        {
+          "name": "Launch Readiness",
+          "description": "Notes, decisions, and open items related to the product launch."
+        },
+        {
+          "name": "Tasks",
+          "description": "Commitments and action items extracted from voice notes, awaiting agent pickup or user review."
+        },
+        {
+          "name": "Product Ideas",
+          "description": "Feature ideas and suggested improvements for the voice-first notes product."
+        }
+      ]
     },
     {
       "id": "organize-pilot-7bf31075401d",
@@ -441,10 +620,25 @@
             "contains": [
               "copy",
               "draft"
-            ]
+            ],
+            "bucketOrigin": "minted"
           }
         ]
-      }
+      },
+      "existingBuckets": [
+        {
+          "name": "Launch Readiness",
+          "description": "Notes, decisions, and open items related to the product launch."
+        },
+        {
+          "name": "Tasks",
+          "description": "Commitments and action items extracted from voice notes, awaiting agent pickup or user review."
+        },
+        {
+          "name": "Product Ideas",
+          "description": "Feature ideas and suggested improvements for the voice-first notes product."
+        }
+      ]
     },
     {
       "id": "organize-pilot-fcdf67c9f21f",
@@ -465,10 +659,25 @@
             "contains": [
               "handoff",
               "cannot"
-            ]
+            ],
+            "bucketOrigin": "minted"
           }
         ]
-      }
+      },
+      "existingBuckets": [
+        {
+          "name": "Launch Readiness",
+          "description": "Notes, decisions, and open items related to the product launch."
+        },
+        {
+          "name": "Tasks",
+          "description": "Commitments and action items extracted from voice notes, awaiting agent pickup or user review."
+        },
+        {
+          "name": "Product Ideas",
+          "description": "Feature ideas and suggested improvements for the voice-first notes product."
+        }
+      ]
     },
     {
       "id": "organize-pilot-94d204ecdd0c",
@@ -489,10 +698,25 @@
             "contains": [
               "decide",
               "between"
-            ]
+            ],
+            "bucketOrigin": "joined"
           }
         ]
-      }
+      },
+      "existingBuckets": [
+        {
+          "name": "Launch Readiness",
+          "description": "Notes, decisions, and open items related to the product launch."
+        },
+        {
+          "name": "Tasks",
+          "description": "Commitments and action items extracted from voice notes, awaiting agent pickup or user review."
+        },
+        {
+          "name": "Product Ideas",
+          "description": "Feature ideas and suggested improvements for the voice-first notes product."
+        }
+      ]
     },
     {
       "id": "organize-pilot-0580fdc50282",
@@ -513,10 +737,25 @@
             "contains": [
               "vendor",
               "portal"
-            ]
+            ],
+            "bucketOrigin": "joined"
           }
         ]
-      }
+      },
+      "existingBuckets": [
+        {
+          "name": "Launch Readiness",
+          "description": "Notes, decisions, and open items related to the product launch."
+        },
+        {
+          "name": "Tasks",
+          "description": "Commitments and action items extracted from voice notes, awaiting agent pickup or user review."
+        },
+        {
+          "name": "Product Ideas",
+          "description": "Feature ideas and suggested improvements for the voice-first notes product."
+        }
+      ]
     },
     {
       "id": "organize-pilot-88d6b53f9d55",
@@ -537,10 +776,29 @@
             "contains": [
               "demo",
               "scheduled"
-            ]
+            ],
+            "bucketOrigin": "joined"
           }
         ]
-      }
+      },
+      "existingBuckets": [
+        {
+          "name": "Launch Readiness",
+          "description": "Notes, decisions, and open items related to the product launch."
+        },
+        {
+          "name": "Tasks",
+          "description": "Commitments and action items extracted from voice notes, awaiting agent pickup or user review."
+        },
+        {
+          "name": "Product Ideas",
+          "description": "Feature ideas and suggested improvements for the voice-first notes product."
+        },
+        {
+          "name": "Website Redesign",
+          "description": "Status, blockers, and decisions for the website redesign project."
+        }
+      ]
     },
     {
       "id": "organize-pilot-57e0c7a3668f",
@@ -561,10 +819,29 @@
             "contains": [
               "priya",
               "slides"
-            ]
+            ],
+            "bucketOrigin": "joined"
           }
         ]
-      }
+      },
+      "existingBuckets": [
+        {
+          "name": "Launch Readiness",
+          "description": "Notes, decisions, and open items related to the product launch."
+        },
+        {
+          "name": "Tasks",
+          "description": "Commitments and action items extracted from voice notes, awaiting agent pickup or user review."
+        },
+        {
+          "name": "Product Ideas",
+          "description": "Feature ideas and suggested improvements for the voice-first notes product."
+        },
+        {
+          "name": "Website Redesign",
+          "description": "Status, blockers, and decisions for the website redesign project."
+        }
+      ]
     },
     {
       "id": "organize-pilot-f8e9b02c5951",
@@ -585,10 +862,29 @@
             "contains": [
               "chase",
               "checklist"
-            ]
+            ],
+            "bucketOrigin": "joined"
           }
         ]
-      }
+      },
+      "existingBuckets": [
+        {
+          "name": "Launch Readiness",
+          "description": "Notes, decisions, and open items related to the product launch."
+        },
+        {
+          "name": "Tasks",
+          "description": "Commitments and action items extracted from voice notes, awaiting agent pickup or user review."
+        },
+        {
+          "name": "Product Ideas",
+          "description": "Feature ideas and suggested improvements for the voice-first notes product."
+        },
+        {
+          "name": "Website Redesign",
+          "description": "Status, blockers, and decisions for the website redesign project."
+        }
+      ]
     },
     {
       "id": "organize-pilot-897bbbac2906",
@@ -609,10 +905,29 @@
             "contains": [
               "demo",
               "confirmed"
-            ]
+            ],
+            "bucketOrigin": "joined"
           }
         ]
-      }
+      },
+      "existingBuckets": [
+        {
+          "name": "Launch Readiness",
+          "description": "Notes, decisions, and open items related to the product launch."
+        },
+        {
+          "name": "Tasks",
+          "description": "Commitments and action items extracted from voice notes, awaiting agent pickup or user review."
+        },
+        {
+          "name": "Product Ideas",
+          "description": "Feature ideas and suggested improvements for the voice-first notes product."
+        },
+        {
+          "name": "Website Redesign",
+          "description": "Status, blockers, and decisions for the website redesign project."
+        }
+      ]
     },
     {
       "id": "organize-pilot-578d420add30",
@@ -633,10 +948,29 @@
             "contains": [
               "priya",
               "locked"
-            ]
+            ],
+            "bucketOrigin": "joined"
           }
         ]
-      }
+      },
+      "existingBuckets": [
+        {
+          "name": "Launch Readiness",
+          "description": "Notes, decisions, and open items related to the product launch."
+        },
+        {
+          "name": "Tasks",
+          "description": "Commitments and action items extracted from voice notes, awaiting agent pickup or user review."
+        },
+        {
+          "name": "Product Ideas",
+          "description": "Feature ideas and suggested improvements for the voice-first notes product."
+        },
+        {
+          "name": "Website Redesign",
+          "description": "Status, blockers, and decisions for the website redesign project."
+        }
+      ]
     },
     {
       "id": "organize-pilot-03bb37de25ed",
@@ -657,10 +991,29 @@
             "contains": [
               "rehearsal",
               "booked"
-            ]
+            ],
+            "bucketOrigin": "joined"
           }
         ]
-      }
+      },
+      "existingBuckets": [
+        {
+          "name": "Launch Readiness",
+          "description": "Notes, decisions, and open items related to the product launch."
+        },
+        {
+          "name": "Tasks",
+          "description": "Commitments and action items extracted from voice notes, awaiting agent pickup or user review."
+        },
+        {
+          "name": "Product Ideas",
+          "description": "Feature ideas and suggested improvements for the voice-first notes product."
+        },
+        {
+          "name": "Website Redesign",
+          "description": "Status, blockers, and decisions for the website redesign project."
+        }
+      ]
     },
     {
       "id": "organize-pilot-ded96d8c3abd",
@@ -681,10 +1034,29 @@
             "contains": [
               "vendor",
               "portal"
-            ]
+            ],
+            "bucketOrigin": "joined"
           }
         ]
-      }
+      },
+      "existingBuckets": [
+        {
+          "name": "Launch Readiness",
+          "description": "Notes, decisions, and open items related to the product launch."
+        },
+        {
+          "name": "Tasks",
+          "description": "Commitments and action items extracted from voice notes, awaiting agent pickup or user review."
+        },
+        {
+          "name": "Product Ideas",
+          "description": "Feature ideas and suggested improvements for the voice-first notes product."
+        },
+        {
+          "name": "Website Redesign",
+          "description": "Status, blockers, and decisions for the website redesign project."
+        }
+      ]
     }
   ],
   "adjudications": [
@@ -1086,6 +1458,202 @@
       "caseId": "organize-pilot-7bd4f7f0533a",
       "change": "partition: dev → held-out (to organize.heldout.v1 v2)",
       "reason": "Stratified batch (product-owner approved 2026-09-05): first 3 cases per scenario class in chronological envelope order plus both legacy corrected-kind seeds; 29 cases, >=2 per class, satisfying the >=20 total / >=2 per-class held-out minimum."
+    },
+    {
+      "at": "2026-09-04T21:02:00.049Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-44123a90c85f",
+      "change": "context: added capture-time bucket snapshot (0 buckets)",
+      "reason": "reconstructed from capture timestamp, bucket createdAt, and correction history (pilot-decision)"
+    },
+    {
+      "at": "2026-09-04T21:02:00.049Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-2e92c926d69e",
+      "change": "context: added capture-time bucket snapshot (0 buckets)",
+      "reason": "reconstructed from capture timestamp, bucket createdAt, and correction history (pilot-decision)"
+    },
+    {
+      "at": "2026-09-04T21:02:00.049Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-adfc1c7c9ba0",
+      "change": "context: added capture-time bucket snapshot (0 buckets)",
+      "reason": "reconstructed from capture timestamp, bucket createdAt, and correction history (pilot-decision)"
+    },
+    {
+      "at": "2026-09-04T21:02:00.049Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-22e900b5241e",
+      "change": "context: added capture-time bucket snapshot (0 buckets)",
+      "reason": "reconstructed from capture timestamp, bucket createdAt, and correction history (pilot-decision)"
+    },
+    {
+      "at": "2026-09-04T21:02:00.049Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-3e5db92a8889",
+      "change": "context: added capture-time bucket snapshot (2 buckets)",
+      "reason": "reconstructed from capture timestamp, bucket createdAt, and correction history (pilot-decision)"
+    },
+    {
+      "at": "2026-09-04T21:02:00.049Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-33bfa698bcf7",
+      "change": "context: added capture-time bucket snapshot (2 buckets)",
+      "reason": "reconstructed from capture timestamp, bucket createdAt, and correction history (pilot-decision)"
+    },
+    {
+      "at": "2026-09-04T21:02:00.049Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-3745612ca3d6",
+      "change": "context: added capture-time bucket snapshot (2 buckets)",
+      "reason": "reconstructed from capture timestamp, bucket createdAt, and correction history (pilot-decision)"
+    },
+    {
+      "at": "2026-09-04T21:02:00.049Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-c6574e37f556",
+      "change": "context: added capture-time bucket snapshot (2 buckets)",
+      "reason": "reconstructed from capture timestamp, bucket createdAt, and correction history (pilot-decision)"
+    },
+    {
+      "at": "2026-09-04T21:02:00.049Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-e9233092bf82",
+      "change": "context: added capture-time bucket snapshot (2 buckets)",
+      "reason": "reconstructed from capture timestamp, bucket createdAt, and correction history (pilot-decision)"
+    },
+    {
+      "at": "2026-09-04T21:02:00.049Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-096ee9b9c59c",
+      "change": "context: added capture-time bucket snapshot (2 buckets)",
+      "reason": "reconstructed from capture timestamp, bucket createdAt, and correction history (pilot-decision)"
+    },
+    {
+      "at": "2026-09-04T21:02:00.049Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-9202859574c3",
+      "change": "context: added capture-time bucket snapshot (3 buckets)",
+      "reason": "reconstructed from capture timestamp, bucket createdAt, and correction history (pilot-decision)"
+    },
+    {
+      "at": "2026-09-04T21:02:00.049Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-3a789117ded6",
+      "change": "context: added capture-time bucket snapshot (3 buckets)",
+      "reason": "reconstructed from capture timestamp, bucket createdAt, and correction history (pilot-decision)"
+    },
+    {
+      "at": "2026-09-04T21:02:00.049Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-7fb14eea3904",
+      "change": "context: added capture-time bucket snapshot (3 buckets)",
+      "reason": "reconstructed from capture timestamp, bucket createdAt, and correction history (pilot-decision)"
+    },
+    {
+      "at": "2026-09-04T21:02:00.049Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-69cdc746bf08",
+      "change": "context: added capture-time bucket snapshot (3 buckets)",
+      "reason": "reconstructed from capture timestamp, bucket createdAt, and correction history (pilot-decision)"
+    },
+    {
+      "at": "2026-09-04T21:02:00.049Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-bcd0ed72ba08",
+      "change": "context: added capture-time bucket snapshot (3 buckets)",
+      "reason": "reconstructed from capture timestamp, bucket createdAt, and correction history (pilot-decision)"
+    },
+    {
+      "at": "2026-09-04T21:02:00.049Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-d477d2b44296",
+      "change": "context: added capture-time bucket snapshot (3 buckets)",
+      "reason": "reconstructed from capture timestamp, bucket createdAt, and correction history (pilot-decision)"
+    },
+    {
+      "at": "2026-09-04T21:02:00.049Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-718ad79bc294",
+      "change": "context: added capture-time bucket snapshot (3 buckets)",
+      "reason": "reconstructed from capture timestamp, bucket createdAt, and correction history (pilot-decision)"
+    },
+    {
+      "at": "2026-09-04T21:02:00.049Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-7bf31075401d",
+      "change": "context: added capture-time bucket snapshot (3 buckets)",
+      "reason": "reconstructed from capture timestamp, bucket createdAt, and correction history (pilot-decision)"
+    },
+    {
+      "at": "2026-09-04T21:02:00.049Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-fcdf67c9f21f",
+      "change": "context: added capture-time bucket snapshot (3 buckets)",
+      "reason": "reconstructed from capture timestamp, bucket createdAt, and correction history (pilot-decision)"
+    },
+    {
+      "at": "2026-09-04T21:02:00.049Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-94d204ecdd0c",
+      "change": "context: added capture-time bucket snapshot (3 buckets)",
+      "reason": "reconstructed from capture timestamp, bucket createdAt, and correction history (pilot-decision)"
+    },
+    {
+      "at": "2026-09-04T21:02:00.049Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-0580fdc50282",
+      "change": "context: added capture-time bucket snapshot (3 buckets)",
+      "reason": "reconstructed from capture timestamp, bucket createdAt, and correction history (pilot-decision)"
+    },
+    {
+      "at": "2026-09-04T21:02:00.049Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-88d6b53f9d55",
+      "change": "context: added capture-time bucket snapshot (4 buckets)",
+      "reason": "reconstructed from capture timestamp, bucket createdAt, and correction history (pilot-decision)"
+    },
+    {
+      "at": "2026-09-04T21:02:00.049Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-57e0c7a3668f",
+      "change": "context: added capture-time bucket snapshot (4 buckets)",
+      "reason": "reconstructed from capture timestamp, bucket createdAt, and correction history (pilot-decision)"
+    },
+    {
+      "at": "2026-09-04T21:02:00.049Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-f8e9b02c5951",
+      "change": "context: added capture-time bucket snapshot (4 buckets)",
+      "reason": "reconstructed from capture timestamp, bucket createdAt, and correction history (pilot-decision)"
+    },
+    {
+      "at": "2026-09-04T21:02:00.049Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-897bbbac2906",
+      "change": "context: added capture-time bucket snapshot (4 buckets)",
+      "reason": "reconstructed from capture timestamp, bucket createdAt, and correction history (pilot-decision)"
+    },
+    {
+      "at": "2026-09-04T21:02:00.049Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-578d420add30",
+      "change": "context: added capture-time bucket snapshot (4 buckets)",
+      "reason": "reconstructed from capture timestamp, bucket createdAt, and correction history (pilot-decision)"
+    },
+    {
+      "at": "2026-09-04T21:02:00.049Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-03bb37de25ed",
+      "change": "context: added capture-time bucket snapshot (4 buckets)",
+      "reason": "reconstructed from capture timestamp, bucket createdAt, and correction history (pilot-decision)"
+    },
+    {
+      "at": "2026-09-04T21:02:00.049Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-ded96d8c3abd",
+      "change": "context: added capture-time bucket snapshot (4 buckets)",
+      "reason": "reconstructed from capture timestamp, bucket createdAt, and correction history (pilot-decision)"
     }
   ]
 }

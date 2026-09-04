@@ -564,7 +564,14 @@ export async function amendOrganizeSnapshotEnvelopes(input: {
             : `reconstructed from capture timestamp, bucket createdAt, and correction history (${source})`,
       });
       amended += 1;
-      reconstructible.push({ caseId: theCase.id, source, reasons: [], nameDrift: false });
+      if (override === undefined) {
+        reconstructible.push({
+          caseId: theCase.id,
+          source,
+          reasons: [],
+          nameDrift: false,
+        });
+      }
     }
     if (amended > 0) next.version += 1;
     nextInputs.push({ ...rawInput, next, amended });

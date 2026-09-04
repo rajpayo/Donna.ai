@@ -1,28 +1,9 @@
 {
   "schema": "donna.organize-snapshot-drift.v1",
-  "generatedAt": "2026-09-04T20:42:43.106Z",
+  "generatedAt": "2026-09-04T21:02:00.049Z",
   "candidateCases": 57,
   "reconstructibleCases": 55,
-  "overriddenCases": 0,
-  "unresolvedCases": 2,
-  "cases": [
-    {
-      "caseId": "organize-pilot-7bd4f7f0533a",
-      "source": "pilot-correction",
-      "reasons": [
-        "capture-link-missing",
-        "correction-not-found"
-      ],
-      "nameDrift": false
-    },
-    {
-      "caseId": "organize-pilot-89ef3a098348",
-      "source": "pilot-correction",
-      "reasons": [
-        "capture-link-missing",
-        "correction-not-found"
-      ],
-      "nameDrift": false
-    }
-  ]
+  "overriddenCases": 2,
+  "unresolvedCases": 0,
+  "cases": []
 }
