@@ -539,6 +539,7 @@ the product-owner acceptance decision remains manual and pending.
 - `423dbe5` — `fix: harden snapshot amendment and CI timeout test`
 - `dcce361` — `docs: record spec 6.5 reconstruction blocker`
 - `e62e860` — `evals: freeze adjudicated organize held-out v3`
+- `15c06c7` — `docs: complete spec 6.5 evidence`
 
 ### Implemented interfaces and safety checks
 
@@ -585,6 +586,11 @@ the product-owner acceptance decision remains manual and pending.
 - Deterministic baseline check: **59 cases** across adversarial (8),
   provenance (5), buckets (3), memory (4), emotion (8), retrieval (24), and
   full-loop (7); every stage passed its baseline with zero hard failures.
+- Final PR deterministic CI: **525 total / 525 passed / 0 failed / 0
+  skipped**, typecheck and dataset validation green, and the same 59-case
+  deterministic baseline check green. The credential-gated live CI job
+  skipped by design; the required live run was completed locally against
+  TrueFoundry and is recorded below.
 
 ### Reconstruction drift and adjudication
 
