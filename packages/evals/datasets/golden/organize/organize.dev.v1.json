@@ -2,7 +2,7 @@
   "schema": "donna.eval-dataset.v1",
   "name": "organize.dev.v1",
   "stage": "organize",
-  "version": 1,
+  "version": 3,
   "description": "Organize-stage DEVELOPMENT partition (Spec 6.4): de-identified pilot placements land here via the preview/confirm promotion flow. Explicitly legal for config/prompt tuning experiments, each evidenced by report diffs (product-owner resolution, 2026-09-04). Cases move to the held-out partition only via the product-owner-gated dev-to-held-out batch promotion.",
   "defaultMeta": {
     "provenance": "de-identified",
@@ -13,6 +13,68 @@
     "language": "en",
     "notes": "de-identified pilot placements promoted with eval-sharing consent; adjudicator of record is the product owner at batch review"
   },
-  "cases": [],
-  "adjudications": []
+  "cases": [
+    {
+      "id": "organize-pilot-89ef3a098348",
+      "meta": {
+        "provenance": "de-identified",
+        "labeler": "labeler:pilot-participant",
+        "adjudicator": "labeler:product-owner",
+        "consent": "de-identified",
+        "sensitivity": "low"
+      },
+      "transcript": "ACME vendor contract renewal is scheduled for October.",
+      "expected": {
+        "thoughts": [
+          {
+            "kind": "note",
+            "bucket": "Negotiations",
+            "contains": [
+              "acme",
+              "vendor"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "organize-pilot-7bd4f7f0533a",
+      "meta": {
+        "provenance": "de-identified",
+        "labeler": "labeler:pilot-participant",
+        "adjudicator": "labeler:product-owner",
+        "consent": "de-identified",
+        "sensitivity": "low"
+      },
+      "transcript": "Add quiet mode to vendor portal to hide badges",
+      "expected": {
+        "thoughts": [
+          {
+            "kind": "note",
+            "bucket": "Vendor Portal",
+            "contains": [
+              "quiet",
+              "mode"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "adjudications": [
+    {
+      "at": "2026-09-04T13:49:00.354Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-89ef3a098348",
+      "change": "expected.bucket: 'Vendor Contracts' → 'Negotiations'",
+      "reason": "pilot correction 52e90ff0-7690-4289-afed-c25fdd0af990 accepted; promoted de-identified with eval-sharing consent"
+    },
+    {
+      "at": "2026-09-04T13:49:01.400Z",
+      "adjudicator": "labeler:product-owner",
+      "caseId": "organize-pilot-7bd4f7f0533a",
+      "change": "expected.bucket: 'Product Ideas' → 'Vendor Portal'",
+      "reason": "pilot correction 4d7e4b5c-1e44-4dbd-8abf-8c361f4488ff accepted; promoted de-identified with eval-sharing consent"
+    }
+  ]
 }
