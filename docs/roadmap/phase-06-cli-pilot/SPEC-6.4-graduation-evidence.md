@@ -2,7 +2,7 @@
 id: "6.4"
 title: "Pilot decision capture and graduation-evidence promotion"
 phase: "06"
-status: "in-progress"
+status: "in-review"
 depends_on: ["6.3"]
 ---
 
@@ -354,9 +354,230 @@ The product owner examines, on synthetic data and scratch scopes only:
 
 ## Completion evidence
 
-Empty until implementation. Record commits, changed interfaces, test results,
-metrics, demo evidence, limitations, and the product-owner decision per
-EXECUTION.md.
+Implemented 2026-09-04 on branch `cursor/import-mvp-scaffold-b430`. All
+evidence produced with synthetic data and scratch pilot scopes
+(`eval-tenant` / `spec64-a` / `spec64-b`, participants `P-64-A`/`P-64-B`)
+only; the real pilot data directory was never touched (the eval harness is
+hard-isolated from it by `assertEvalDataDir`).
+
+### Commits (in order)
+
+- `2ad5c29` — docs: approve spec 6.4 with product-owner resolutions
+- `487e073` — Spec 6.4: explicit pilot placement decision register
+- `53f7d0c` — Spec 6.4: de-identified organize promotion, dev/held-out
+  partitions, freeze lock
+- `1166a14` — Spec 6.4: pilot decide/decisions/promote commands, run +
+  graduation-extras decision counts
+- `e2c9f53` — Spec 6.4: re-promote legacy corrections into the dev envelope
+  (one-time seed)
+- `30eefac` — Spec 6.4: force LF for content-hashed eval datasets (lock
+  stability)
+- `031d4ff` — Spec 6.4: runbook decision mapping + preview/confirm promotion
+  flow
+- `c438d06` — Spec 6.4: freeze held-out organize v1 (first-results lock)
+
+### Changed files and interfaces
+
+- `packages/pilot/src/decisions.ts` (new) — `DecisionRegister` +
+  `FilePilotDecisionStore` (scoped `decisions.json`, partition-guarded like
+  `FileMisfireRegisterStore`), `PilotDecision` records (FR-1 fields:
+  decision ID, pseudonymous participant ID, thought ID, capture ID, kind,
+  Donna's bucket, decided bucket, correction link, timestamp, run/scenario
+  linkage), append-only with latest-per-thought counting, `summarize`
+  (accept/move counts + first-pass acceptance rate), and
+  `collectPlacementDecisions` (window counts + undecided-thought IDs).
+- `packages/pilot/src/runs.ts` — `PilotRunRecord.decisions.placement`
+  (optional, so pre-6.4 records stay readable); `PilotRunBook.end` gathers
+  the scope's decisions + thoughts for the window counts (AC-1).
+- `packages/pilot/src/index.ts` — export the decisions module.
+- `packages/evals/src/promote-organize.ts` (new) — `buildOrganizePromotion`
+  (deterministic de-identified inline case + adjudication; case ID
+  `organize-pilot-<sha256[:12]>` of the payload), `organizeCasePayloadHash`,
+  `previewOrganizePromotion` / `confirmOrganizePromotion` (consent checked
+  and payload screened at BOTH steps, fail-closed; single write = case +
+  one adjudication + integer version bump; idempotent re-promotion),
+  `promoteOrganizeCasesToHeldout` (product-owner-gated stratified batch
+  move with recorded rationale; held-out written first so a crash cannot
+  lose a case from both partitions), and the freeze lock
+  (`freezeHeldoutEnvelope`, `checkHeldoutLock`, `readHeldoutLock`,
+  `heldoutLockPath`, `isHeldoutEnvelopePath`). New file writes use
+  `@donna/file-security` (`writePrivateFile`); every envelope write is
+  validated against the exact bytes via a temp sibling + `loadDataset`
+  before landing.
+- `packages/evals/src/datasets.ts` — one-line relaxation of the
+  adjudication-reference check: `partition:` entries (Spec 6.4 FR-8) may
+  reference cases that moved to the other partition; all other entries
+  still require a known case.
+- `packages/evals/src/scorers/organize.ts` — `cohortKeys:
+  ["language","accent","noise"]` so promoted-case cohort labels flow into
+  report slices (SR-4). No gate/metric change.
+- `packages/evals/src/graduation.ts` — `GraduationExtras.placementDecisions`
+  (optional) + its Markdown rendering. The gate block (lines 118–193) is
+  untouched.
+- `packages/evals/src/cli.ts` — `run <stage> --dataset <path>` override;
+  `heldout-freeze [--dataset <path>] --report <report.json>`; held-out lock
+  validation on `run` and `validate` (hard failure on content drift at the
+  locked version); the `organize` registry default repointed to the
+  held-out envelope; `validate` additionally covers the dev and pre-pilot
+  organize envelopes.
+- `packages/evals/src/seed-organize-dev.ts` (new) — the one-time,
+  machinery-driven seed re-promoting the two legacy `corrections.v1.json`
+  cases into the dev envelope (idempotent).
+- `packages/evals/datasets/golden/organize/organize.dev.v1.json` (new) —
+  development partition, seeded to v3 (2 cases) by the machinery.
+- `packages/evals/datasets/golden/organize/organize.heldout.v1.json` (new) —
+  held-out partition v1, `legacyImport` of the 3 pre-pilot cases unaltered.
+- `packages/evals/datasets/golden/organize/organize.heldout.lock.json`
+  (new) — the v1 freeze lock (see below).
+- `apps/cli/src/main.ts` — `pilot decide accept|move` (move wraps the
+  shared `submitBucketMoveCorrection` and links the correction),
+  `pilot decisions`, `pilot promote preview|confirm --partition dev`;
+  `pilot run end`/`run show` print placement counts + the undecided count;
+  `pilot graduation-extras` aggregates decision counts per scope
+  (pseudonymous participant IDs only). USAGE updated.
+- `docs/pilot/RUNBOOK.md` — decision-mapping table (accept is now an
+  explicit command) and the preview/confirm promotion + partition/freeze
+  procedure.
+- `.gitattributes` (new) — `packages/evals/datasets/**/*.json text eol=lf`
+  so the content-hashed envelopes (and the lock) are byte-identical across
+  platforms; without it `core.autocrlf=true` gives Windows CRLF working
+  trees and the committed lock would fail CI validation on Linux.
+
+### Tests and exact results
+
+- Local full suite: **497 tests, 496 passed, 0 failed, 1 skipped** (the
+  pre-existing DB-gated skip; PostgreSQL tests skip locally without DB env
+  vars). Baseline at Spec 6.3 acceptance: 455. Net **+45 new tests**:
+  `packages/pilot/src/decisions.test.ts` (13), `packages/evals/src/
+  promote-organize.test.ts` (29), `datasets.test.ts` (+2),
+  `graduation.test.ts` (+1).
+- `npm run typecheck`: clean across all workspaces.
+- CI (`.github/workflows/eval.yml`, deterministic job) green on every push,
+  including the final lock commit `c438d06` — typecheck, unit + PostgreSQL
+  integration tests, dataset validation (now incl. the held-out lock
+  check), and deterministic stages vs baselines all pass on Linux, which
+  confirms the LF normalization keeps the lock hash stable cross-platform.
+
+### Demonstration (synthetic, scratch scopes)
+
+1. **Review flow (AC-1).** Enrolled `P-64-A`, run `SC-IDEA-01`, one
+   synthetic espeak-ng capture → 3 thoughts. `pilot decide accept` on one,
+   `pilot decide move … --to Onboarding` on another (queued + linked
+   correction `8ad97adb…`), one left undecided. `pilot decisions` showed
+   1 accept / 1 move, rate 50.0%. `pilot run end` printed `placement
+   decisions: 1 accept(s), 1 move(s); undecided reviewed thoughts: 1`.
+2. **Consent gate (AC-3).** `pilot promote preview` with no `eval-sharing`
+   consent failed closed (`Sharing … requires active consent for
+   "eval-sharing"`, zero writes). After `consent grant eval-sharing`,
+   preview + confirm succeeded. On scope B: grant → preview → **revoke** →
+   confirm failed closed; re-grant → confirm succeeded.
+3. **Preview fidelity (AC-4).** Accept preview showed exactly the shared
+   fields (summary text, expected bucket `Product Ideas`, scenario class
+   `ideas`, variant `V-ACCENT`, case ID `organize-pilot-90f5202adb13`,
+   partition `dev`) + hash `9e1ac6d0…`; confirm wrote byte-identical
+   content and printed the same hash.
+4. **Both promotion kinds (AC-5/AC-6).** Corrected: case
+   `organize-pilot-a5629311ec49` label `Onboarding`, adjudication
+   `expected.bucket: 'Tasks' → 'Onboarding'` naming correction
+   `8ad97adb…`; dev envelope v4→v5. Accepted: case
+   `organize-pilot-90f5202adb13`, adjudication `new case: first-pass
+   accepted placement 'Product Ideas'`; v3→v4. `donna evals validate`
+   passes on the updated envelope. Re-confirm reported `already shared …
+   the envelope is unchanged` (AC-11).
+5. **Partition mechanics (AC-8).** `pilot promote confirm … --partition
+   heldout` rejected (`Promotions land only in the development
+   partition`). On **scratch copies**: the gated move
+   (`promoteOrganizeCasesToHeldout`, rationale recorded) moved 3 demo cases
+   — dev v6→v7 (2 seed cases remain), held-out v1→v2 (6 cases), zero
+   partition overlap, adjudication entries in both envelopes (held-out
+   carries each case's full history + the partition entry; dev keeps the
+   move-out entries and still validates). `run organize --dataset
+   <scratch held-out>` (live gateway) produced 6 cases / 0 hard failures /
+   bucket_acceptance 0.7500, dataset `organize.heldout.v1 v2
+   sha256:acccfaf2…`; `heldout-freeze` wrote the scratch lock; a hand-edit
+   to the locked envelope then failed `run organize` hard (`content differs
+   from its freeze lock (locked acccfaf2a5aa…, actual …)`).
+6. **Graduation linkage (AC-9).** On the real artifacts: `run organize`
+   (registry default = held-out v1, live gateway, 3 cases, 0 hard failures)
+   → report `organize.heldout.v1-2026-09-04T14-37-43-017Z.json`;
+   `heldout-freeze` wrote the committed lock (`organize.heldout.v1 v1
+   sha256:f671698e7536…`, first-results report `3999c250f75e…`);
+   `graduation-run` over that report froze `organize.heldout.v1 v1
+   sha256:f671698e7536…` — **freeze hash == lock hash** (verdict REJECTED
+   as expected for single-stage evidence; the linkage is the point).
+7. **Screening rejection (AC-7).** A synthetic payload with a fake
+   national-id pattern (`…123-45-6789…`) was rejected at preview with
+   `SensitiveContentError: … national-id` — the category token only, never
+   the matched content; nothing written. (All four categories —
+   national-id, card-number, api-token, password — are covered by tests.)
+
+`pilot graduation-extras` over the two scratch scopes (AC-2) reported
+`placementDecisions`: aggregate 3 accepts / 1 move, first-pass acceptance
+75%, per-scope `P-64-A` 1/1 (50%) and `P-64-B` 2/0 (100%) — pseudonymous
+participant IDs only.
+
+### Security and privacy checks
+
+- Consent fail-closed at preview AND confirm, incl. the
+  revoke-between-steps case (AC-3, tested + live).
+- Screening at preview and confirm; the written envelope is re-screened by
+  the loader on every read (datasets.ts) and by the pre-write validation.
+- Forbidden-value scan test: tenant/user/participant/capture IDs, raw audio
+  paths, and full transcript text never appear in a promoted case; the
+  builder tests prove the field allowlist (extra smuggled fields cannot
+  leak).
+- Decision register and all promotion inputs live in the participant's
+  pilot partition; the file store rejects cross-partition records (tested).
+- Cohort suppression: a promoted-case cohort of n < 3 is suppressed from
+  the organize report slices (tested via a stub-scorer run; the organize
+  scorer now declares cohort keys).
+- No secrets, raw recordings, or full transcripts written to the repo;
+  reports stay git-ignored local artifacts; the lock is the committable,
+  content-free anchor.
+
+### Data migrations and rollback
+
+- The dev envelope was seeded once by `packages/evals/src/
+  seed-organize-dev.ts` (the two legacy `corrections.v1.json` cases
+  re-promoted under the new mechanics; re-running is a byte-identical
+  no-op). `corrections.v1.json` and its legacy promotion path are
+  unchanged.
+- Rollback: the envelopes and lock are plain committed JSON — `git
+  revert` the seed/lock commits restores the prior state; the pilot
+  decision register is a new per-partition file with no effect on existing
+  stores.
+
+### Known limitations
+
+- The held-out v1 set is 3 pre-pilot cases — below the approved ≥ 20
+  total / ≥ 2 per scenario-class minimum for the next graduation attempt;
+  growing it requires the product owner's real pilot runs (never
+  fabricated here).
+- Thought `kind` for promoted cases is derived as `task` when a task
+  candidate is present, else `note` (the persisted thought carries no
+  idea/note distinction); the product owner adjudicates labels at batch
+  review. The two seeded legacy cases were seeded as `note`.
+- The `contains` substrings are deterministically derived (first two
+  significant words of the de-identified summary) and are adjudicable
+  labels like any other case.
+- The dev→held-out gate is library machinery
+  (`promoteOrganizeCasesToHeldout`) exercised through a documented
+  invocation, not a new interactive CLI command — the spec's CLI surface
+  did not include one. The product owner should confirm this is the
+  intended operating mode.
+- `models.config.yaml` is content-hashed into config fingerprints but is
+  not covered by the new LF rule (out of scope; baseline comparison treats
+  dataset-hash drift as a note, and fingerprints are not compared
+  cross-environment in CI).
+- The demo's dev→held-out move, freeze, and tamper steps ran against
+  scratch copies of the envelopes so synthetic demo cases never enter the
+  committed evidence set; the committed dev envelope holds only the two
+  sanctioned seed cases, and the committed held-out envelope stays at v1.
+
+### Product-owner decision
+
+PENDING — awaiting examination (the demonstration above is the review-gate
+plan, executed on synthetic data and scratch scopes).
 
 ## Review gate
 

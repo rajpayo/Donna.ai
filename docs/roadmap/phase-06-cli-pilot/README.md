@@ -482,6 +482,17 @@ If any criterion fails, keep this specification `in-review` or return it to
 `draft` with a focused remediation plan. Phase 7 may begin only after explicit
 acceptance; Phase 9 client work remains locked until then.
 
+---
+
+### Specification 6.4 — Pilot decision capture and graduation-evidence promotion
+
+Status: `in-review` (product-owner examination pending) — see
+[`SPEC-6.4-graduation-evidence.md`](SPEC-6.4-graduation-evidence.md) for the
+approved specification, binding open-question resolutions, and completion
+evidence.
+
+---
+
 ## Phase exit gate
 
 - **Met (tooling side):** the controlled pilot is consented, supportable, and
