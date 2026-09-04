@@ -125,11 +125,25 @@ const organizeCaseSchema = z.object({
   id: z.string().min(1),
   meta: caseMetaOverrideSchema.optional(),
   transcript: z.string().min(1),
+  /**
+   * Specification 6.5: the bucket names/descriptions visible to the
+   * organizer when this capture was made. Legacy cases omit the field and
+   * retain their cold-start behavior.
+   */
+  existingBuckets: z
+    .array(
+      z.object({
+        name: z.string().min(1),
+        description: z.string(),
+      }),
+    )
+    .optional(),
   expected: z.object({
     thoughts: z.array(
       z.object({
         kind: z.enum(["idea", "task", "note"]),
         bucket: z.string().nullable(),
+        bucketOrigin: z.enum(["minted", "joined"]).optional(),
         contains: z.array(z.string().min(1)).min(1),
         task: z
           .object({
@@ -400,6 +414,74 @@ function sha256Hex(content: string): string {
   return createHash("sha256").update(content).digest("hex");
 }
 
+/** Existing exact-match semantics: trim and fold case, nothing fuzzy. */
+function normalizeBucketName(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+/**
+ * Specification 6.5 FR-2/SR-1: origin labels and capture-time snapshots
+ * must agree mechanically. This runs on every load, after schema parsing,
+ * and reports the case ID in every problem.
+ */
+function organizeSnapshotProblems(
+  caseData: Record<string, unknown> & { id: string },
+  where: string,
+): string[] {
+  const existingBuckets = caseData["existingBuckets"] as
+    | Array<{ name: string; description: string }>
+    | undefined;
+  const expected = caseData["expected"] as
+    | {
+        thoughts: Array<{
+          bucket: string | null;
+          bucketOrigin?: "minted" | "joined";
+        }>;
+      }
+    | undefined;
+  if (expected === undefined) return [];
+
+  const problems: string[] = [];
+  const snapshotNames = new Set<string>();
+  for (const [index, bucket] of (existingBuckets ?? []).entries()) {
+    const normalized = normalizeBucketName(bucket.name);
+    if (snapshotNames.has(normalized)) {
+      problems.push(
+        `${where}: existingBuckets[${index}]: duplicate normalized bucket name "${normalized}"`,
+      );
+    }
+    snapshotNames.add(normalized);
+  }
+
+  for (const [index, thought] of expected.thoughts.entries()) {
+    if (thought.bucketOrigin === undefined) continue;
+    const thoughtWhere = `${where}: expected.thoughts[${index}]`;
+    if (existingBuckets === undefined) {
+      problems.push(
+        `${thoughtWhere}: bucketOrigin requires an existingBuckets snapshot`,
+      );
+      continue;
+    }
+    if (thought.bucket === null) {
+      problems.push(`${thoughtWhere}: bucketOrigin requires a non-null bucket label`);
+      continue;
+    }
+    const label = normalizeBucketName(thought.bucket);
+    const appears = snapshotNames.has(label);
+    if (thought.bucketOrigin === "joined" && !appears) {
+      problems.push(
+        `${thoughtWhere}: joined bucket label "${thought.bucket}" is missing from existingBuckets`,
+      );
+    }
+    if (thought.bucketOrigin === "minted" && appears) {
+      problems.push(
+        `${thoughtWhere}: minted bucket label "${thought.bucket}" appears in existingBuckets (label leak)`,
+      );
+    }
+  }
+  return problems;
+}
+
 /**
  * Load and validate a dataset envelope (AC-2). Throws
  * DatasetValidationError listing EVERY problem found. Never mutates the
@@ -467,6 +549,9 @@ export async function loadDataset<T = Record<string, unknown>>(
 
     const meta: CaseMeta = { ...envelope.defaultMeta, ...(caseData.meta ?? {}) };
     problems.push(...consentProblems(meta, where));
+    if (envelope.stage === "organize") {
+      problems.push(...organizeSnapshotProblems(caseData, where));
+    }
 
     // SR-1: screen every text field of the case for sensitive content.
     const strings: string[] = [];

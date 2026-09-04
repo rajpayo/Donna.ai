@@ -63,6 +63,12 @@ export type OrganizePartition = (typeof ORGANIZE_PARTITIONS)[number];
 export const PILOT_LABELER_ID = "labeler:pilot-participant";
 export const PRODUCT_OWNER_ADJUDICATOR_ID = "labeler:product-owner";
 
+export type BucketOrigin = "minted" | "joined";
+export interface ExistingBucketSnapshot {
+  name: string;
+  description: string;
+}
+
 /** Scenario ID → class, mirroring the runbook matrix (docs/pilot/RUNBOOK.md). */
 export const SCENARIO_CLASSES: Record<string, string> = {
   "SC-MEET-01": "meetings",
@@ -111,6 +117,12 @@ export interface PromotionCohort {
    * case "consented-volunteer" (consent state follows automatically).
    */
   provenance?: "de-identified" | "consented-volunteer";
+  /**
+   * Specification 6.5: capture-time bucket context. When present, the
+   * promotion is born in-context and its origin label is derived
+   * mechanically from whether the expected bucket appears in this list.
+   */
+  existingBuckets?: ExistingBucketSnapshot[];
 }
 
 /** FR-6: an explicit accept decision — the label is Donna's chosen bucket. */
@@ -154,10 +166,12 @@ export interface OrganizeInlineCase {
     notes?: string;
   };
   transcript: string;
+  existingBuckets?: ExistingBucketSnapshot[];
   expected: {
     thoughts: Array<{
       kind: "idea" | "task" | "note";
       bucket: string;
+      bucketOrigin?: BucketOrigin;
       contains: string[];
     }>;
   };
@@ -226,6 +240,10 @@ function deriveContains(summary: string): string[] {
   return picked;
 }
 
+function normalizeBucketName(value: string): string {
+  return value.trim().toLowerCase();
+}
+
 /* ------------------------------------------------------------------ */
 /* Build + screen                                                      */
 /* ------------------------------------------------------------------ */
@@ -248,6 +266,19 @@ export function buildOrganizePromotion(
     throw new PromotionError("A promoted case needs the expected bucket label");
   }
   const provenance = source.provenance ?? "de-identified";
+  const existingBuckets = source.existingBuckets?.map((bucket) => ({
+    name: bucket.name.trim(),
+    description: bucket.description,
+  }));
+  const bucketOrigin: BucketOrigin | undefined =
+    existingBuckets === undefined
+      ? undefined
+      : existingBuckets.some(
+          (bucket) =>
+            normalizeBucketName(bucket.name) === normalizeBucketName(expectedBucket),
+        )
+        ? "joined"
+        : "minted";
   const cohortNotes = [
     source.scenarioClass !== undefined ? `scenario-class:${source.scenarioClass}` : undefined,
     source.variants !== undefined && source.variants.length > 0
@@ -269,11 +300,13 @@ export function buildOrganizePromotion(
       ...(cohortNotes !== "" ? { notes: cohortNotes } : {}),
     },
     transcript: summary,
+    ...(existingBuckets !== undefined ? { existingBuckets } : {}),
     expected: {
       thoughts: [
         {
           kind: source.thoughtKind,
           bucket: expectedBucket,
+          ...(bucketOrigin !== undefined ? { bucketOrigin } : {}),
           contains: deriveContains(summary),
         },
       ],

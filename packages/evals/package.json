@@ -16,6 +16,7 @@
     "@donna/core": "*",
     "@donna/file-security": "*",
     "@donna/pipeline": "*",
+    "@donna/pilot": "*",
     "@donna/providers": "*",
     "@donna/retrieval": "*",
     "@donna/storage-postgres": "*",

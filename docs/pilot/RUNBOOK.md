@@ -89,6 +89,12 @@ content. Since Specification 6.4, placement decisions are EXPLICIT:
 every thought surfaced in `pilot review` should receive `pilot decide
 accept` or `pilot decide move`; `pilot run end` prints the window's
 accept/move counts and the count of reviewed thoughts left undecided.
+Since Specification 6.5, each new placement decision also records the
+capture-time bucket names and descriptions that Donna actually saw. Buckets
+minted by that capture are excluded mechanically, so later promotion cannot
+leak the expected label into the organizer input. If rename/merge history
+cannot be reversed exactly, the decision command fails clearly and asks for
+history review instead of guessing.
 
 **Decision mapping** (every explicit output decision is recorded through
 the existing services):
@@ -158,7 +164,8 @@ A decision or correction becomes a shared case ONLY when ALL hold:
 ```bash
 donna pilot promote preview <decision-id|correction-id>
 # shows EXACTLY the shared fields (summary text, expected bucket, scenario
-# class, variant labels, proposed case ID, target partition) + payload hash
+# class, variant labels, capture-time bucket names+descriptions, bucket origin,
+# proposed case ID, target partition) + payload hash
 donna pilot promote confirm <decision-id|correction-id> --partition dev
 # writes byte-identical content (hash equals the preview), bumps the dev
 # envelope version, and appends one adjudication entry
@@ -169,6 +176,12 @@ cases carry no raw audio paths, full transcripts, or
 capture/tenant/user/participant IDs — the case text is the de-identified
 thought summary only (product-owner resolution, 2026-09-04). Re-promoting
 the same decision or correction is a no-op ("already shared").
+
+The bucket snapshot is covered by the existing `eval-sharing` consent
+(product-owner resolution, 2026-09-05), but its names and descriptions are
+screened at preview, confirm, and every dataset load. `bucketOrigin: joined`
+means the expected label appears in the snapshot; `minted` means it must not.
+`donna evals validate` fails loudly if either invariant is broken.
 
 **Dev → held-out promotion (product owner only).** Cases move from the
 development partition to the held-out partition only as a product-owner-
@@ -189,6 +202,40 @@ Thereafter any hand-edit to the locked held-out content fails validation
 minimum held-out size before the next graduation attempt is **≥ 20 cases
 total, ≥ 2 per core scenario class** (product-owner resolution,
 2026-09-04).
+
+**Capture-time snapshot amendment (product owner only, Specification 6.5).**
+Work from a read-only source data tree or a protected copy; never write eval
+artifacts into pilot storage. Dry-run first:
+
+```bash
+npm run eval:harness --workspace @donna/evals -- amend-organize-snapshots \
+  --source-data <read-only-data-dir> --tenant <scope> --user <scope>
+```
+
+The command prints reconstructible/flagged counts and writes the content-free
+drift report. Every flagged case must be adjudicated in one local JSON override
+file before apply; no case is guessed or silently left cold. Apply is an
+explicit product-owner gate:
+
+```bash
+npm run eval:harness --workspace @donna/evals -- amend-organize-snapshots \
+  --source-data <read-only-data-dir> --tenant <scope> --user <scope> \
+  --adjudications <reviewed-overrides.json> --apply --product-owner-approved
+```
+
+Apply adds snapshots/origins to the existing IDs, appends one context
+adjudication per case, advances held-out v2 to v3, archives the exact v2 lock,
+and writes the additive-only diff proof. The product owner then runs the live
+organize eval and freezes v3:
+
+```bash
+npm run eval:harness --workspace @donna/evals -- run organize
+npm run eval:harness --workspace @donna/evals -- heldout-freeze --report <v3-report.json>
+```
+
+The run report shows exact gate-facing `organize.bucket_acceptance` plus the
+minted/joined breakdown and non-gate `organize.bucket_name_equivalence`.
+Equivalence never changes the 0.85 graduation bar.
 
 **Legacy path.** `donna pilot misfire promote <misfire-id> --correction
 <id>` still writes to the flat `corrections.v1.json` (unchanged); the two

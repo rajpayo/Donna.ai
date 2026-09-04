@@ -205,6 +205,93 @@ describe("dataset envelope validation (AC-2)", () => {
     const badPath = await writeDataset("partition-move-bad.json", bad);
     await assert.rejects(loadDataset(badPath), /unknown case id/);
   });
+
+  it("validates capture-time bucket snapshots and origin labels (Spec 6.5 AC-1)", async () => {
+    const valid = envelope({
+      cases: [
+        {
+          id: "snapshot-valid",
+          transcript: "Review onboarding and capture a launch idea.",
+          existingBuckets: [
+            { name: "Product Ideas", description: "Potential product improvements" },
+          ],
+          expected: {
+            thoughts: [
+              {
+                kind: "idea",
+                bucket: "Product Ideas",
+                bucketOrigin: "joined",
+                contains: ["onboarding"],
+              },
+              {
+                kind: "note",
+                bucket: "Launch Notes",
+                bucketOrigin: "minted",
+                contains: ["launch"],
+              },
+            ],
+          },
+        },
+      ],
+    });
+    const path = await writeDataset("snapshot-valid.json", valid);
+    const loaded = await loadDataset(path);
+    assert.equal(loaded.cases.length, 1);
+  });
+
+  it("rejects a joined label missing from its snapshot (Spec 6.5 AC-1)", async () => {
+    const bad = envelope({
+      cases: [
+        {
+          id: "joined-missing",
+          transcript: "Review the onboarding drop-off.",
+          existingBuckets: [{ name: "Tasks", description: "Commitments" }],
+          expected: {
+            thoughts: [
+              {
+                kind: "idea",
+                bucket: "Product Ideas",
+                bucketOrigin: "joined",
+                contains: ["onboarding"],
+              },
+            ],
+          },
+        },
+      ],
+    });
+    await assert.rejects(
+      loadDataset(await writeDataset("joined-missing.json", bad)),
+      /joined-missing[\s\S]*joined bucket label[\s\S]*missing/,
+    );
+  });
+
+  it("rejects a minted label leaked into its snapshot (Spec 6.5 SR-1)", async () => {
+    const bad = envelope({
+      cases: [
+        {
+          id: "minted-leak",
+          transcript: "Capture a new launch idea.",
+          existingBuckets: [
+            { name: "Launch Notes", description: "Launch preparation" },
+          ],
+          expected: {
+            thoughts: [
+              {
+                kind: "idea",
+                bucket: "launch notes",
+                bucketOrigin: "minted",
+                contains: ["launch"],
+              },
+            ],
+          },
+        },
+      ],
+    });
+    await assert.rejects(
+      loadDataset(await writeDataset("minted-leak.json", bad)),
+      /minted-leak[\s\S]*label leak/,
+    );
+  });
 });
 
 describe("shipped datasets are all valid", () => {
@@ -231,8 +318,11 @@ describe("shipped datasets are all valid", () => {
       resolve(evalsDir, "datasets/golden/organize/organize.heldout.v1.json"),
     );
     assert.equal(heldout.name, "organize.heldout.v1");
-    assert.equal(heldout.cases.length, 3); // the frozen pre-pilot cases via legacyImport
-    assert.ok(heldout.cases.every((c) => c.meta.provenance === "synthetic"));
+    assert.equal(heldout.cases.length, 32); // 29 pilot-grown + 3 cold legacy cases
+    assert.equal(
+      heldout.cases.filter((c) => c.meta.provenance === "synthetic").length,
+      3,
+    );
     // The dev partition validates whether empty or seeded (inline cases only).
     const dev = await loadDataset(
       resolve(evalsDir, "datasets/golden/organize/organize.dev.v1.json"),

@@ -32,14 +32,44 @@ import type { CaseOutcome } from "../report.js";
 
 interface OrganizePayload {
   transcript: string;
+  existingBuckets?: Array<{ name: string; description: string }>;
   expected: {
     thoughts: Array<{
       kind: "idea" | "task" | "note";
       bucket: string | null;
+      bucketOrigin?: "minted" | "joined";
       contains: string[];
       task?: { assigneeHint?: string; dueHint?: string };
     }>;
   };
+}
+
+/** The gate's existing exact-match normalization; deliberately not fuzzy. */
+export function normalizeBucketExact(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+/**
+ * Non-gate diagnostic v1 (Specification 6.5 FR-4/SR-2): punctuation and
+ * whitespace are folded, then unique token sets are compared without
+ * regard to order. This must never feed organize.bucket_acceptance.
+ */
+export const BUCKET_NAME_EQUIVALENCE_RULE = "token-set-v1";
+export function bucketNamesEquivalent(left: string, right: string): boolean {
+  const tokens = (value: string): string[] => [
+    ...new Set(
+      value
+        .normalize("NFKC")
+        .toLowerCase()
+        .replace(/[\p{P}\p{S}]+/gu, " ")
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean),
+    ),
+  ].sort();
+  const a = tokens(left);
+  const b = tokens(right);
+  return a.length > 0 && a.length === b.length && a.every((token, i) => token === b[i]);
 }
 
 function transcriptFixture(caseId: string, text: string): TranscriptRecord {
@@ -86,10 +116,14 @@ export function createOrganizeScorer(options: OrganizeScorerOptions): StageScore
         model: record.model,
       };
       const started = Date.now();
+      const existingBuckets = (payload.existingBuckets ?? []).map((bucket) => ({
+        name: bucket.name,
+        description: bucket.description,
+      }));
 
       let output;
       try {
-        output = await options.organizer.organize(transcript, []);
+        output = await options.organizer.organize(transcript, existingBuckets);
       } catch (error) {
         const message = (error as Error).message;
         const isGateway = /Gateway \d|fetch|ECONN|ETIMEDOUT|network/i.test(message);
@@ -171,17 +205,43 @@ export function createOrganizeScorer(options: OrganizeScorerOptions): StageScore
       // --- bucket acceptance (first-pass agreement with the labels) ---
       const bucketExpected = expected.filter((t) => t.bucket !== null);
       let bucketAgreed = 0;
+      let mintedExpected = 0;
+      let mintedAgreed = 0;
+      let mintedEquivalent = 0;
+      let joinedExpected = 0;
+      let joinedAgreed = 0;
       for (const exp of bucketExpected) {
         const actual = output.thoughts.find((t) =>
           exp.contains.every((c) =>
             `${t.text} ${t.summary}`.toLowerCase().includes(c.toLowerCase()),
           ),
         );
-        const proposed = (actual?.suggestedBucket ?? actual?.newBucketName ?? "")
-          .trim()
-          .toLowerCase();
-        if (actual !== undefined && proposed === exp.bucket!.trim().toLowerCase()) {
+        const label = normalizeBucketExact(exp.bucket!);
+        const proposed = normalizeBucketExact(
+          actual?.suggestedBucket ?? actual?.newBucketName ?? "",
+        );
+        const exactMatch =
+          exp.bucketOrigin === "minted"
+            ? actual?.newBucketName !== undefined &&
+              actual.newBucketName.trim().length > 0 &&
+              normalizeBucketExact(actual.newBucketName) === label
+            : actual !== undefined && proposed === label;
+        if (exactMatch) {
           bucketAgreed += 1;
+        }
+        if (exp.bucketOrigin === "minted") {
+          mintedExpected += 1;
+          if (exactMatch) mintedAgreed += 1;
+          if (
+            actual?.newBucketName !== undefined &&
+            actual.newBucketName.trim().length > 0 &&
+            bucketNamesEquivalent(actual.newBucketName, exp.bucket!)
+          ) {
+            mintedEquivalent += 1;
+          }
+        } else if (exp.bucketOrigin === "joined") {
+          joinedExpected += 1;
+          if (exactMatch) joinedAgreed += 1;
         }
       }
       const scores: Record<string, number> = {
@@ -195,12 +255,30 @@ export function createOrganizeScorer(options: OrganizeScorerOptions): StageScore
       if (bucketExpected.length > 0) {
         scores["organize.bucket_acceptance"] = bucketAgreed / bucketExpected.length;
       }
+      if (mintedExpected > 0) {
+        scores["organize.bucket_acceptance_minted"] = mintedAgreed / mintedExpected;
+        scores["organize.bucket_name_equivalence"] =
+          mintedEquivalent / mintedExpected;
+      }
+      if (joinedExpected > 0) {
+        scores["organize.bucket_acceptance_joined"] = joinedAgreed / joinedExpected;
+      }
 
       return [{
         caseId: testCase.id,
         scores,
         hardFailures,
         latencyMs: Date.now() - started,
+        ...(mintedExpected + joinedExpected > 0
+          ? {
+              notes: [
+                `bucket-origin-minted:${mintedExpected}`,
+                `bucket-origin-joined:${joinedExpected}`,
+                `bucket-equivalence-rule:${BUCKET_NAME_EQUIVALENCE_RULE}`,
+                `bucket-equivalence-only:${Math.max(0, mintedEquivalent - mintedAgreed)}`,
+              ],
+            }
+          : {}),
       }];
     },
   };

@@ -106,8 +106,23 @@ export const METRIC_DOCS: Record<string, MetricDoc> = {
     passDirection: "higher-is-better",
   },
   "organize.bucket_acceptance": {
-    denominator: "placed thoughts per case (first-pass placement matches expected bucket)",
+    denominator: "bucket-labeled thoughts per case (exact first-pass placement match; minted labels additionally require a real mint)",
     missing: "cases without bucket expectations are excluded from the denominator",
+    passDirection: "higher-is-better",
+  },
+  "organize.bucket_acceptance_minted": {
+    denominator: "expected minted-label thoughts per case (real mint plus exact normalized name match)",
+    missing: "cases without minted-label thoughts are excluded from the denominator",
+    passDirection: "higher-is-better",
+  },
+  "organize.bucket_acceptance_joined": {
+    denominator: "expected joined-label thoughts per case (exact existing-bucket match)",
+    missing: "cases without joined-label thoughts are excluded from the denominator",
+    passDirection: "higher-is-better",
+  },
+  "organize.bucket_name_equivalence": {
+    denominator: "expected minted-label thoughts per case (real mint with token-set-v1 equivalent name)",
+    missing: "cases without minted-label thoughts are excluded; diagnostic never feeds a graduation gate",
     passDirection: "higher-is-better",
   },
   "organize.provenance_fidelity": {

@@ -2,7 +2,7 @@
 id: "6.5"
 title: "In-context organize evaluation (capture-time bucket snapshots)"
 phase: "06"
-status: "approved"
+status: "in-progress"
 depends_on: ["6.4"]
 ---
 

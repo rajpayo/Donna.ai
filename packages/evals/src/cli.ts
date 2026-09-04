@@ -34,6 +34,11 @@ import {
   type ResolvedStack,
 } from "@donna/providers";
 import { copyFile, mkdir, readFile } from "node:fs/promises";
+import { FileBucketStore } from "@donna/buckets";
+import { FileCorrectionStore } from "@donna/memory";
+import { FileCaptureStore } from "@donna/pipeline";
+import { FilePilotDecisionStore } from "@donna/pilot";
+import { writePrivateFile } from "@donna/file-security";
 import { loadDataset } from "./datasets.js";
 import { runEval, type StageScorer } from "./harness.js";
 import {
@@ -65,6 +70,10 @@ import { createMemoryScorer } from "./scorers/memory.js";
 import { createRetrievalScorer } from "./scorers/retrieval.js";
 import { createEmotionScorer } from "./scorers/emotion.js";
 import { createFullLoopScorer } from "./scorers/full-loop.js";
+import {
+  amendOrganizeSnapshotEnvelopes,
+  type SnapshotAdjudicationOverride,
+} from "./amend-organize-snapshots.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const evalsDir = resolve(here, "..");
@@ -322,6 +331,99 @@ async function main(): Promise<void> {
     return;
   }
 
+  // Specification 6.5: reconstruct capture-time bucket snapshots from one
+  // explicitly supplied, scoped source tree. The source is read-only; dry
+  // run is the default, and held-out amendment requires an explicit product-
+  // owner gate. Ambiguity blocks every envelope write.
+  if (command === "amend-organize-snapshots") {
+    const sourceData = arg("--source-data");
+    const tenantId = arg("--tenant") ?? process.env.DONNA_TENANT_ID;
+    const userId = arg("--user") ?? process.env.DONNA_USER_ID;
+    if (sourceData === undefined || tenantId === undefined || userId === undefined) {
+      throw new Error(
+        "usage: cli.ts amend-organize-snapshots --source-data <read-only-data-dir> " +
+          "--tenant <scope> --user <scope> [--apply --product-owner-approved] " +
+          "[--adjudications <json>]",
+      );
+    }
+    const apply = process.argv.includes("--apply");
+    if (apply && !process.argv.includes("--product-owner-approved")) {
+      throw new Error(
+        "Held-out amendment is gated: --apply also requires --product-owner-approved",
+      );
+    }
+    const devPath = resolve(
+      process.cwd(),
+      arg("--dev") ??
+        join(evalsDir, "datasets/golden/organize/organize.dev.v1.json"),
+    );
+    const heldoutPath = resolve(
+      process.cwd(),
+      arg("--heldout") ??
+        join(evalsDir, "datasets/golden/organize/organize.heldout.v1.json"),
+    );
+    const driftPath = resolve(
+      process.cwd(),
+      arg("--drift") ??
+        join(evalsDir, "datasets/golden/organize/organize.snapshot-drift.v3.json"),
+    );
+    const diffPath = resolve(
+      process.cwd(),
+      arg("--diff") ??
+        join(evalsDir, "datasets/golden/organize/organize.amendment-diff.v2-v3.json"),
+    );
+    let overrides: SnapshotAdjudicationOverride[] | undefined;
+    const adjudicationsPath = arg("--adjudications");
+    if (adjudicationsPath !== undefined) {
+      const parsed = JSON.parse(
+        await readFile(resolve(process.cwd(), adjudicationsPath), "utf8"),
+      ) as unknown;
+      if (!Array.isArray(parsed)) {
+        throw new Error("The adjudications file must contain a JSON array");
+      }
+      overrides = parsed as SnapshotAdjudicationOverride[];
+    }
+    const absoluteSource = resolve(process.cwd(), sourceData);
+    const result = await amendOrganizeSnapshotEnvelopes({
+      envelopePaths: [devPath, heldoutPath],
+      scope: { tenantId, userId },
+      stores: {
+        captures: new FileCaptureStore(absoluteSource),
+        buckets: new FileBucketStore(absoluteSource),
+        corrections: new FileCorrectionStore(absoluteSource),
+        decisions: new FilePilotDecisionStore(absoluteSource),
+      },
+      ...(overrides !== undefined ? { overrides } : {}),
+      apply,
+      driftReportPath: driftPath,
+      diffArtifactPath: diffPath,
+      now: () => new Date(),
+    });
+    if (result.applied) {
+      const lockPath = heldoutLockPath(heldoutPath);
+      const archivePath = resolve(
+        process.cwd(),
+        arg("--lock-archive") ??
+          join(dirname(heldoutPath), "organize.heldout.v2.lock.json"),
+      );
+      await writePrivateFile(archivePath, await readFile(lockPath, "utf8"));
+      console.log(
+        `Snapshot amendment applied: ${result.drift.reconstructibleCases} case(s), ` +
+          `${result.drift.overriddenCases} product-owner override(s), 0 unresolved.`,
+      );
+      console.log(`  additive-only proof: ${diffPath}`);
+      console.log(`  v2 lock archive: ${archivePath}`);
+      console.log("  held-out is now unfrozen; run organize live, then heldout-freeze.");
+    } else {
+      console.log(
+        `Snapshot amendment dry run: ${result.drift.reconstructibleCases} reconstructible, ` +
+          `${result.drift.unresolvedCases} flagged, ${result.drift.overriddenCases} overridden.`,
+      );
+    }
+    console.log(`  drift report: ${driftPath}`);
+    process.exit(result.drift.unresolvedCases > 0 ? 1 : 0);
+  }
+
   // Spec 4.3: accept the current deterministic run as the stage baseline.
   if (command === "baseline" && stage !== undefined) {
     const datasetRel = DATASETS[stage];
@@ -491,7 +593,7 @@ async function main(): Promise<void> {
     process.exit(report.decision.verdict === "eligible-for-signoff" ? 0 : 1);
   }
 
-  console.error("usage: cli.ts validate | snapshot | run <stage> [--mode …] [--dataset <path>] | heldout-freeze [--dataset <path>] --report <report.json> | baseline <stage> | compare <stage> <report> | graduation <reports…> | graduation-run <reports…> [--extras <f>] [--cohort-window <s>..<e>]");
+  console.error("usage: cli.ts validate | snapshot | run <stage> [--mode …] [--dataset <path>] | heldout-freeze [--dataset <path>] --report <report.json> | amend-organize-snapshots --source-data <dir> --tenant <scope> --user <scope> [--apply --product-owner-approved] | baseline <stage> | compare <stage> <report> | graduation <reports…> | graduation-run <reports…> [--extras <f>] [--cohort-window <s>..<e>]");
   process.exit(2);
 }
 

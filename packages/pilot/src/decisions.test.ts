@@ -70,7 +70,13 @@ function acceptInput(thoughtId: string, over: Record<string, unknown> = {}) {
 
 describe("decision register (Spec 6.4 FR-1)", () => {
   it("records an explicit accept with every required field", async () => {
-    const d = await register.record(SCOPE, acceptInput("th-1", { runId: "run-1", scenarioId: "SC-IDEA-01" }));
+    const d = await register.record(SCOPE, acceptInput("th-1", {
+      runId: "run-1",
+      scenarioId: "SC-IDEA-01",
+      existingBuckets: [
+        { name: "Tasks", description: "Commitments" },
+      ],
+    }));
     assert.equal(d.schema, "donna.pilot-decision.v1");
     assert.equal(d.kind, "accept");
     assert.equal(d.participantId, "P-01");
@@ -81,6 +87,9 @@ describe("decision register (Spec 6.4 FR-1)", () => {
     assert.equal(d.decidedAt, now.toISOString());
     assert.equal(d.runId, "run-1");
     assert.equal(d.scenarioId, "SC-IDEA-01");
+    assert.deepEqual(d.existingBuckets, [
+      { name: "Tasks", description: "Commitments" },
+    ]);
   });
 
   it("records a move linked to its correction", async () => {

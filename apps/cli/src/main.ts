@@ -85,6 +85,7 @@ import {
   confirmOrganizePromotion,
   previewOrganizePromotion,
   promoteCorrectionToGoldenCase,
+  reconstructCaptureTimeBuckets,
   runCompatibilityCheck,
   SCENARIO_CLASSES,
   snapshotFingerprint,
@@ -312,7 +313,8 @@ const USAGE = `usage:
                                              (Spec 6.4 FR-2)
   donna pilot promote preview <decision-id|correction-id>
                                          show the EXACT de-identified case
-                                         payload + hash before anything is
+                                         payload, capture-time bucket snapshot,
+                                         origin + hash before anything is
                                          shared (fails closed without
                                              eval-sharing consent)
   donna pilot promote confirm <decision-id|correction-id> --partition dev
@@ -489,6 +491,39 @@ async function submitBucketMoveCorrection(
 }
 
 /**
+ * Specification 6.5: reconstruct the bucket list the organizer actually
+ * saw for a newly reviewed thought. Decisions never snapshot the post-run
+ * bucket list blindly because that would leak labels minted by the capture.
+ */
+async function captureTimeBucketsForDecision(
+  scope: { tenantId: string; userId: string },
+  captureId: string,
+  currentBuckets: Awaited<ReturnType<FileBucketStore["listBuckets"]>>,
+): Promise<Array<{ name: string; description: string }> | string> {
+  const dir = dataDir();
+  const [capture, corrections] = await Promise.all([
+    new FileCaptureStore(dir).getCapture(scope.tenantId, scope.userId, captureId),
+    new FileCorrectionStore(dir).listCorrections(scope.tenantId, scope.userId),
+  ]);
+  if (capture === undefined) {
+    return "The source capture no longer exists; its bucket snapshot cannot be recorded.";
+  }
+  const reconstructed = reconstructCaptureTimeBuckets({
+    capture,
+    currentBuckets,
+    corrections,
+  });
+  if (reconstructed.status === "ambiguous") {
+    return (
+      "The capture-time bucket list is ambiguous (" +
+      reconstructed.reasons.join(",") +
+      "); no decision was recorded. Review the correction history first."
+    );
+  }
+  return reconstructed.existingBuckets;
+}
+
+/**
  * Resolve a `pilot promote` argument (decision ID or correction ID) to a
  * de-identified promotion source (Spec 6.4 FR-5/FR-6). Cohort metadata
  * (scenario class, variant labels) derives from the decision's run linkage
@@ -548,6 +583,9 @@ async function resolvePromotionSource(
       summaryText: item.thought.summary,
       donnaBucket: acceptDecision.donnaBucket.name,
       thoughtKind: item.thought.task !== undefined ? "task" : "note",
+      ...(acceptDecision.existingBuckets !== undefined
+        ? { existingBuckets: acceptDecision.existingBuckets }
+        : {}),
       ...(await cohortFor(acceptDecision)),
     };
   }
@@ -589,6 +627,9 @@ async function resolvePromotionSource(
     fromBucket: fromBucketName,
     toBucket: toBucketName,
     thoughtKind: item?.thought.task !== undefined ? "task" : "note",
+    ...(decision?.existingBuckets !== undefined
+      ? { existingBuckets: decision.existingBuckets }
+      : {}),
     ...(await cohortFor(decision)),
   };
 }
@@ -1751,10 +1792,18 @@ async function main(): Promise<void> {
         console.error("usage: donna correct rename <bucket-id> --name <new-name> [--user <id>]");
         process.exit(1);
       }
+      const existingBucket = (await new FileBucketStore(dataDir()).listBuckets(tenantId, userId))
+        .find((bucket) => bucket.id === bucketId);
+      if (existingBucket === undefined) {
+        console.error(`No bucket ${bucketId} in this scope.`);
+        process.exit(1);
+      }
       const event = await corrections.submit(scope, {
         type: "bucket.rename",
         target: { kind: "bucket", id: bucketId },
-        payload: { newName },
+        // Spec 6.5: retain the inverse value so capture-time snapshots can
+        // be reconstructed after a later rename.
+        payload: { oldName: existingBucket.name, newName },
         sources: [source],
       });
       console.log(`Correction ${event.id} queued: rename bucket ${bucketId} → "${newName}".`);
@@ -1768,10 +1817,23 @@ async function main(): Promise<void> {
         console.error("usage: donna correct merge <bucket-id> --into <bucket-id> [--user <id>]");
         process.exit(1);
       }
+      const sourceBucket = (await new FileBucketStore(dataDir()).listBuckets(tenantId, userId))
+        .find((bucket) => bucket.id === bucketId);
+      if (sourceBucket === undefined) {
+        console.error(`No bucket ${bucketId} in this scope.`);
+        process.exit(1);
+      }
       const event = await corrections.submit(scope, {
         type: "bucket.merge",
         target: { kind: "bucket", id: bucketId },
-        payload: { intoBucketId: into },
+        // Spec 6.5: merges delete the source, so preserve the minimum
+        // inverse snapshot needed for later capture-time reconstruction.
+        payload: {
+          intoBucketId: into,
+          sourceName: sourceBucket.name,
+          sourceDescription: sourceBucket.description,
+          sourceCreatedAt: sourceBucket.createdAt,
+        },
         sources: [source],
       });
       console.log(`Correction ${event.id} queued: merge bucket ${bucketId} into ${into}.`);
@@ -2747,6 +2809,15 @@ async function main(): Promise<void> {
       }
       const current = buckets.find((b) => b.id === item.bucketId);
       const donnaBucket = { id: item.bucketId, name: current?.name ?? item.bucketId };
+      const existingBuckets = await captureTimeBucketsForDecision(
+        scope,
+        item.thought.provenance.captureId,
+        buckets,
+      );
+      if (typeof existingBuckets === "string") {
+        console.error(existingBuckets);
+        process.exit(1);
+      }
       // Run/scenario linkage when a pilot run is open (FR-1).
       const openRun = (await buildRunBook().list(scope)).find((r) => r.endedAt === undefined);
       const linkage = openRun !== undefined ? { runId: openRun.id, scenarioId: openRun.scenarioId } : {};
@@ -2760,6 +2831,7 @@ async function main(): Promise<void> {
           captureId: item.thought.provenance.captureId,
           donnaBucket,
           decidedBucket: donnaBucket,
+          existingBuckets,
           ...linkage,
         });
         console.log(
@@ -2791,6 +2863,7 @@ async function main(): Promise<void> {
         donnaBucket,
         decidedBucket: { id: move.target.id, name: move.target.name },
         correctionId: move.event.id,
+        existingBuckets,
         ...linkage,
       });
       console.log(`Decision ${decision.id}: move → "${move.target.name}" (correction ${move.event.id} queued).`);
@@ -2857,6 +2930,15 @@ async function main(): Promise<void> {
           console.log(`  proposed case ID: ${draft.case.id}`);
           console.log(`  thought summary text: ${draft.case.transcript}`);
           console.log(`  expected bucket label: ${draft.case.expected.thoughts[0]!.bucket}`);
+          console.log(
+            `  bucket origin: ${draft.case.expected.thoughts[0]!.bucketOrigin ?? "(legacy cold case)"}`,
+          );
+          console.log(
+            `  capture-time existing buckets (${draft.case.existingBuckets?.length ?? 0}):`,
+          );
+          for (const bucket of draft.case.existingBuckets ?? []) {
+            console.log(`    - ${bucket.name}: ${bucket.description}`);
+          }
           console.log(`  scenario class: ${draft.case.meta.notes?.match(/scenario-class:([^;]+)/)?.[1] ?? "(none recorded)"}`);
           console.log(`  variant labels: ${draft.case.meta.notes?.match(/variants:([^;]+)/)?.[1] ?? "(none recorded)"}`);
           console.log(`  payload sha256: ${draft.payloadHash}`);
@@ -2889,7 +2971,7 @@ async function main(): Promise<void> {
             }
           }
           console.log(`Promoted as de-identified case ${result.caseId} (organize.dev.v1 → v${result.version}).`);
-          console.log(`  payload sha256: ${result.payloadHash} (equals the preview hash)`);
+          console.log(`  payload sha256: ${result.payloadHash} (equals the preview hash, including bucket snapshot)`);
           console.log("  adjudication appended; validate: npm run eval:harness --workspace @donna/evals -- validate");
         }
       } catch (error) {

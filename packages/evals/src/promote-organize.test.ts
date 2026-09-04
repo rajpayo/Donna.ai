@@ -225,6 +225,57 @@ describe("promotion builder (FR-4/FR-11/FR-12)", () => {
     assert.equal(draft.case.meta.consent, "consented");
   });
 
+  it("includes capture-time snapshots in identity and derives joined/minted origins (Spec 6.5 FR-7)", () => {
+    const joined = buildOrganizePromotion(
+      acceptedSource({
+        existingBuckets: [
+          { name: "Product Ideas", description: "Ideas to explore" },
+          { name: "Tasks", description: "Commitments" },
+        ],
+      }),
+      { now: () => now },
+    );
+    assert.equal(joined.case.expected.thoughts[0]!.bucketOrigin, "joined");
+    assert.equal(joined.case.existingBuckets?.length, 2);
+
+    const minted = buildOrganizePromotion(
+      acceptedSource({
+        donnaBucket: "New Launch Notes",
+        existingBuckets: [{ name: "Tasks", description: "Commitments" }],
+      }),
+      { now: () => now },
+    );
+    assert.equal(minted.case.expected.thoughts[0]!.bucketOrigin, "minted");
+    assert.ok(
+      !minted.case.existingBuckets?.some(
+        (bucket) => bucket.name === "New Launch Notes",
+      ),
+    );
+    assert.notEqual(
+      joined.case.id,
+      buildOrganizePromotion(acceptedSource(), { now: () => now }).case.id,
+    );
+    assert.equal(joined.payloadHash, organizeCasePayloadHash(joined.case));
+  });
+
+  it("screens bucket snapshot names and descriptions at preview", async () => {
+    consented = true;
+    await assert.rejects(
+      previewOrganizePromotion(
+        deps(),
+        acceptedSource({
+          existingBuckets: [
+            {
+              name: "Product Ideas",
+              description: "password=synthetic-secret-value",
+            },
+          ],
+        }),
+      ),
+      SensitiveContentError,
+    );
+  });
+
   it("parses variant labels from run notes deterministically", () => {
     assert.deepEqual(variantsFromNotes("V-NOISE, café; also V-PACE and V-NOISE again"), ["V-NOISE", "V-PACE"]);
     assert.deepEqual(variantsFromNotes("no variants here, V-UNKNOWN ignored"), []);

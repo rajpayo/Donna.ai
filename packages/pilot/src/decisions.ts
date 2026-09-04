@@ -22,6 +22,11 @@ export const PILOT_DECISION_SCHEMA = "donna.pilot-decision.v1";
 export const DECISION_KINDS = ["accept", "move"] as const;
 export type DecisionKind = (typeof DECISION_KINDS)[number];
 
+export interface PilotBucketSnapshot {
+  name: string;
+  description: string;
+}
+
 export interface PilotDecision {
   schema: typeof PILOT_DECISION_SCHEMA;
   id: string;
@@ -43,6 +48,12 @@ export interface PilotDecision {
   /** Run/scenario linkage when a pilot run was open at decision time. */
   runId?: string;
   scenarioId?: string;
+  /**
+   * Specification 6.5: the bucket list that existed when the source
+   * capture was organized. Private pilot state; promotion shares only the
+   * screened name/description pairs after explicit eval-sharing consent.
+   */
+  existingBuckets?: PilotBucketSnapshot[];
 }
 
 export interface PilotDecisionInput {
@@ -55,6 +66,7 @@ export interface PilotDecisionInput {
   correctionId?: string;
   runId?: string;
   scenarioId?: string;
+  existingBuckets?: PilotBucketSnapshot[];
 }
 
 /** Storage port so tests can run fully in memory. */
@@ -174,6 +186,14 @@ export class DecisionRegister {
       decidedAt: this.now().toISOString(),
       ...(input.runId !== undefined ? { runId: input.runId } : {}),
       ...(input.scenarioId !== undefined ? { scenarioId: input.scenarioId } : {}),
+      ...(input.existingBuckets !== undefined
+        ? {
+            existingBuckets: input.existingBuckets.map((bucket) => ({
+              name: bucket.name,
+              description: bucket.description,
+            })),
+          }
+        : {}),
     };
     const all = await this.store.list(scope.tenantId, scope.userId);
     all.push(record);
