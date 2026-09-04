@@ -82,9 +82,15 @@ import type { Capture, EventSink, MemoryLayer } from "@donna/core";
 import { FileBucketStore } from "@donna/buckets";
 import {
   captureSnapshot,
+  confirmOrganizePromotion,
+  previewOrganizePromotion,
   promoteCorrectionToGoldenCase,
   runCompatibilityCheck,
+  SCENARIO_CLASSES,
   snapshotFingerprint,
+  variantsFromNotes,
+  type OrganizePromotionSource,
+  type PromotionCohort,
 } from "@donna/evals";
 import {
   ensurePrivateDirectory,
@@ -121,10 +127,12 @@ import {
   RetentionService,
 } from "@donna/privacy";
 import {
+  DecisionRegister,
   EMOTION_PERSIST_PURPOSE,
   EnrollmentError,
   ExcludedCategoryError,
   FileMisfireRegisterStore,
+  FilePilotDecisionStore,
   FilePilotProfileStore,
   FilePilotRunStore,
   MisfireRegister,
@@ -141,6 +149,7 @@ import {
   type EnrollmentDecisions,
   type MisfireCategory,
   type MisfireDisposition,
+  type PilotDecision,
 } from "@donna/pilot";
 import type { M365ReadSourceType } from "@donna/core";
 import {
@@ -292,6 +301,24 @@ const USAGE = `usage:
   donna pilot review                     the review queue: pending corrections,
                                              memory proposals, low-confidence
                                              thoughts (Spec 6.1 FR-2)
+  donna pilot decide accept <thought-id> record an explicit accept decision
+  donna pilot decide move <thought-id> --to <bucket>
+                                         record a move decision (queues the
+                                             bucket.move correction and links it)
+                                             (Spec 6.4 FR-1)
+  donna pilot decisions                  placement-decision counts and the
+                                             observed first-pass acceptance rate
+                                             (Spec 6.4 FR-2)
+  donna pilot promote preview <decision-id|correction-id>
+                                         show the EXACT de-identified case
+                                         payload + hash before anything is
+                                         shared (fails closed without
+                                             eval-sharing consent)
+  donna pilot promote confirm <decision-id|correction-id> --partition dev
+                                         write the previewed case byte-identical
+                                             into the organize development
+                                             envelope + adjudication entry
+                                             (Spec 6.4 FR-4)
   donna pilot settings                   current per-setting state
   donna pilot set data-classes <csv>     change a setting (records new
   donna pilot set m365-sources <csv>     versioned consent; revoking a source
@@ -327,12 +354,14 @@ const USAGE = `usage:
                                              scenario IDs, config fingerprint)
   donna pilot run end <run-id> [--notes <t>]
                                          close the run; window decisions are
-                                             gathered from the correction and
-                                             memory stores
+                                             gathered from the correction, memory,
+                                             and placement-decision stores
+                                             (incl. the undecided-thought count)
   donna pilot run list|show [<id>]       run register (IDs and counts only)
   donna pilot graduation-extras --out <file>
-                                         assemble Spec 6.3 extras (correction
-                                             trends, misfire board, retention
+                                         assemble Spec 6.3/6.4 extras (correction
+                                             trends, placement-decision counts,
+                                             misfire board, retention
                                              verification) across pilot scopes
 
 Pilot note: while enrolled, CLI commands redact verbatim transcript text by
@@ -390,6 +419,163 @@ function buildMisfireRegister(): MisfireRegister {
 
 function buildRunBook(): PilotRunBook {
   return new PilotRunBook(new FilePilotRunStore(dataDir()), () => new Date(), randomUUID);
+}
+
+/** Spec 6.4: the explicit placement-decision register for this data dir. */
+function buildDecisionRegister(): DecisionRegister {
+  return new DecisionRegister(new FilePilotDecisionStore(dataDir()), () => new Date(), randomUUID);
+}
+
+/**
+ * Shared bucket.move submission for `correct move` and `pilot decide move`
+ * (Spec 6.4): find the thought, find-or-pin the target bucket, queue the
+ * correction. Returns undefined when the thought is unknown to the scope.
+ */
+async function submitBucketMoveCorrection(
+  scope: { tenantId: string; userId: string },
+  thoughtId: string,
+  toName: string,
+) {
+  const store = new FileBucketStore(dataDir());
+  const corrections = await buildCorrectionService();
+  const [items, buckets] = await Promise.all([
+    store.listItems(scope.tenantId, scope.userId),
+    store.listBuckets(scope.tenantId, scope.userId),
+  ]);
+  const item = items.find((candidate) => candidate.thought.id === thoughtId);
+  if (!item) return undefined;
+  let created = false;
+  let target = buckets.find(
+    (b) => b.name.trim().toLowerCase() === toName.trim().toLowerCase(),
+  );
+  if (!target) {
+    // A correction can mean "this deserves its own bucket" — the user
+    // pins it into existence.
+    target = await store.createBucket({
+      id: randomUUID(),
+      tenantId: scope.tenantId,
+      userId: scope.userId,
+      name: toName.trim(),
+      description: `Pinned by user correction on ${new Date().toISOString().slice(0, 10)}`,
+      centroid: item.thought.embedding ?? [],
+      itemCount: 0,
+      createdAt: new Date().toISOString(),
+      origin: "pinned",
+    });
+    created = true;
+  }
+  const from = buckets.find((b) => b.id === item.bucketId);
+  const event = await corrections.submit(scope, {
+    type: "bucket.move",
+    target: { kind: "thought", id: thoughtId },
+    payload: {
+      fromBucketId: item.bucketId,
+      fromBucketName: from?.name ?? item.bucketId,
+      toBucketId: target.id,
+      toBucketName: target.name,
+      thoughtSummary: item.thought.summary,
+    },
+    sources: [
+      { kind: "thought", id: thoughtId, captureId: item.thought.provenance.captureId, reason: "the misplaced thought" },
+      {
+        kind: "explicit-statement" as const,
+        id: `cli-${randomUUID()}`,
+        reason: "user correction via the CLI",
+      },
+    ],
+  });
+  return { event, item, from, target, created };
+}
+
+/**
+ * Resolve a `pilot promote` argument (decision ID or correction ID) to a
+ * de-identified promotion source (Spec 6.4 FR-5/FR-6). Cohort metadata
+ * (scenario class, variant labels) derives from the decision's run linkage
+ * via the runbook scenario matrix. Returns a string error message when the
+ * ID is unknown or not yet promotable.
+ */
+async function resolvePromotionSource(
+  scope: { tenantId: string; userId: string },
+  id: string,
+): Promise<OrganizePromotionSource | string> {
+  const dir = dataDir();
+  const register = buildDecisionRegister();
+  const decisions = await register.list(scope);
+  let decision = decisions.find((d) => d.id === id);
+
+  const cohortFor = async (d: PilotDecision | undefined): Promise<PromotionCohort> => {
+    if (d?.scenarioId === undefined) return {};
+    const cohort: PromotionCohort = {};
+    const scenarioClass = SCENARIO_CLASSES[d.scenarioId];
+    if (scenarioClass !== undefined) cohort.scenarioClass = scenarioClass;
+    if (d.runId !== undefined) {
+      const run = await buildRunBook()
+        .get(scope, d.runId)
+        .catch(() => undefined);
+      const variants = variantsFromNotes(run?.notes);
+      if (variants.length > 0) cohort.variants = variants;
+    }
+    return cohort;
+  };
+
+  if (decision !== undefined && decision.kind === "accept") {
+    // FR-6: accepted-example promotion — the label is Donna's bucket at
+    // decision time; the text is the thought's current de-identified summary.
+    const acceptDecision = decision;
+    const items = await new FileBucketStore(dir).listItems(scope.tenantId, scope.userId);
+    const item = items.find((i) => i.thought.id === acceptDecision.thoughtId);
+    if (item === undefined) {
+      return `Thought ${acceptDecision.thoughtId} no longer exists in this scope — nothing to promote.`;
+    }
+    return {
+      kind: "first-pass-accept",
+      decisionId: acceptDecision.id,
+      summaryText: item.thought.summary,
+      donnaBucket: acceptDecision.donnaBucket.name,
+      thoughtKind: item.thought.task !== undefined ? "task" : "note",
+      ...(await cohortFor(acceptDecision)),
+    };
+  }
+
+  // A move decision promotes through its linked correction (FR-5); a bare
+  // correction ID promotes directly.
+  let correctionId = id;
+  if (decision !== undefined) {
+    if (decision.correctionId === undefined) {
+      return `Move decision ${decision.id} has no linked correction — nothing to promote.`;
+    }
+    correctionId = decision.correctionId;
+  }
+  const event = await new FileCorrectionStore(dir).getCorrection(scope.tenantId, scope.userId, correctionId);
+  if (event === undefined) {
+    return decision === undefined
+      ? `No decision or correction ${id} in this scope (see: donna pilot decisions, donna corrections --all).`
+      : `Correction ${correctionId} does not exist in this scope.`;
+  }
+  if (event.type !== "bucket.move") {
+    return `Only bucket.move corrections are promotable, not ${event.type}.`;
+  }
+  if (event.status !== "accepted") {
+    return `Correction ${correctionId} is ${event.status} — accept it first: donna corrections accept ${correctionId}`;
+  }
+  const summary = event.payload["thoughtSummary"] ?? "";
+  const fromBucketName = event.payload["fromBucketName"] ?? "";
+  const toBucketName = event.payload["toBucketName"] ?? "";
+  if (summary.length === 0 || toBucketName.length === 0) {
+    return `Correction ${correctionId} has an incomplete payload for promotion.`;
+  }
+  const items = await new FileBucketStore(dir).listItems(scope.tenantId, scope.userId);
+  const item = items.find((i) => i.thought.id === event.target.id);
+  decision ??= decisions.find((d) => d.correctionId === event.id);
+  return {
+    kind: "corrected",
+    correctionId: event.id,
+    summaryText: summary,
+    fromBucket: fromBucketName,
+    toBucket: toBucketName,
+    thoughtKind: item?.thought.task !== undefined ? "task" : "note",
+    ...(await cohortFor(decision)),
+  };
 }
 
 /** The eval-harness config fingerprint (Spec 6.2 FR-1) for run records. */
@@ -1518,7 +1704,6 @@ async function main(): Promise<void> {
     const sub = process.argv[3];
     const corrections = await buildCorrectionService();
     const scope = { tenantId, userId };
-    const store = new FileBucketStore(dataDir());
     const source = {
       kind: "explicit-statement" as const,
       id: `cli-${randomUUID()}`,
@@ -1532,51 +1717,15 @@ async function main(): Promise<void> {
         console.error("usage: donna correct move <thought-id> --to <bucket-name> [--user <id>]");
         process.exit(1);
       }
-      const [items, buckets] = await Promise.all([
-        store.listItems(tenantId, userId),
-        store.listBuckets(tenantId, userId),
-      ]);
-      const item = items.find((candidate) => candidate.thought.id === thoughtId);
-      let target = buckets.find(
-        (b) => b.name.trim().toLowerCase() === toName.trim().toLowerCase(),
-      );
-      if (!item) {
+      const move = await submitBucketMoveCorrection(scope, thoughtId, toName);
+      if (move === undefined) {
         console.error(`No thought ${thoughtId} in this scope (see: donna thoughts).`);
         process.exit(1);
       }
-      if (!target) {
-        // A correction can mean "this deserves its own bucket" — the user
-        // pins it into existence.
-        target = await store.createBucket({
-          id: randomUUID(),
-          tenantId,
-          userId,
-          name: toName.trim(),
-          description: `Pinned by user correction on ${new Date().toISOString().slice(0, 10)}`,
-          centroid: item.thought.embedding ?? [],
-          itemCount: 0,
-          createdAt: new Date().toISOString(),
-          origin: "pinned",
-        });
-        console.log(`Created bucket "${target.name}" (pinned).`);
+      if (move.created) {
+        console.log(`Created bucket "${move.target.name}" (pinned).`);
       }
-      const from = buckets.find((b) => b.id === item.bucketId);
-      const event = await corrections.submit(scope, {
-        type: "bucket.move",
-        target: { kind: "thought", id: thoughtId },
-        payload: {
-          fromBucketId: item.bucketId,
-          fromBucketName: from?.name ?? item.bucketId,
-          toBucketId: target.id,
-          toBucketName: target.name,
-          thoughtSummary: item.thought.summary,
-        },
-        sources: [
-          { kind: "thought", id: thoughtId, captureId: item.thought.provenance.captureId, reason: "the misplaced thought" },
-          source,
-        ],
-      });
-      console.log(`Correction ${event.id} queued: move "${item.thought.summary}" → ${target.name}. Review: donna corrections`);
+      console.log(`Correction ${move.event.id} queued: move "${move.item.thought.summary}" → ${move.target.name}. Review: donna corrections`);
       return;
     }
 
@@ -2554,6 +2703,185 @@ async function main(): Promise<void> {
       if (lowConfidence.length > 0) {
         console.log("  fix placement: donna correct move <thought-id> --to <bucket-name>");
       }
+      console.log("\nRecord an explicit decision per reviewed thought (Spec 6.4):");
+      console.log("  donna pilot decide accept <thought-id> | donna pilot decide move <thought-id> --to <bucket>");
+      return;
+    }
+
+    if (sub === "decide") {
+      // Spec 6.4 FR-1: every reviewed thought can receive an explicit,
+      // countable decision — acceptance is no longer implicit.
+      const action = process.argv[4];
+      const thoughtId = process.argv[5];
+      const profile = await requireEnrolledCli(pilot, scope);
+      if ((action !== "accept" && action !== "move") || thoughtId === undefined || thoughtId.startsWith("--")) {
+        console.error(
+          "usage: donna pilot decide accept <thought-id> | donna pilot decide move <thought-id> --to <bucket-name>",
+        );
+        process.exit(1);
+      }
+      const store = new FileBucketStore(dir);
+      const [items, buckets] = await Promise.all([
+        store.listItems(tenantId, userId),
+        store.listBuckets(tenantId, userId),
+      ]);
+      const item = items.find((candidate) => candidate.thought.id === thoughtId);
+      if (!item) {
+        console.error(`No thought ${thoughtId} in this scope (see: donna thoughts).`);
+        process.exit(1);
+      }
+      const current = buckets.find((b) => b.id === item.bucketId);
+      const donnaBucket = { id: item.bucketId, name: current?.name ?? item.bucketId };
+      // Run/scenario linkage when a pilot run is open (FR-1).
+      const openRun = (await buildRunBook().list(scope)).find((r) => r.endedAt === undefined);
+      const linkage = openRun !== undefined ? { runId: openRun.id, scenarioId: openRun.scenarioId } : {};
+      const register = buildDecisionRegister();
+
+      if (action === "accept") {
+        const decision = await register.record(scope, {
+          kind: "accept",
+          participantId: profile.participantId,
+          thoughtId,
+          captureId: item.thought.provenance.captureId,
+          donnaBucket,
+          decidedBucket: donnaBucket,
+          ...linkage,
+        });
+        console.log(
+          `Decision ${decision.id}: accepted Donna's placement in "${donnaBucket.name}" — ` +
+            "counted as first-pass acceptance evidence.",
+        );
+        console.log(`  share it de-identified: donna pilot promote preview ${decision.id}`);
+        return;
+      }
+
+      const toName = arg("--to");
+      if (toName === undefined) {
+        console.error("usage: donna pilot decide move <thought-id> --to <bucket-name>");
+        process.exit(1);
+      }
+      const move = await submitBucketMoveCorrection(scope, thoughtId, toName);
+      if (move === undefined) {
+        console.error(`No thought ${thoughtId} in this scope (see: donna thoughts).`);
+        process.exit(1);
+      }
+      if (move.created) {
+        console.log(`Created bucket "${move.target.name}" (pinned).`);
+      }
+      const decision = await register.record(scope, {
+        kind: "move",
+        participantId: profile.participantId,
+        thoughtId,
+        captureId: item.thought.provenance.captureId,
+        donnaBucket,
+        decidedBucket: { id: move.target.id, name: move.target.name },
+        correctionId: move.event.id,
+        ...linkage,
+      });
+      console.log(`Decision ${decision.id}: move → "${move.target.name}" (correction ${move.event.id} queued).`);
+      console.log(`  apply it: donna corrections accept ${move.event.id}`);
+      return;
+    }
+
+    if (sub === "decisions") {
+      // Spec 6.4 FR-2: countable acceptance evidence — counts and IDs.
+      await requireEnrolledCli(pilot, scope);
+      const register = buildDecisionRegister();
+      const summary = await register.summarize(scope);
+      if (summary.total === 0) {
+        console.log("No placement decisions yet. Decide from the review queue: donna pilot decide accept|move <thought-id>");
+        return;
+      }
+      console.log(
+        `Placement decisions: ${summary.total} record(s); latest per thought: ` +
+          `${summary.accepts} accept(s), ${summary.moves} move(s) across ${summary.decidedThoughts} thought(s).`,
+      );
+      console.log(
+        `Observed first-pass acceptance rate: ${summary.firstPassAcceptanceRate === null ? "no decisions" : `${(summary.firstPassAcceptanceRate * 100).toFixed(1)}%`}`,
+      );
+      for (const d of await register.list(scope)) {
+        console.log(
+          `• ${d.id} ${d.kind} thought ${d.thoughtId} → ${d.decidedBucket.name}` +
+            `${d.correctionId !== undefined ? ` (correction ${d.correctionId})` : ""}` +
+            `${d.runId !== undefined ? ` [run ${d.runId} ${d.scenarioId}]` : ""} at ${d.decidedAt}`,
+        );
+      }
+      return;
+    }
+
+    if (sub === "promote") {
+      // Spec 6.4 FR-3/FR-4: preview the EXACT de-identified payload, then
+      // confirm writes it byte-identical into the development envelope.
+      // eval-sharing consent is checked at BOTH steps and fails closed;
+      // sensitive-content screening runs at both steps (SR-2/SR-3).
+      const action = process.argv[4];
+      const id = process.argv[5];
+      await requireEnrolledCli(pilot, scope);
+      if ((action !== "preview" && action !== "confirm") || id === undefined || id.startsWith("--")) {
+        console.error(
+          "usage: donna pilot promote preview <decision-id|correction-id>\n" +
+            "       donna pilot promote confirm <decision-id|correction-id> --partition dev",
+        );
+        process.exit(1);
+      }
+      const memory = buildMemoryService();
+      const source = await resolvePromotionSource(scope, id);
+      if (typeof source === "string") {
+        console.error(source);
+        process.exit(1);
+      }
+      const promotionDeps = {
+        hasConsent: (purpose: string) => memory.hasConsent(scope, purpose),
+        now: () => new Date(),
+      };
+      try {
+        if (action === "preview") {
+          const draft = await previewOrganizePromotion(promotionDeps, source);
+          console.log("Promotion preview — EXACTLY these de-identified fields would be shared (nothing written yet):");
+          console.log(`  target partition: ${draft.partition} (packages/evals/datasets/golden/organize/organize.dev.v1.json)`);
+          console.log(`  proposed case ID: ${draft.case.id}`);
+          console.log(`  thought summary text: ${draft.case.transcript}`);
+          console.log(`  expected bucket label: ${draft.case.expected.thoughts[0]!.bucket}`);
+          console.log(`  scenario class: ${draft.case.meta.notes?.match(/scenario-class:([^;]+)/)?.[1] ?? "(none recorded)"}`);
+          console.log(`  variant labels: ${draft.case.meta.notes?.match(/variants:([^;]+)/)?.[1] ?? "(none recorded)"}`);
+          console.log(`  payload sha256: ${draft.payloadHash}`);
+          console.log("Raw audio, full transcripts, and capture/tenant/user/participant IDs are never shared.");
+          console.log(`confirm: donna pilot promote confirm ${id} --partition dev`);
+          return;
+        }
+        const partition = arg("--partition") ?? "dev";
+        if (partition !== "dev") {
+          console.error("Promotions land only in the development partition: --partition dev");
+          process.exit(1);
+        }
+        const result = await confirmOrganizePromotion(
+          {
+            ...promotionDeps,
+            envelopePath: resolve(repoRoot, "packages/evals/datasets/golden/organize/organize.dev.v1.json"),
+          },
+          source,
+        );
+        if (result.alreadyShared) {
+          console.log(`${id} was already shared as case ${result.caseId} — the envelope is unchanged (idempotent).`);
+        } else {
+          // Mark the source correction shared (the same marker the legacy
+          // golden path uses) so the corrections list reflects it.
+          if (source.kind === "corrected") {
+            const correctionStore = new FileCorrectionStore(dir);
+            const event = await correctionStore.getCorrection(scope.tenantId, scope.userId, source.correctionId);
+            if (event !== undefined && event.sharedAt === undefined) {
+              await correctionStore.saveCorrection({ ...event, sharedAt: new Date().toISOString() });
+            }
+          }
+          console.log(`Promoted as de-identified case ${result.caseId} (organize.dev.v1 → v${result.version}).`);
+          console.log(`  payload sha256: ${result.payloadHash} (equals the preview hash)`);
+          console.log("  adjudication appended; validate: npm run eval:harness --workspace @donna/evals -- validate");
+        }
+      } catch (error) {
+        // Fail closed with a clean message — category tokens only (SR-2).
+        console.error(error instanceof Error ? error.message : String(error));
+        process.exit(1);
+      }
       return;
     }
 
@@ -2826,7 +3154,7 @@ async function main(): Promise<void> {
         process.exit(1);
       }
       const pilotRoot = join(dir, "pilot");
-      const scopes: Array<{ tenantId: string; userId: string }> = [];
+      const scopes: Array<{ tenantId: string; userId: string; participantId: string }> = [];
       try {
         for (const tenantEntry of await readdir(pilotRoot, { withFileTypes: true })) {
           if (!tenantEntry.isDirectory()) continue;
@@ -2834,7 +3162,11 @@ async function main(): Promise<void> {
             if (!userEntry.isDirectory()) continue;
             const profile = await new FilePilotProfileStore(dir).get(tenantEntry.name, userEntry.name);
             if (profile !== undefined) {
-              scopes.push({ tenantId: tenantEntry.name, userId: userEntry.name });
+              scopes.push({
+                tenantId: tenantEntry.name,
+                userId: userEntry.name,
+                participantId: profile.participantId,
+              });
             }
           }
         }
@@ -2852,6 +3184,15 @@ async function main(): Promise<void> {
         promotedGoldenCases: 0,
       };
       const retentionTotals = { capturesScanned: 0, audioRetained: 0, transcriptOnly: 0, policyViolations: 0 };
+      // Spec 6.4 FR-2: explicit placement-decision counts per scope
+      // (pseudonymous participant IDs only — never tenant/user IDs).
+      const decisionTotals = { accepts: 0, moves: 0 };
+      const perScopeDecisions: Array<{
+        participantId: string;
+        accepts: number;
+        moves: number;
+        firstPassAcceptanceRate: number | null;
+      }> = [];
       const nowIso = new Date().toISOString();
       const correctionStore = new FileCorrectionStore(dir);
       for (const scopeEntry of scopes) {
@@ -2879,6 +3220,17 @@ async function main(): Promise<void> {
             retentionTotals.transcriptOnly += 1;
           }
         }
+        const decisionSummary = await buildDecisionRegister().summarize(scopeEntry);
+        decisionTotals.accepts += decisionSummary.accepts;
+        decisionTotals.moves += decisionSummary.moves;
+        if (decisionSummary.total > 0) {
+          perScopeDecisions.push({
+            participantId: scopeEntry.participantId,
+            accepts: decisionSummary.accepts,
+            moves: decisionSummary.moves,
+            firstPassAcceptanceRate: decisionSummary.firstPassAcceptanceRate,
+          });
+        }
       }
       let limitations: string[] = [];
       const limitationsFile = arg("--limitations-file");
@@ -2897,6 +3249,16 @@ async function main(): Promise<void> {
               ? trendTotals.followed / (trendTotals.followed + trendTotals.contradicted)
               : null,
         },
+        placementDecisions: {
+          scopes: scopes.length,
+          accepts: decisionTotals.accepts,
+          moves: decisionTotals.moves,
+          firstPassAcceptanceRate:
+            decisionTotals.accepts + decisionTotals.moves > 0
+              ? decisionTotals.accepts / (decisionTotals.accepts + decisionTotals.moves)
+              : null,
+          perScope: perScopeDecisions,
+        },
         misfireBoard: board,
         retention: {
           verifiedAt: nowIso,
@@ -2911,7 +3273,8 @@ async function main(): Promise<void> {
       console.log(
         `Graduation extras written to ${outPath}: ${scopes.length} pilot scope(s), ` +
           `${trendTotals.total} correction(s), ${board.total} misfire(s) (${board.blocksGraduation} blocking), ` +
-          `${retentionTotals.capturesScanned} capture(s) checked (${retentionTotals.policyViolations} retention violations).`,
+          `${retentionTotals.capturesScanned} capture(s) checked (${retentionTotals.policyViolations} retention violations), ` +
+          `placement decisions ${decisionTotals.accepts} accept / ${decisionTotals.moves} move.`,
       );
       return;
     }
@@ -2958,12 +3321,26 @@ async function main(): Promise<void> {
               captures: await new FileCaptureStore(dir).listCaptures(tenantId, userId),
               corrections: await (await buildCorrectionService()).list(scope),
               memoryEvents: await new FileMemoryStore(dir).listEvents(tenantId, userId),
+              // Spec 6.4: explicit placement decisions + the scope's
+              // thoughts, so the run record carries accept/move counts and
+              // the undecided-reviewed-thought count (AC-1).
+              decisions: await buildDecisionRegister().list(scope),
+              thoughts: (await new FileBucketStore(dir).listItems(tenantId, userId)).map((i) => ({
+                id: i.thought.id,
+                captureId: i.thought.provenance.captureId,
+              })),
             },
             arg("--notes"),
           );
           console.log(`Run ${ended.id} (${ended.scenarioId}) ended ${ended.endedAt}.`);
           console.log(`  captures in window: ${ended.captureIds.length}`);
           console.log(`  decisions: ${Object.entries(ended.decisions.corrections).map(([k, v]) => `${k}=${v}`).join(", ") || "no corrections"}; memory approvals ${ended.decisions.memoryApprovals}, rejections ${ended.decisions.memoryRejections}`);
+          if (ended.decisions.placement !== undefined) {
+            console.log(
+              `  placement decisions: ${ended.decisions.placement.accepts} accept(s), ${ended.decisions.placement.moves} move(s); ` +
+                `undecided reviewed thoughts: ${ended.decisions.placement.undecidedThoughtIds.length}`,
+            );
+          }
         } catch (error) {
           console.error(error instanceof Error ? error.message : String(error));
           process.exit(1);
@@ -2999,6 +3376,12 @@ async function main(): Promise<void> {
           console.log(`  correction decisions: ${Object.entries(r.decisions.corrections).map(([k, v]) => `${k}=${v}`).join(", ") || "none"}`);
           console.log(`  correction IDs: ${r.decisions.correctionIds.join(", ") || "none"}`);
           console.log(`  memory approvals ${r.decisions.memoryApprovals}, rejections ${r.decisions.memoryRejections}`);
+          if (r.decisions.placement !== undefined) {
+            console.log(
+              `  placement decisions: ${r.decisions.placement.accepts} accept(s), ${r.decisions.placement.moves} move(s); ` +
+                `undecided reviewed thoughts: ${r.decisions.placement.undecidedThoughtIds.length}`,
+            );
+          }
           if (r.notes !== undefined) console.log(`  notes: ${r.notes}`);
         } catch (error) {
           console.error(error instanceof Error ? error.message : String(error));

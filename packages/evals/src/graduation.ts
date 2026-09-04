@@ -325,6 +325,21 @@ export interface GraduationExtras {
     contradicted: number;
     adherenceRate: number | null;
   };
+  /** Explicit pilot placement decisions (Spec 6.4 FR-2) — counts only. */
+  placementDecisions?: {
+    scopes: number;
+    accepts: number;
+    moves: number;
+    /** accepts / (accepts + moves) across scopes; null when no decisions. */
+    firstPassAcceptanceRate: number | null;
+    /** Per-scope counts keyed by pseudonymous participant ID (SR-2). */
+    perScope: Array<{
+      participantId: string;
+      accepts: number;
+      moves: number;
+      firstPassAcceptanceRate: number | null;
+    }>;
+  };
   misfireBoard?: {
     total: number;
     byCategory: Record<string, number>;
@@ -586,6 +601,15 @@ export function renderGraduationMarkdownV2(report: GraduationReportV2): string {
     lines.push(`- correction trends (${t.scopes} scope(s)): ${t.total} total — ${t.accepted} accepted, ${t.rejected} rejected, ${t.pending} pending; adherence ${t.adherenceRate === null ? "no observations" : `${(t.adherenceRate * 100).toFixed(0)}%`} (${t.followed} followed / ${t.contradicted} contradicted)`);
   } else {
     lines.push(`- correction trends: not provided`);
+  }
+  if (extras.placementDecisions !== undefined) {
+    const d = extras.placementDecisions;
+    lines.push(`- placement decisions (${d.scopes} scope(s)): ${d.accepts} first-pass accept(s), ${d.moves} move(s); observed first-pass acceptance ${d.firstPassAcceptanceRate === null ? "no decisions" : `${(d.firstPassAcceptanceRate * 100).toFixed(1)}%`}`);
+    for (const s of d.perScope) {
+      lines.push(`  - ${s.participantId}: ${s.accepts} accept / ${s.moves} move (${s.firstPassAcceptanceRate === null ? "—" : `${(s.firstPassAcceptanceRate * 100).toFixed(1)}%`})`);
+    }
+  } else {
+    lines.push(`- placement decisions: not provided`);
   }
   if (extras.misfireBoard !== undefined) {
     const b = extras.misfireBoard;

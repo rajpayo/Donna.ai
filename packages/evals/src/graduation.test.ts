@@ -296,6 +296,32 @@ describe("graduation runner v2 (Spec 6.3)", () => {
     assert.equal(report.extras.correctionTrends?.adherenceRate, 0.75);
   });
 
+  it("placement-decision extras (Spec 6.4 FR-2) carry into the report and markdown", () => {
+    const report = buildGraduationReportV2(PASSING_EVIDENCE.map(makeEvidence), {
+      snapshot: SNAPSHOT,
+      now: FIXED_NOW,
+      extras: {
+        placementDecisions: {
+          scopes: 2,
+          accepts: 7,
+          moves: 3,
+          firstPassAcceptanceRate: 0.7,
+          perScope: [
+            { participantId: "P-01", accepts: 5, moves: 1, firstPassAcceptanceRate: 5 / 6 },
+            { participantId: "P-02", accepts: 2, moves: 2, firstPassAcceptanceRate: 0.5 },
+          ],
+        },
+      },
+    });
+    assert.equal(report.extras.placementDecisions?.accepts, 7);
+    assert.equal(report.extras.placementDecisions?.moves, 3);
+    assert.equal(report.extras.placementDecisions?.firstPassAcceptanceRate, 0.7);
+    const md = renderGraduationMarkdownV2(report);
+    assert.match(md, /placement decisions \(2 scope\(s\)\): 7 first-pass accept\(s\), 3 move\(s\)/);
+    assert.match(md, /first-pass acceptance 70\.0%/);
+    assert.match(md, /P-01: 5 accept \/ 1 move/);
+  });
+
   it("latency falls back to the per-case latencyMs distribution when no aggregate metric exists", () => {
     const fullLoop = makeFullLoopEvidence();
     fullLoop.report.aggregate.metrics = {}; // no latency.total_ms aggregate
