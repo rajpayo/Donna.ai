@@ -11,7 +11,7 @@
     "promptVersion": "donna.organize-prompt.v4-structured",
     "promptSha256": "7b5467e8d5d5fae8acadc83f0c4b51444f2e6beb791dc91692d0d4d223c6784a",
     "configPath": "packages/evals/experiments/organize/6.7/candidates/S.models.config.yaml",
-    "configSha256": "fb871343a7cf4c171a1aa6e204e221c33439c030c65f29e0d7442de4d75af31a",
+    "configSha256": "e79992ad862d0883714183424aae51fda9f643d3f759425fb148389c17ed4a69",
     "nearDuplicateThreshold": 0.9,
     "replicates": 3
   },
