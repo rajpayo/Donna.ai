@@ -1,0 +1,4 @@
+{
+  "name": "Donna.ai",
+  "install": "if [ -f package.json ]; then npm install; else echo 'No package.json in this checkout (e.g. default branch); skipping npm install.'; fi"
+}
