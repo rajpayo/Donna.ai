@@ -75,6 +75,9 @@ class FixtureBucketStore implements BucketStore {
   async listBuckets(): Promise<Bucket[]> {
     return this.buckets;
   }
+  async getBucketById(t: string, u: string, bucketId: string) {
+    return this.buckets.find((b) => b.tenantId === t && b.userId === u && b.id === bucketId);
+  }
   async getBucketByName(_t: string, _u: string, name: string) {
     return this.buckets.find((b) => b.name === name);
   }

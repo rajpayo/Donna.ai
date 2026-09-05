@@ -20,6 +20,7 @@ import {
   type CaptureRecord,
   type CorrectionEvent,
   type M365ReadSourceType,
+  type PendingPlacement,
 } from "@donna/core";
 import { MemoryService } from "@donna/memory";
 import type { MemoryExport } from "@donna/memory";
@@ -104,6 +105,9 @@ export interface PilotExport {
   captures: CaptureRecord[];
   corrections: CorrectionEvent[];
   misfires: MisfireRecord[];
+  /** Spec 6.7 FR-9: unresolved/resolved pending placements stay private
+   *  and export (and delete) with the rest of the user's data. */
+  pendingPlacements: PendingPlacement[];
 }
 
 export interface PilotServiceDeps {
@@ -391,6 +395,8 @@ export class PilotService {
       captures?: CaptureRecord[];
       corrections?: CorrectionEvent[];
       misfires?: MisfireRecord[];
+      /** Spec 6.7 FR-9: pending placements export with the user's data. */
+      pendingPlacements?: PendingPlacement[];
     } = {},
   ): Promise<PilotExport> {
     const profile = await this.requireEnrolled(scope);
@@ -406,6 +412,7 @@ export class PilotService {
       captures: extras.captures ?? [],
       corrections: extras.corrections ?? [],
       misfires: extras.misfires ?? [],
+      pendingPlacements: extras.pendingPlacements ?? [],
     };
   }
 

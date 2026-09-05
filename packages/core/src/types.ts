@@ -166,6 +166,114 @@ export interface OrganizedItem {
   needsReview: boolean;
 }
 
+/* ------------------------------------------------------------------ */
+/* Specification 6.7 — structured bucket routing and governed minting  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The versioned discriminated placement proposal (donna.organize.v2).
+ * Exactly one branch per thought: an existing-bucket join carries ONLY an
+ * opaque allowlisted bucket ID (never a model-authored name); a new-bucket
+ * proposal carries a canonical candidate name plus description and is only
+ * ever a candidate until deterministic validation passes.
+ */
+export type PlacementProposal =
+  | { mode: "existing"; bucketId: string }
+  | { mode: "new"; name: string; description: string };
+
+/**
+ * Machine-readable reason a placement could not be finalized
+ * autonomously (FR-5/FR-13). Tokens only — safe for logs and reports.
+ */
+export type PendingPlacementReason =
+  /** existing-mode ID was not in the exact scoped request allowlist. */
+  | "unknown-id"
+  /** Organizer output stayed schema/referentially invalid after one escalation. */
+  | "invalid-route"
+  /** Top geometry sits in [create_threshold, assign_threshold): recommendation only. */
+  | "middle-band"
+  /** Model's allowlisted ID disagrees with the top geometric bucket. */
+  | "model-geometry-mismatch"
+  /** Model proposed new while geometry found an existing candidate. */
+  | "new-vs-existing"
+  /** Exact/lexical/semantic near-duplicate of an existing bucket. */
+  | "possible-existing-match"
+  /** Proposed new name failed canonical validation (after the one retry). */
+  | "naming-invalid";
+
+/** Human-readable review candidate (name shown; ID never rendered). */
+export interface PlacementCandidate {
+  bucketId: string;
+  name: string;
+  /** Cosine similarity of the thought to this bucket's centroid, 0..1. */
+  similarity: number;
+}
+
+/**
+ * A durable, scoped pending placement (FR-8/FR-9): the verified extraction
+ * and proposal preserved until the user resolves the filing. Pending
+ * records are excluded from normal retrieval and external-action queues,
+ * and are included in private export/deletion/retention operations.
+ */
+export interface PendingPlacement {
+  id: string;
+  tenantId: string;
+  userId: string;
+  /** The verified, immutable extracted thought (never placed). */
+  thought: Thought;
+  /** The model's proposal, or null when routing stayed invalid. */
+  proposal: PlacementProposal | null;
+  reason: PendingPlacementReason;
+  /** Deterministic validator reason tokens when naming failed. */
+  namingFailures?: string[];
+  /** Geometry-derived human review candidates (may be empty). */
+  candidates: PlacementCandidate[];
+  /** Recommended existing bucket for duplicate conflicts (name shown). */
+  recommendedBucketId?: string;
+  /** SHA-256 of the exact request allowlist the proposal was made against. */
+  allowlistHash: string;
+  createdAt: string; // ISO 8601
+  status: "pending" | "resolved";
+  resolution?: PendingPlacementResolution;
+  resolvedAt?: string; // ISO 8601
+}
+
+/** A user's resolution of a pending placement (idempotent actions). */
+export interface PendingPlacementResolution {
+  action: "create" | "file-existing" | "edit-name" | "reject";
+  /** Final bucket the thought was filed in (absent for reject). */
+  bucketId?: string;
+  /** Final (possibly edited) canonical name for create/edit-name. */
+  name?: string;
+  /** Non-content audit note token, e.g. "user-confirmed". */
+  audit: string;
+}
+
+/** The engine's deterministic placement outcome for one thought. */
+export type PlacementOutcome =
+  | {
+      kind: "filed";
+      bucket: Bucket;
+      created: boolean;
+      needsReview: boolean;
+      similarity: number;
+      /** Diagnostic token when a proposal conflicted with the Tasks rule. */
+      proposalConflict?: "tasks-override";
+    }
+  | {
+      /** Naming failed deterministic validation; the pipeline may retry
+       * the isolated naming stage exactly once, then re-submit. */
+      kind: "naming-failed";
+      reasons: string[];
+    }
+  | {
+      kind: "pending";
+      reason: PendingPlacementReason;
+      namingFailures?: string[];
+      candidates: PlacementCandidate[];
+      recommendedBucketId?: string;
+    };
+
 /**
  * Append-only audit record for privacy lifecycle operations (Spec 1.3).
  * Deliberately non-content: operation, scope, identifiers, outcome, and
@@ -829,6 +937,11 @@ export interface CoreLoopResult {
   transcript: Transcript;
   items: OrganizedItem[];
   bucketsCreated: Bucket[];
+  /**
+   * Spec 6.7: thoughts whose placement persisted for human review instead
+   * of being filed. Excluded from retrieval until resolved.
+   */
+  pendingPlacements?: PendingPlacement[];
   /**
    * Which assembled context influenced the organize request (Spec 2.2
    * FR-4): packet ID and source IDs only — never content.

@@ -2,7 +2,7 @@
 id: "6.7"
 title: "Structured bucket routing and governed minting"
 phase: "06"
-status: "approved"
+status: "in-progress"
 depends_on: ["6.6"]
 ---
 

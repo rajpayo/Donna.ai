@@ -13,14 +13,20 @@ import type { AnswerGenerator, Embedder, Organizer, Transcriber } from "@donna/c
 import type { GatewayClient } from "./gateway.js";
 import { OpenAiCompatibleTranscriber } from "./openai-transcriber.js";
 import { OpenAiCompatibleOrganizer } from "./openai-organizer.js";
+import { OpenAiCompatibleOrganizerV2, OpenAiCompatibleBucketNamer } from "./openai-organizer-v2.js";
 import { AnthropicOrganizer } from "./anthropic-organizer.js";
+import { AnthropicOrganizerV2 } from "./anthropic-organizer-v2.js";
 import { OpenAiCompatibleEmbedder } from "./openai-embedder.js";
 import { OpenAiCompatibleAnswerGenerator } from "./answer-generator.js";
 import {
   ORGANIZE_PROMPT_VERSION,
   ORGANIZE_QUALITY_PROMPT_VERSION,
+  ORGANIZE_SCHEMA_VERSION,
+  ORGANIZE_SCHEMA_VERSION_V2,
+  ORGANIZE_STRUCTURED_PROMPT_VERSION,
   type OrganizePromptVersion,
 } from "./organize-schema.js";
+import type { BucketNamer, OrganizerV2 } from "@donna/core";
 
 const laneSchema = z.object({
   provider: z.enum(["openai-compatible", "anthropic"]),
@@ -29,8 +35,20 @@ const laneSchema = z.object({
 });
 const organizeLaneSchema = laneSchema.extend({
   prompt: z
-    .enum([ORGANIZE_PROMPT_VERSION, ORGANIZE_QUALITY_PROMPT_VERSION])
+    .enum([
+      ORGANIZE_PROMPT_VERSION,
+      ORGANIZE_QUALITY_PROMPT_VERSION,
+      ORGANIZE_STRUCTURED_PROMPT_VERSION,
+    ])
     .default(ORGANIZE_PROMPT_VERSION),
+  /**
+   * Spec 6.7: the structured-output contract this lane validates against.
+   * v1 remains the default for rollback; v2 selects the discriminated
+   * placement contract. Model identity stays config-only either way.
+   */
+  contract: z
+    .enum([ORGANIZE_SCHEMA_VERSION, ORGANIZE_SCHEMA_VERSION_V2])
+    .default(ORGANIZE_SCHEMA_VERSION),
 });
 
 const configSchema = z.object({
@@ -48,8 +66,19 @@ const configSchema = z.object({
     .object({
       assign_threshold: z.number().default(0.82),
       create_threshold: z.number().default(0.65),
+      /**
+       * Spec 6.7 resolution 8: separate locked near-duplicate descriptor
+       * threshold (initial candidate 0.90, calibrated on synthetic
+       * fixtures and frozen before live dev results). NEVER reused from
+       * assign_threshold.
+       */
+      near_duplicate_threshold: z.number().min(0).max(1).default(0.9),
     })
-    .default({ assign_threshold: 0.82, create_threshold: 0.65 }),
+    .default({
+      assign_threshold: 0.82,
+      create_threshold: 0.65,
+      near_duplicate_threshold: 0.9,
+    }),
   // Spec 2.2: context assembly budgets — configurable here, never in code.
   context: z
     .object({
@@ -163,6 +192,11 @@ export interface ResolvedStack {
   transcriber: Transcriber;
   organizer: Organizer;
   escalationOrganizer?: Organizer;
+  /** Spec 6.7: present when the organize lane's contract is v2. */
+  organizerV2?: OrganizerV2;
+  escalationOrganizerV2?: OrganizerV2;
+  /** Spec 6.7 FR-6: isolated naming-only retry adapter (v2 lanes only). */
+  namer?: BucketNamer;
   embedder: Embedder;
   bucketTuning: ModelsConfig["buckets"];
   /** Spec 2.2 context assembly budgets from models.config.yaml. */
@@ -194,19 +228,54 @@ function makeOrganizer(gateway: GatewayClient, lane: OrganizeLane): Organizer {
   }
 }
 
+function makeOrganizerV2(gateway: GatewayClient, lane: OrganizeLane): OrganizerV2 {
+  switch (lane.provider) {
+    case "openai-compatible":
+      return new OpenAiCompatibleOrganizerV2(gateway, lane.model, lane.params);
+    case "anthropic":
+      return new AnthropicOrganizerV2(gateway, lane.model, lane.params);
+  }
+}
+
+/** The isolated naming retry uses the organize default lane's model (FR-17). */
+function makeNamer(gateway: GatewayClient, lane: OrganizeLane): BucketNamer | undefined {
+  switch (lane.provider) {
+    case "openai-compatible":
+      return new OpenAiCompatibleBucketNamer(gateway, lane.model, lane.params);
+    case "anthropic":
+      // 6.7 runs no Anthropic naming lane; the namer is config-selected
+      // and only the OpenAI-compatible adapter implements it.
+      return undefined;
+  }
+}
+
 export function resolveStack(
   gateway: GatewayClient,
   config: ModelsConfig,
 ): ResolvedStack {
   const t = config.stages.transcribe.default;
   const e = config.stages.embed.default;
+  const organizeDefault = config.stages.organize.default;
   const escalation = config.stages.organize.escalation;
   const answerLane = config.retrieval.answer;
+  const v2 = organizeDefault.contract === ORGANIZE_SCHEMA_VERSION_V2;
   return {
     transcriber: new OpenAiCompatibleTranscriber(gateway, t.model, t.params),
-    organizer: makeOrganizer(gateway, config.stages.organize.default),
+    organizer: makeOrganizer(gateway, organizeDefault),
     ...(escalation !== undefined
       ? { escalationOrganizer: makeOrganizer(gateway, escalation) }
+      : {}),
+    ...(v2 ? { organizerV2: makeOrganizerV2(gateway, organizeDefault) } : {}),
+    ...(v2 &&
+    escalation !== undefined &&
+    escalation.contract === ORGANIZE_SCHEMA_VERSION_V2
+      ? { escalationOrganizerV2: makeOrganizerV2(gateway, escalation) }
+      : {}),
+    ...(v2
+      ? (() => {
+          const namer = makeNamer(gateway, organizeDefault);
+          return namer !== undefined ? { namer } : {};
+        })()
       : {}),
     embedder: new OpenAiCompatibleEmbedder(gateway, e.model, e.params),
     bucketTuning: config.buckets,

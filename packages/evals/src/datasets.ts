@@ -133,6 +133,16 @@ const organizeCaseSchema = z.object({
   existingBuckets: z
     .array(
       z.object({
+        /**
+         * Specification 6.7 (SR-8): additive de-identified per-case
+         * fixture handle for structured routing — an opaque eval-only ID,
+         * never an operational user/bucket ID. Optional: legacy cases
+         * without IDs keep their v1 behavior.
+         */
+        id: z
+          .string()
+          .regex(/^eval-b-[a-z0-9][a-z0-9-]{0,62}$/)
+          .optional(),
         name: z.string().min(1),
         description: z.string(),
       }),
@@ -429,7 +439,7 @@ function organizeSnapshotProblems(
   where: string,
 ): string[] {
   const existingBuckets = caseData["existingBuckets"] as
-    | Array<{ name: string; description: string }>
+    | Array<{ id?: string; name: string; description: string }>
     | undefined;
   const expected = caseData["expected"] as
     | {
@@ -443,6 +453,7 @@ function organizeSnapshotProblems(
 
   const problems: string[] = [];
   const snapshotNames = new Set<string>();
+  const snapshotIds = new Set<string>();
   for (const [index, bucket] of (existingBuckets ?? []).entries()) {
     const normalized = normalizeBucketName(bucket.name);
     if (snapshotNames.has(normalized)) {
@@ -451,6 +462,16 @@ function organizeSnapshotProblems(
       );
     }
     snapshotNames.add(normalized);
+    // Spec 6.7: fixture IDs are per-case opaque handles — unique within
+    // the case snapshot.
+    if (bucket.id !== undefined) {
+      if (snapshotIds.has(bucket.id)) {
+        problems.push(
+          `${where}: existingBuckets[${index}]: duplicate fixture bucket id "${bucket.id}"`,
+        );
+      }
+      snapshotIds.add(bucket.id);
+    }
   }
 
   for (const [index, thought] of expected.thoughts.entries()) {

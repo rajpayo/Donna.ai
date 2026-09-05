@@ -102,6 +102,15 @@ import {
   type SelectionRecord,
   type FreshLock,
 } from "./organize-experiment.js";
+import { createOrganizeV2Scorer } from "./scorers/organize-v2.js";
+import {
+  buildV2ReviewPacket,
+  evaluateV2Eligibility,
+  loadV2Reports,
+  summarizeV2Review,
+  validateLockedV2Plan,
+  type V2ReviewSource,
+} from "./organize-v2-experiment.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const evalsDir = resolve(here, "..");
@@ -948,6 +957,204 @@ async function main(): Promise<void> {
 
     throw new Error(
       "usage: organize-experiment validate|run|prepare-review|select|validation-v3|freeze-fresh|final --plan <path>",
+    );
+  }
+
+  // Spec 6.7: structured-routing dev experiment — one approved
+  // implementation, three fixed replicates, mechanical floors/stop.
+  if (command === "organize-v2-experiment") {
+    const action = stage;
+    const suppliedPlan = arg("--plan");
+    const planPath = suppliedPlan === undefined
+      ? join(evalsDir, "experiments/organize/6.7/plan.json")
+      : resolveRepoOrCwd(suppliedPlan);
+    const validated = await validateLockedV2Plan({ planPath, repoRoot });
+    const reportsRoot = join(evalsDir, "reports", "organize", "6.7");
+
+    if (action === "validate") {
+      console.log(
+        `PLAN LOCKED: Spec 6.7 structured baseline S (gpt-5-mini, donna.organize.v2) — 3 binding dev runs`,
+      );
+      console.log(
+        `dev ${validated.plan.datasets.dev.name} v${validated.plan.datasets.dev.version} ` +
+          `${validated.plan.datasets.dev.cases} cases sha256:${validated.plan.datasets.dev.sha256}`,
+      );
+      console.log(`near-duplicate threshold (frozen candidate): ${validated.plan.implementation.nearDuplicateThreshold}`);
+      console.log(`validation-v3 preserved, NOT run: sha256:${validated.plan.datasets.validationV3.sha256.slice(0, 12)}…`);
+      console.log(`plan sha256:${validated.planSha256}`);
+      return;
+    }
+
+    if (action === "run") {
+      const candidateDir = join(reportsRoot, "S");
+      await ensurePrivateDirectory(candidateDir);
+      const existing = await readdir(candidateDir);
+      if (existing.some((name) => /^replicate-\d+\.(json|md)$/.test(name))) {
+        throw new Error(
+          "S: binding results already exist; fixed replicates cannot be rerun or replaced",
+        );
+      }
+      const candidateConfig = resolve(repoRoot, validated.plan.implementation.configPath);
+      const live = await liveStack(candidateConfig);
+      if (live === undefined) {
+        throw new Error(
+          "TrueFoundry gateway prerequisites are absent; zero binding runs were started",
+        );
+      }
+      if (live.stack.organizerV2 === undefined) {
+        throw new Error("The locked 6.7 config must resolve a donna.organize.v2 lane");
+      }
+      for (let replicate = 1; replicate <= 3; replicate++) {
+        const reviewItems: V2ReviewSource[] = [];
+        console.log(
+          `DEV ONLY — NOT GRADUATION — structured baseline S — run ${replicate} of 3 — ` +
+            `dataset ${validated.plan.datasets.dev.sha256.slice(0, 12)}… ` +
+            `config ${validated.plan.implementation.configSha256.slice(0, 12)}… ` +
+            `prompt ${validated.plan.implementation.promptSha256.slice(0, 12)}…`,
+        );
+        console.log("prompt-input audit: no label fields supplied");
+        const scorer = createOrganizeV2Scorer({
+          organizerV2: live.stack.organizerV2,
+          ...(live.stack.escalationOrganizerV2 !== undefined
+            ? { escalationOrganizerV2: live.stack.escalationOrganizerV2 }
+            : {}),
+          ...(live.stack.namer !== undefined ? { namer: live.stack.namer } : {}),
+          embedder: live.stack.embedder,
+          meteredGateway: live.metered,
+          bucketTuning: live.config.buckets,
+          onMintedReviewItem: (item) => {
+            reviewItems.push({ replicate, ...item });
+          },
+        });
+        const result = await runEval({
+          datasetPath: resolve(repoRoot, validated.plan.datasets.dev.path),
+          configPath: candidateConfig,
+          repoRoot,
+          evalsDir,
+          reportsDir: candidateDir,
+          scorer,
+        });
+        const targetJson = join(candidateDir, `replicate-${replicate}.json`);
+        const targetMarkdown = join(candidateDir, `replicate-${replicate}.md`);
+        await moveRunArtifact(result.jsonPath, targetJson);
+        await moveRunArtifact(result.markdownPath, targetMarkdown);
+        await writePrivateFile(
+          join(candidateDir, `review-source-${replicate}.json`),
+          JSON.stringify(reviewItems, null, 2) + "\n",
+        );
+        const agg = result.report.aggregate;
+        console.log(
+          `  ${agg.casesRun} cases; errors ${agg.casesErrored} ` +
+            `(external ${agg.externalErrors}, product ${agg.productErrors}); ` +
+            `hard failures ${agg.hardFailureCount}`,
+        );
+        const m = (name: string) => agg.metrics[name]?.mean?.toFixed(5) ?? "n/a";
+        console.log("  MODEL PROPOSAL:");
+        console.log(`    route.mode_accuracy ${m("route.mode_accuracy")}   route.join_id_accuracy ${m("route.join_id_accuracy")}`);
+        console.log(`    mint.precision ${m("mint.precision")}   mint.recall ${m("mint.recall")}`);
+        console.log("  DETERMINISTIC FINAL:");
+        console.log(`    final.placement_acceptance ${m("final.placement_acceptance")}   route.joined_conflict_rate ${m("route.joined_conflict_rate")}   review.pending_rate ${m("review.pending_rate")}`);
+        console.log("  MINT QUALITY:");
+        console.log(`    mint.validator_pass ${m("mint.validator_pass")}   mint.exact_name (diagnostic) ${m("mint.exact_name")}`);
+        console.log("  TASK/PROVENANCE:");
+        console.log(`    thought_coverage ${m("organize.thought_coverage")}   task_precision ${m("organize.task_precision")}   task_recall ${m("organize.task_recall")}   tasks.hard_rule ${m("tasks.hard_rule")}`);
+        console.log(`    provenance ${m("organize.provenance_fidelity")}   schema ${m("organize.schema_valid")}`);
+        console.log(`  private report: ${targetJson}`);
+      }
+      return;
+    }
+
+    if (action === "prepare-review") {
+      const sources: V2ReviewSource[] = [];
+      for (let replicate = 1; replicate <= 3; replicate++) {
+        const path = join(reportsRoot, "S", `review-source-${replicate}.json`);
+        const items = JSON.parse(await readFile(path, "utf8")) as V2ReviewSource[];
+        sources.push(...items);
+      }
+      const packet = buildV2ReviewPacket(validated.planSha256, sources);
+      const privateReviewDir = join(reportsRoot, "blinded-review");
+      await ensurePrivateDirectory(privateReviewDir);
+      await writePrivateFile(
+        join(privateReviewDir, "packet.json"),
+        JSON.stringify(packet, null, 2) + "\n",
+      );
+      const template = {
+        schema: "donna.organize-v2-review.v1",
+        rubricSha256: packet.rubricSha256,
+        reviewer: "product-owner",
+        reviewedAt: "",
+        decisions: packet.items.map((item) => ({
+          itemId: item.itemId,
+          decisions: { ...item.decisions },
+        })),
+      };
+      await writePrivateFile(
+        join(privateReviewDir, "review-template.json"),
+        JSON.stringify(template, null, 2) + "\n",
+      );
+      console.log(
+        `Blinded minted-name packet ready: ${packet.items.length} randomized item(s). ` +
+          `Fill ${join(privateReviewDir, "review-template.json")} and save as review.json next to the plan.`,
+      );
+      return;
+    }
+
+    if (action === "eligibility") {
+      const reports = await loadV2Reports({ reportsRoot, plan: validated.plan });
+      const reviewArg = arg("--review");
+      const reviewPath = reviewArg === undefined
+        ? join(dirname(planPath), "review.json")
+        : resolveRepoOrCwd(reviewArg);
+      let blinded: { state: "evaluated"; allFivePassRate: number; reviewSha256: string } | { state: "awaiting-product-owner-review" };
+      if (existsSync(reviewPath)) {
+        const reviewRaw = await readFile(reviewPath, "utf8");
+        const review = JSON.parse(reviewRaw) as {
+          decisions: Array<{ itemId: string; decisions: Record<string, boolean> }>;
+        };
+        const summary = summarizeV2Review(review);
+        blinded = {
+          state: "evaluated",
+          allFivePassRate: summary.allFivePassRate,
+          reviewSha256: sha256(reviewRaw),
+        };
+      } else {
+        blinded = { state: "awaiting-product-owner-review" };
+      }
+      // Deterministic suite results are attested from the committed test
+      // runs (decision-table/concurrency/security/parity); the flags are
+      // recorded by the operator running the suites, never assumed.
+      const suitesAttested = arg("--deterministic-suites-passed") === "true";
+      const record = evaluateV2Eligibility({
+        plan: validated.plan,
+        planSha256: validated.planSha256,
+        reports,
+        blinded,
+        deterministicSuites: {
+          decisionTable: suitesAttested,
+          concurrencyReplay: suitesAttested,
+          security: suitesAttested,
+          filePostgresParity: suitesAttested,
+        },
+      });
+      const outPath = join(dirname(planPath), "eligibility.json");
+      await writeFile(outPath, JSON.stringify(record, null, 2) + "\n");
+      for (const floor of record.floors) {
+        console.log(
+          `${floor.pass ? "PASS" : "FAIL"}  ${floor.floor}: ${floor.actual} (floor ${floor.threshold})`,
+        );
+      }
+      console.log(`outcome: ${record.outcome}`);
+      if (record.mintSpecificFailure) {
+        console.log(
+          "note: routing/join floors passed while mint quality failed — narrow evidence for a future mint-only specification; do not broaden or retry within 6.7.",
+        );
+      }
+      console.log(`eligibility record: ${outPath}`);
+      return;
+    }
+
+    throw new Error(
+      `Unknown organize-v2-experiment action "${String(action)}". Known: validate, run, prepare-review, eligibility`,
     );
   }
 

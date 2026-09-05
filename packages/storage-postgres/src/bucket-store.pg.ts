@@ -27,6 +27,7 @@
  */
 import type pg from "pg";
 import { OptimisticLockError, type Bucket, type BucketStore, type Thought } from "@donna/core";
+import { canonicalNameKey } from "@donna/buckets";
 import { scoped, vectorParam } from "./client.js";
 import {
   refreshProjectionFromItem,
@@ -48,6 +49,22 @@ export class PostgresBucketStore implements BucketStore {
         [tenantId, userId],
       );
       return result.rows.map(bucketFromRow);
+    });
+  }
+
+  async getBucketById(
+    tenantId: string,
+    userId: string,
+    bucketId: string,
+  ): Promise<Bucket | undefined> {
+    return scoped(this.pool, { tenantId, userId }, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM buckets
+          WHERE tenant_id = $1 AND user_id = $2 AND id = $3`,
+        [tenantId, userId, bucketId],
+      );
+      const row = result.rows[0];
+      return row === undefined ? undefined : bucketFromRow(row);
     });
   }
 
@@ -74,11 +91,14 @@ export class PostgresBucketStore implements BucketStore {
       this.pool,
       { tenantId: bucket.tenantId, userId: bucket.userId },
       async (client) => {
+        // Spec 6.7: the per-user canonical-name key is enforced by the
+        // buckets_unique_canonical_name unique index; a collision fails
+        // closed with a constraint error — never a duplicate bucket.
         await client.query(
           `INSERT INTO buckets
              (tenant_id, user_id, id, name, description, centroid,
-              item_count, origin, created_at)
-           VALUES ($1, $2, $3, $4, $5, $6::vector, $7, $8, $9)`,
+              item_count, origin, created_at, canonical_name_key)
+           VALUES ($1, $2, $3, $4, $5, $6::vector, $7, $8, $9, $10)`,
           [
             bucket.tenantId,
             bucket.userId,
@@ -89,6 +109,7 @@ export class PostgresBucketStore implements BucketStore {
             bucket.itemCount,
             bucket.origin,
             bucket.createdAt,
+            canonicalNameKey(bucket.name),
           ],
         );
         return bucket;
@@ -341,9 +362,9 @@ export class PostgresBucketStore implements BucketStore {
     }
     await scoped(this.pool, { tenantId, userId }, async (client) => {
       const updated = await client.query(
-        `UPDATE buckets SET name = $4, version = version + 1
+        `UPDATE buckets SET name = $4, canonical_name_key = $5, version = version + 1
           WHERE tenant_id = $1 AND user_id = $2 AND id = $3`,
-        [tenantId, userId, bucketId, newName.trim()],
+        [tenantId, userId, bucketId, newName.trim(), canonicalNameKey(newName)],
       );
       if (updated.rowCount === 0) {
         throw new Error("Bucket does not exist in the requested tenant/user scope");

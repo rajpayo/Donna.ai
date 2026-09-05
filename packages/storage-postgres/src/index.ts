@@ -1,6 +1,7 @@
 export * from "./client.js";
 export * from "./migrate.js";
 export * from "./bucket-store.pg.js";
+export * from "./pending-store.pg.js";
 export * from "./capture-stores.pg.js";
 export * from "./memory-stores.pg.js";
 export * from "./retrieval-index.pg.js";

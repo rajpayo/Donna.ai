@@ -35,6 +35,9 @@
  *       add-task <thought-id> --title <t>      mark a thought as a task
  *       remove-task <thought-id>               clear a thought's task
  *       provenance <thought-id> --segments <id,id,...>
+ *   donna review placements                  pending filing decisions (Spec 6.7)
+ *   donna review placements resolve <id>     --create | --file-existing <name> |
+ *                                              --edit-name <name> | --reject
  *   donna corrections [--all]                  review queue (pending first)
  *   donna corrections accept|reject <id>       review decisions; accepting
  *                                              applies the correction safely
@@ -78,8 +81,13 @@ import { readdir, readFile, rm, stat } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createInterface } from "node:readline";
-import type { Capture, EventSink, MemoryLayer } from "@donna/core";
-import { FileBucketStore } from "@donna/buckets";
+import type { Capture, EventSink, MemoryLayer, PendingPlacement } from "@donna/core";
+import {
+  FileBucketStore,
+  FilePendingPlacementStore,
+  PendingPlacementResolver,
+  StructuredBucketEngine,
+} from "@donna/buckets";
 import {
   captureSnapshot,
   confirmOrganizePromotion,
@@ -832,6 +840,22 @@ function buildLifecycle(): {
           );
         },
       },
+      // Spec 6.7 FR-9: pending placements derived from the capture are
+      // removed with it (deletion propagation).
+      {
+        name: "pendingPlacements",
+        deleteForCapture: async (
+          tenantId: string,
+          userId: string,
+          captureId: string,
+        ) => {
+          await new FilePendingPlacementStore(dir).deleteForCapture(
+            tenantId,
+            userId,
+            captureId,
+          );
+        },
+      },
       // Spec 3.1 FR-4: deleted records disappear from search.
       {
         name: "retrieval-index",
@@ -941,6 +965,14 @@ async function buildPipeline(): Promise<{ pipeline: DonnaPipeline; store: FileBu
     ...(stack.escalationOrganizer !== undefined
       ? { escalationOrganizer: stack.escalationOrganizer }
       : {}),
+    // Spec 6.7: structured v2 routing lane (config-selected contract).
+    ...(stack.organizerV2 !== undefined ? { organizerV2: stack.organizerV2 } : {}),
+    ...(stack.escalationOrganizerV2 !== undefined
+      ? { escalationOrganizerV2: stack.escalationOrganizerV2 }
+      : {}),
+    ...(stack.namer !== undefined ? { namer: stack.namer } : {}),
+    pendingPlacements: new FilePendingPlacementStore(dir),
+    nearDuplicateThreshold: stack.bucketTuning.near_duplicate_threshold,
     embedder: stack.embedder,
     store,
     captures,
@@ -978,6 +1010,54 @@ async function buildPipeline(): Promise<{ pipeline: DonnaPipeline; store: FileBu
     events: consoleEvents,
   });
   return { pipeline, store };
+}
+
+/**
+ * Spec 6.7 FR-18: human-readable pending headlines and choices. Internal
+ * bucket IDs are NEVER printed — names and descriptions only.
+ */
+function pendingHeadline(record: PendingPlacement): string {
+  const proposed =
+    record.proposal?.mode === "new" ? record.proposal.name : undefined;
+  switch (record.reason) {
+    case "naming-invalid":
+      return proposed !== undefined
+        ? `Create new bucket ${proposed}? (name needs review)`
+        : "Name needs review";
+    case "possible-existing-match": {
+      const existing = record.candidates.find(
+        (c) => c.bucketId === record.recommendedBucketId,
+      );
+      return proposed !== undefined && existing !== undefined
+        ? `Use ${existing.name} instead of new bucket ${proposed}?`
+        : "Possible duplicate — review needed";
+    }
+    case "model-geometry-mismatch":
+    case "new-vs-existing":
+    case "middle-band": {
+      const names = record.candidates.map((c) => c.name);
+      const proposedPart = proposed !== undefined ? ` or new bucket ${proposed}` : "";
+      return names.length > 0
+        ? `Review needed: ${names.slice(0, 2).join(" or ")}${proposedPart}?`
+        : "Review needed";
+    }
+    case "unknown-id":
+    case "invalid-route":
+      return "I couldn't verify that destination; choose a bucket";
+  }
+}
+
+function pendingChoices(record: PendingPlacement): string[] {
+  const choices: string[] = [];
+  for (const candidate of record.candidates.slice(0, 3)) {
+    choices.push(`File in… ${candidate.name}`);
+  }
+  if (record.proposal?.mode === "new") {
+    choices.push(`Create "${record.proposal.name}"`);
+    choices.push("Edit name");
+  }
+  choices.push("Reject (file nothing)");
+  return choices;
 }
 
 async function main(): Promise<void> {
@@ -1072,21 +1152,48 @@ async function main(): Promise<void> {
     console.log("\n=== Transcript ===");
     console.log(redactContent(result.transcript.text, !redact));
     console.log("\n=== Organized ===");
+    // Spec 6.7 FR-18: exact user-facing states. Names only — never IDs.
+    const createdIds = new Set(result.bucketsCreated.map((b) => b.id));
     for (const item of result.items) {
+      const filed = createdIds.has(item.bucket.id)
+        ? `Created new bucket ${item.bucket.name} — filed`
+        : `Filed in ${item.bucket.name}`;
       const flag = item.needsReview ? " (needs review)" : "";
-      console.log(`• [${item.bucket.name}]${flag} ${item.thought.summary}`);
+      console.log(`• ${filed}${flag}`);
+      console.log(`    ${item.thought.summary}`);
       if (item.thought.task) {
-        console.log(`    ↳ task: ${item.thought.task.title}`);
+        const hints = [
+          item.thought.task.assigneeHint !== undefined
+            ? `assignee: ${item.thought.task.assigneeHint}`
+            : undefined,
+          item.thought.task.dueHint !== undefined
+            ? `due: ${item.thought.task.dueHint}`
+            : undefined,
+        ].filter((h) => h !== undefined);
+        console.log(
+          `    ↳ task: ${item.thought.task.title}${hints.length > 0 ? ` (${hints.join("; ")})` : ""}`,
+        );
       }
       console.log(
         `    ↳ source: ${item.thought.provenance.startSec.toFixed(1)}–${item.thought.provenance.endSec.toFixed(1)}s ${redact ? redactContent(item.thought.provenance.sourceText, false) : `"${item.thought.provenance.sourceText.slice(0, 80)}"`}`,
       );
     }
-    if (result.bucketsCreated.length > 0) {
-      console.log("\n=== New buckets created ===");
-      for (const b of result.bucketsCreated) {
-        console.log(`+ ${b.name} — ${b.description}`);
+    const pending = result.pendingPlacements ?? [];
+    if (pending.length > 0) {
+      console.log("\n=== Needs your decision ===");
+      for (const record of pending) {
+        console.log(`• ${pendingHeadline(record)}`);
+        console.log(`    ${record.thought.summary}`);
+        if (record.thought.task) {
+          console.log(`    ↳ task: ${record.thought.task.title}`);
+        }
+        for (const choice of pendingChoices(record)) {
+          console.log(`    ↳ ${choice}`);
+        }
       }
+      console.log(
+        "\nResolve with: donna review placements — nothing above was filed.",
+      );
     }
     if (result.context !== undefined) {
       const degraded = result.context.degraded ? " (degraded)" : "";
@@ -1101,6 +1208,137 @@ async function main(): Promise<void> {
       `\n${result.items.length} thoughts, ${result.bucketsCreated.length} new buckets, ${(result.metrics.totalLatencyMs / 1000).toFixed(1)}s total`,
     );
     return;
+  }
+
+  // Spec 6.7 FR-9/FR-18: durable pending placement review. Restores
+  // unfinished choices after restart; every action is idempotent and
+  // revalidates current scoped state before writing.
+  if (command === "review" && process.argv[3] === "placements") {
+    const dir = dataDir();
+    const store = new FileBucketStore(dir);
+    const pendingStore = new FilePendingPlacementStore(dir);
+    const sub = process.argv[4];
+
+    if (sub === undefined) {
+      const pending = await pendingStore.list(tenantId, userId, "pending");
+      if (pending.length === 0) {
+        console.log("No pending placements — everything is filed.");
+        return;
+      }
+      console.log(`Pending placements (${pending.length}) — nothing here is filed until you decide.`);
+      for (const record of pending) {
+        console.log(`\n• ${pendingHeadline(record)}`);
+        console.log(`    id: ${record.id}`);
+        console.log(`    ${record.thought.summary}`);
+        if (record.thought.task) {
+          const hints = [
+            record.thought.task.assigneeHint !== undefined
+              ? `assignee: ${record.thought.task.assigneeHint}`
+              : undefined,
+            record.thought.task.dueHint !== undefined
+              ? `due: ${record.thought.task.dueHint}`
+              : undefined,
+          ].filter((h) => h !== undefined);
+          console.log(
+            `    ↳ task: ${record.thought.task.title}${hints.length > 0 ? ` (${hints.join("; ")})` : ""}`,
+          );
+        }
+        for (const choice of pendingChoices(record)) {
+          console.log(`    ↳ ${choice}`);
+        }
+      }
+      console.log(
+        "\nResolve: donna review placements resolve <id> --create | --file-existing <bucket name> | --edit-name <name> [--description <text>] | --reject",
+      );
+      return;
+    }
+
+    if (sub === "resolve") {
+      const id = process.argv[5];
+      if (id === undefined) {
+        console.error(
+          "usage: donna review placements resolve <id> --create | --file-existing <bucket name> | --edit-name <name> [--description <text>] | --reject",
+        );
+        process.exit(1);
+      }
+      const create = process.argv.includes("--create");
+      const fileExisting = arg("--file-existing");
+      const editName = arg("--edit-name");
+      const editDescription = arg("--description");
+      const reject = process.argv.includes("--reject");
+      const actions = [create, fileExisting !== undefined, editName !== undefined, reject].filter(Boolean).length;
+      if (actions !== 1) {
+        console.error("Choose exactly one of --create, --file-existing, --edit-name, --reject.");
+        process.exit(1);
+      }
+      // The semantic near-duplicate recheck uses the configured embedder
+      // when gateway credentials exist; without them the deterministic
+      // exact/lexical checks still run (degraded, never skipped silently).
+      let embedder;
+      let tuning = { assign_threshold: 0.82, create_threshold: 0.65, near_duplicate_threshold: 0.9 };
+      try {
+        const configPath = resolve(
+          repoRoot,
+          process.env.DONNA_MODELS_CONFIG ?? "models.config.yaml",
+        );
+        const config = await loadModelsConfig(configPath);
+        tuning = config.buckets;
+        if (gatewayEnvProblems(inspectGatewayEnv()).length === 0) {
+          embedder = resolveStack(gatewayFromEnv(), config).embedder;
+        } else {
+          console.error("note: gateway credentials absent — semantic duplicate recheck degraded to exact/lexical");
+        }
+      } catch {
+        console.error("note: models config unavailable — semantic duplicate recheck degraded to exact/lexical");
+      }
+      const engine = new StructuredBucketEngine(store, tuning, {
+        nearDuplicateThreshold: tuning.near_duplicate_threshold,
+        ...(embedder !== undefined ? { embedder } : {}),
+      });
+      const resolver = new PendingPlacementResolver(
+        store,
+        pendingStore,
+        engine,
+        buildRetrievalIndex(),
+      );
+      const scope = { tenantId, userId };
+      const result =
+        reject
+          ? await resolver.reject(scope, id)
+          : fileExisting !== undefined
+            ? await resolver.fileExisting(scope, id, fileExisting)
+            : editName !== undefined
+              ? await resolver.confirmCreate(scope, id, {
+                  name: editName,
+                  ...(editDescription !== undefined ? { description: editDescription } : {}),
+                })
+              : await resolver.confirmCreate(scope, id);
+      if (result.status === "filed") {
+        console.log(
+          result.already
+            ? `Already filed in ${result.bucketName} — no duplicate created.`
+            : result.created
+              ? `Created new bucket ${result.bucketName} — filed`
+              : `Filed in ${result.bucketName}`,
+        );
+      } else if (result.status === "rejected") {
+        console.log(
+          result.already
+            ? "Already rejected — nothing was filed."
+            : "Rejected — nothing was created or filed.",
+        );
+      } else {
+        console.log(
+          `Conflict: ${result.existingName} now matches — review again with --file-existing "${result.existingName}" or --reject.`,
+        );
+      }
+      return;
+    }
+
+    console.error(
+      "usage: donna review placements | donna review placements resolve <id> --create | --file-existing <bucket name> | --edit-name <name> [--description <text>] | --reject",
+    );
+    process.exit(1);
   }
 
   if (command === "buckets") {
@@ -2993,13 +3231,15 @@ async function main(): Promise<void> {
         captures: await new FileCaptureStore(dir).listCaptures(tenantId, userId),
         corrections: await (await buildCorrectionService()).list(scope),
         misfires: await buildMisfireRegister().list(scope),
+        // Spec 6.7 FR-9: pending placements export with the user's data.
+        pendingPlacements: await new FilePendingPlacementStore(dir).list(tenantId, userId),
       });
       const outPath = resolve(invocationDir, out);
       await writePrivateFile(outPath, JSON.stringify(bundle, null, 2) + "\n");
       console.log(
         `Export written to ${outPath} (owner-only): ${bundle.captures.length} capture(s), ` +
           `${bundle.memory.memories.length} memor(ies), ${bundle.corrections.length} correction(s), ` +
-          `${bundle.misfires.length} misfire report(s), ${bundle.memory.consents.length} consent record(s).`,
+          `${bundle.misfires.length} misfire report(s), ${bundle.pendingPlacements.length} pending placement(s), ${bundle.memory.consents.length} consent record(s).`,
       );
       console.log(`Participant ${profile.participantId}; exported ${bundle.exportedAt}.`);
       return;
@@ -3020,6 +3260,7 @@ async function main(): Promise<void> {
         captures: await new FileCaptureStore(dir).listCaptures(tenantId, userId),
         corrections: await (await buildCorrectionService()).list(scope),
         misfires: await buildMisfireRegister().list(scope),
+        pendingPlacements: await new FilePendingPlacementStore(dir).list(tenantId, userId),
       });
       const outPath = resolve(invocationDir, out);
       await writePrivateFile(outPath, JSON.stringify(bundle, null, 2) + "\n");
@@ -3059,6 +3300,8 @@ async function main(): Promise<void> {
         for (const selection of await new M365SelectionStore(dir).list(scope)) {
           await new M365SelectionStore(dir).unselect(scope, selection.resourceId);
         }
+        // Spec 6.7 FR-9: pending placements delete with the user's data.
+        await new FilePendingPlacementStore(dir).deleteAll(tenantId, userId);
 
         // Verified deletion: re-list every content store and report counts.
         const remaining = {
@@ -3070,6 +3313,7 @@ async function main(): Promise<void> {
           sessions: (await new FileSessionStore(dir).listSessions(tenantId, userId)).length,
           misfires: (await buildMisfireRegister().list(scope)).length,
           m365Selections: (await new M365SelectionStore(dir).list(scope)).length,
+          pendingPlacements: (await new FilePendingPlacementStore(dir).list(tenantId, userId)).length,
         };
         const leftover = Object.entries(remaining).filter(([, n]) => n > 0);
         console.log("Deletion verification (each must be 0):");

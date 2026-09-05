@@ -23,6 +23,9 @@ import type {
   MemoryEvent,
   MemoryProposal,
   MemoryRecord,
+  PendingPlacement,
+  PendingPlacementResolution,
+  PlacementProposal,
   Provenance,
   RetrievalHit,
   RetrievalQuery,
@@ -57,6 +60,118 @@ export interface OrganizeOutput {
       endSec: number;
     };
   }>;
+}
+
+/** One scoped, opaque bucket option on the v2 routing allowlist (FR-2). */
+export interface BucketOption {
+  /** Stable, opaque, scoped bucket identifier. Never user-rendered. */
+  id: string;
+  name: string;
+  description: string;
+}
+
+/**
+ * Structured organization output for donna.organize.v2 (Spec 6.7 FR-1):
+ * every thought carries exactly one discriminated placement branch. All
+ * v1 content fields are preserved unchanged.
+ */
+export interface OrganizeOutputV2 {
+  thoughts: Array<{
+    summary: string;
+    text: string;
+    confidence: number;
+    task?: { title: string; assigneeHint?: string; dueHint?: string };
+    provenance: {
+      segmentIds: string[];
+      sourceText: string;
+      startSec: number;
+      endSec: number;
+    };
+    placement: PlacementProposal;
+  }>;
+}
+
+/**
+ * The v2 organizer port (Spec 6.7). The request carries the full scoped
+ * ID/name/description allowlist; the response may reference only those
+ * exact IDs and can never set tenant/user/scope/tool/model/threshold or
+ * action fields. Adapters validate the discriminated schema; the pipeline
+ * independently validates referential membership before the engine runs.
+ */
+export interface OrganizerV2 {
+  readonly modelId: string;
+  readonly schemaVersion: string;
+  readonly promptVersion: string;
+  organizeV2(
+    transcript: Transcript,
+    allowlist: BucketOption[],
+    context?: ContextPacket,
+    session?: SessionContext,
+  ): Promise<OrganizeOutputV2>;
+}
+
+/**
+ * The isolated bucket-naming port (Spec 6.7 FR-6). Invoked at most once
+ * per thought, only after deterministic name validation fails. It receives
+ * immutable extracted fields and validator reasons and returns ONLY a
+ * candidate name/description — it cannot modify thought, task, or
+ * provenance content.
+ */
+export interface BucketNamer {
+  readonly modelId: string;
+  readonly schemaVersion: string;
+  nameBucket(input: {
+    summary: string;
+    text: string;
+    task?: { title: string; assigneeHint?: string; dueHint?: string };
+    /** Existing scoped options, so the namer avoids collisions. */
+    allowlist: BucketOption[];
+    /** Deterministic validator reason tokens from the failed attempt. */
+    invalidReasons: string[];
+  }): Promise<{ name: string; description: string }>;
+}
+
+/**
+ * Durable, scoped store for pending placements (Spec 6.7 FR-8/FR-9).
+ * Records survive restarts, are excluded from retrieval, and are covered
+ * by export/deletion/retention. Resolution is idempotent: replaying a
+ * resolution returns the already-resolved record without side effects.
+ */
+export interface PendingPlacementStore {
+  save(record: PendingPlacement): Promise<void>;
+  get(
+    tenantId: string,
+    userId: string,
+    id: string,
+  ): Promise<PendingPlacement | undefined>;
+  list(
+    tenantId: string,
+    userId: string,
+    status?: "pending" | "resolved",
+  ): Promise<PendingPlacement[]>;
+  /**
+   * Atomically mark a record resolved. Idempotent: resolving an already
+   * resolved record with the same action returns the stored record; a
+   * conflicting replay fails closed.
+   */
+  markResolved(
+    tenantId: string,
+    userId: string,
+    id: string,
+    resolution: PendingPlacementResolution,
+    resolvedAt: string,
+  ): Promise<PendingPlacement>;
+  /** Remove every record in the scope (pilot exit / deletion). */
+  deleteAll(tenantId: string, userId: string): Promise<{ removed: number }>;
+  /**
+   * Deletion propagation (FR-9): remove every record whose thought
+   * derives from the given capture. Idempotent.
+   */
+  deleteForCapture(
+    tenantId: string,
+    userId: string,
+    captureId: string,
+  ): Promise<{ removed: number }>;
 }
 
 export interface Organizer {
@@ -157,6 +272,16 @@ export class OptimisticLockError extends Error {
 
 export interface BucketStore {
   listBuckets(tenantId: string, userId: string): Promise<Bucket[]>;
+  /**
+   * Scoped lookup by opaque bucket ID (Spec 6.7 FR-3): the engine/store
+   * boundary revalidates allowlist membership. Returns undefined when the
+   * bucket does not exist in this partition — never another partition's.
+   */
+  getBucketById(
+    tenantId: string,
+    userId: string,
+    bucketId: string,
+  ): Promise<Bucket | undefined>;
   getBucketByName(
     tenantId: string,
     userId: string,

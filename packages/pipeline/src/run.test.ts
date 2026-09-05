@@ -75,6 +75,9 @@ class MemStores implements CaptureStore, TranscriptStore, BucketStore {
   async listBuckets(): Promise<Bucket[]> {
     return this.buckets;
   }
+  async getBucketById(_t: string, _u: string, bucketId: string) {
+    return this.buckets.find((b) => b.id === bucketId);
+  }
   async getBucketByName(_t: string, _u: string, name: string) {
     return this.buckets.find((b) => b.name === name);
   }

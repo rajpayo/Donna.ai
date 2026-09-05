@@ -7,6 +7,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Bucket, BucketStore, Thought } from "@donna/core";
 import { writePrivateFile } from "@donna/file-security";
+import { canonicalNameKey } from "./canonical.js";
 
 interface UserFile {
   buckets: Bucket[];
@@ -79,6 +80,16 @@ export class FileBucketStore implements BucketStore {
     return (await this.load(tenantId, userId)).buckets;
   }
 
+  async getBucketById(
+    tenantId: string,
+    userId: string,
+    bucketId: string,
+  ): Promise<Bucket | undefined> {
+    return (await this.load(tenantId, userId)).buckets.find(
+      (bucket) => bucket.id === bucketId,
+    );
+  }
+
   async getBucketByName(
     tenantId: string,
     userId: string,
@@ -92,6 +103,19 @@ export class FileBucketStore implements BucketStore {
 
   async createBucket(bucket: Bucket): Promise<Bucket> {
     const data = await this.load(bucket.tenantId, bucket.userId);
+    // Spec 6.7 (architecture D): per-user canonical-name uniqueness is
+    // enforced before append, with parity to the PostgreSQL
+    // canonical-name key. A collision fails closed — never a duplicate.
+    const key = canonicalNameKey(bucket.name);
+    if (
+      data.buckets.some(
+        (existing) => canonicalNameKey(existing.name) === key,
+      )
+    ) {
+      throw new Error(
+        "A bucket with this canonical name already exists in the requested tenant/user scope",
+      );
+    }
     data.buckets.push(bucket);
     await this.save(bucket.tenantId, bucket.userId, data);
     return bucket;
@@ -119,6 +143,12 @@ export class FileBucketStore implements BucketStore {
     const data = await this.load(tenantId, userId);
     if (!data.buckets.some((bucket) => bucket.id === item.bucketId)) {
       throw new Error("Bucket does not exist in the requested tenant/user scope");
+    }
+    // Idempotent on the thought ID (parity with the PostgreSQL
+    // ON CONFLICT DO NOTHING primary key): replaying a placement write
+    // never double-files a thought (Spec 6.7 SR-10).
+    if (data.items.some((existing) => existing.thought.id === item.thought.id)) {
+      return;
     }
     data.items.push(item);
     await this.save(tenantId, userId, data);

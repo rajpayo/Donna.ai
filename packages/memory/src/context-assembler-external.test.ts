@@ -67,6 +67,7 @@ class StubCollector implements ExternalContextCollector {
 function emptyStores() {
   const buckets: BucketStore = {
     listBuckets: async () => [],
+    getBucketById: async () => undefined,
     getBucketByName: async () => undefined,
     createBucket: async (b) => b,
     updateBucketStats: async () => {},
