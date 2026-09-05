@@ -1,0 +1,82 @@
+[
+  {
+    "replicate": 1,
+    "caseId": "organize-pilot-44123a90c85f",
+    "thought": "Send revised demo checklist to Tushar",
+    "mintedBucketName": "Tasks",
+    "existingBucketNames": []
+  },
+  {
+    "replicate": 1,
+    "caseId": "organize-pilot-2e92c926d69e",
+    "thought": "Arrange 20-minute rehearsal for Friday morning",
+    "mintedBucketName": "Tasks",
+    "existingBucketNames": []
+  },
+  {
+    "replicate": 1,
+    "caseId": "organize-pilot-adfc1c7c9ba0",
+    "thought": "Decide dashboard layout (open item)",
+    "mintedBucketName": "Tasks",
+    "existingBucketNames": []
+  },
+  {
+    "replicate": 1,
+    "caseId": "organize-pilot-22e900b5241e",
+    "thought": "Discuss onboarding handoff next week",
+    "mintedBucketName": "Tasks",
+    "existingBucketNames": []
+  },
+  {
+    "replicate": 1,
+    "caseId": "organize-pilot-c6574e37f556",
+    "thought": "Nudge for idle tasks (prefer 5 days)",
+    "mintedBucketName": "",
+    "existingBucketNames": [
+      "Launch Readiness",
+      "Tasks"
+    ]
+  },
+  {
+    "replicate": 1,
+    "caseId": "organize-pilot-e9233092bf82",
+    "thought": "Proactively draft follow-up emails",
+    "mintedBucketName": "",
+    "existingBucketNames": [
+      "Launch Readiness",
+      "Tasks"
+    ]
+  },
+  {
+    "replicate": 1,
+    "caseId": "organize-pilot-096ee9b9c59c",
+    "thought": "Quiet mode activated by keyword",
+    "mintedBucketName": "",
+    "existingBucketNames": [
+      "Launch Readiness",
+      "Tasks"
+    ]
+  },
+  {
+    "replicate": 1,
+    "caseId": "organize-pilot-7bf31075401d",
+    "thought": "Copy draft is two days late",
+    "mintedBucketName": "",
+    "existingBucketNames": [
+      "Launch Readiness",
+      "Tasks",
+      "Product Ideas"
+    ]
+  },
+  {
+    "replicate": 1,
+    "caseId": "organize-pilot-fcdf67c9f21f",
+    "thought": "Dev handoff cannot start without the copy",
+    "mintedBucketName": "",
+    "existingBucketNames": [
+      "Launch Readiness",
+      "Tasks",
+      "Product Ideas"
+    ]
+  }
+]

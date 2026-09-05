@@ -11,6 +11,7 @@ import {
   appendFile,
   chmod,
   mkdir,
+  rename,
   writeFile,
 } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
@@ -93,14 +94,25 @@ export async function ensurePrivateDirectory(path: string): Promise<void> {
   }
 }
 
-/** Write a private file and re-apply protection even when it already existed. */
+/**
+ * Write a private file and re-apply protection even when it already
+ * existed. The write is ATOMIC (temp sibling + rename): a concurrent
+ * reader can never observe a partial file (Spec 6.7 SR-10 race evidence).
+ */
 export async function writePrivateFile(
   path: string,
   data: string | Uint8Array,
 ): Promise<void> {
   await ensurePrivateDirectory(dirname(path));
-  await writeFile(path, data, { mode: 0o600 });
+  const temp = `${path}.${process.pid}.${Math.random().toString(36).slice(2, 10)}.tmp`;
+  await writeFile(temp, data, { mode: 0o600 });
   if (process.platform !== "win32") {
+    await hardenPath(temp, "file");
+  }
+  // rename is atomic on POSIX and Windows within one directory; the
+  // temp file's owner-only protection travels with it.
+  await rename(temp, path);
+  if (process.platform === "win32") {
     await hardenPath(path, "file");
   }
 }
