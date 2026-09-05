@@ -21,3 +21,6 @@ packages/evals/fixtures/audio/
 packages/evals/.eval-scratch/
 data/
 *.log
+
+# Spec 6.7: private blinded-review sources (owner-only, never committed)
+packages/evals/reports/organize/6.7/S/review-source-*.json
