@@ -1,6 +1,6 @@
 {
   "schema": "donna.organize-v2-plan-lock.v1",
-  "planSha256": "cb28f33a57cb71b7aabad46523f4b4e9617a5dafb1d169c33baee501d0a2f8f4",
-  "lockedAt": "2026-09-05T14:30:00.000Z",
+  "planSha256": "b975ab31a7f5367d2239e8d8e69f259ef75d920d210d486683bf05c24e7a9d57",
+  "lockedAt": "2026-09-05T16:15:00.000Z",
   "mutationAfterResults": "forbidden"
 }

@@ -55,7 +55,8 @@ export interface V2ExperimentPlan {
     promptSha256: string;
     configPath: string;
     configSha256: string;
-    nearDuplicateThreshold: 0.9;
+    /** Frozen after synthetic-fixture calibration (calibration.json). */
+    nearDuplicateThreshold: number;
     replicates: 3;
   };
   datasets: {

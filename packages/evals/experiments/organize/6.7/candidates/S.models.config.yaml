@@ -68,9 +68,13 @@ buckets:
   # between the two: assign to best match but flag low-confidence for review
   # Spec 6.7 (resolution 8): SEPARATE locked near-duplicate descriptor
   # threshold for mint candidate vs existing name+description comparison.
-  # Initial candidate 0.90, calibrated only on synthetic fixtures before live
-  # dev results, then frozen in the 6.7 plan. Never reuse assign_threshold.
-  near_duplicate_threshold: 0.90
+  # Initial candidate 0.90 was calibrated on synthetic fixtures only
+  # (packages/evals/experiments/organize/6.7/calibration.json): 0.90 missed
+  # 2/6 synthetic near-duplicates (0.8855, 0.8950) with zero false positives
+  # and a distinct-pair ceiling of 0.385; 0.88 separates all synthetic pairs
+  # with a wide margin and errs toward review (safe direction). Frozen here
+  # and in the 6.7 plan before live dev results. Never reuse assign_threshold.
+  near_duplicate_threshold: 0.88
 
 # Context assembly budgets (Spec 2.2) — how much private memory may enter an
 # organize prompt. Selection is query-specific; truncation is deterministic
