@@ -2,12 +2,28 @@
 id: "6.6"
 title: "Organizer-quality experiment"
 phase: "06"
-status: "blocked"
+status: "rejected"
 depends_on: ["6.5"]
 ---
 
 # Specification 6.6 — Organizer-quality experiment
 
+> **Rejected (product owner, 2026-09-05):** the binding experiment selected
+> `NONE`. No A/A0/B candidate met multiple binding overall/joined/minted bucket
+> floors; the completed blinded rubric confirmed a broad bucket usefulness
+> problem rather than a narrow exact-name measurement mismatch. No winner was
+> committed, and validation-v3, private-context, fresh-set, final, and
+> graduation runs were correctly forbidden. All plans, reports, hashes,
+> selection/no-winner records, review evidence, and validation history remain
+> immutable failed evidence.
+>
+> The product owner explicitly authorizes draft Specification 6.7 as the
+> one-off narrow structured-routing remediation that may depend on this
+> rejected specification's immutable evidence despite the normal
+> accepted-dependency rule in `EXECUTION.md`. This is not a general protocol
+> amendment; `EXECUTION.md` remains unchanged. Spec 6.7 stays `draft` and has
+> no implementation authorization yet.
+>
 > **Approval (product owner, 2026-09-05):** the product owner approved the
 > final 966-line revised draft for implementation and explicitly instructed
 > the implementer to use engineering and product judgment within the accepted
@@ -969,7 +985,7 @@ private-context, fresh-blind, and graduation runs were not performed.
   no-tariff outcome).
 - `39fc012` — `feat: implement spec 6.6 organizer experiment tooling`.
 - `e3c9215` — `evals: lock spec 6.6 organizer experiment plan`.
-- The final content-free no-winner evidence and this blocked status are
+- The final content-free no-winner evidence and initial blocked safe-stop are
   committed after the run; their commit is recorded in the follow-up CI note.
 
 ### Implemented interfaces
@@ -1142,11 +1158,11 @@ Causal deltas (right minus left):
   private P-00 diagnostic was correctly not invoked and no P-00 state was
   read by that path.
 
-### Limitations, rollback, and blocker
+### Limitations, rollback, and rejected outcome
 
-- AC-6's product-owner blinded rubric decisions remain a pending diagnostic.
-  This cannot change `NONE` because all candidates fail multiple binding
-  floors, but the diagnostic packet is ready for review.
+- AC-6's product-owner blinded rubric decisions were completed as a diagnostic.
+  They confirmed broad quality weakness and cannot change `NONE` because all
+  candidates failed multiple binding floors.
 - AC-8 through AC-14 are unreachable: no winner means no canonical product
   prompt/config delta, validation-v3 winner run, private-context diagnostic,
   fresh P-00 matrix, fresh lock/final, or graduation report. This is required
@@ -1156,10 +1172,10 @@ Causal deltas (right minus left):
   to remove experimental tooling/plan while preserving the approval and all
   immutable audit evidence. The explicit v2 prompt field in canonical config
   does not change behavior.
-- Exact next product action: examine the blinded minted-name packet for
-  diagnostic insight, then return Spec 6.6 to draft/reject it and approve a
-  new prompt/model remediation. Do **not** record the fresh P-00 matrix,
-  run validation-v3, or invoke the private diagnostic under this outcome.
+- Exact next product action: review draft Spec 6.7's structured stable-ID
+  routing and governed minting remediation. Do **not** record the fresh P-00
+  matrix, run validation-v3, invoke the private diagnostic, or treat the
+  blinded review as a retroactive 6.6 pass under this outcome.
 
 ### Final outcome and CI note
 
@@ -1198,15 +1214,26 @@ Causal deltas (right minus left):
   automatic outcome remains **`NONE`**. The review changed no metric, gate,
   eligibility decision, or winner-selection rule.
 
+### Product-owner decision
+
+**REJECTED (product owner, 2026-09-05).** No candidate met multiple binding
+bucket floors, and the completed blinded review confirmed a broad quality
+problem: all five usefulness criteria passed on only 36/81 outputs. No winner,
+validation-v3 run, private diagnostic, fresh set, final run, or graduation run
+was allowed. This rejection preserves every immutable plan, report, lock,
+hash, `no-winner.json`, `selection.json`, and `review.json` artifact.
+
+The product owner authorizes draft Spec 6.7 as a one-off narrow remediation
+that may depend on this rejected specification's immutable failed evidence
+despite the normal accepted-dependency rule. This exception applies only to
+6.7 and does not amend `EXECUTION.md` or authorize 6.7 implementation.
+
 ## Review gate
 
-The 2026-09-05 approval authorizes implementation. At implementation start,
-tariff availability is a
-manual precondition that deterministically chooses the 12-run or 9-run plan —
-not a post-result choice. After verification, set `status` to `in-review` and
-wait for explicit product-owner acceptance. Even an accepted Spec 6.6 does not
-unlock Phase 7 until V-REPEAT, retention/export, the complete fresh-evidence
-graduation report, and product-owner signature are complete.
+The experiment is rejected and closed with outcome `NONE`; no further 6.6
+candidate, validation, private-context, fresh-set, final, or graduation run is
+authorized. Its evidence remains immutable. Only the one-off draft 6.7
+remediation dependency exception above is authorized. Phase 7 remains blocked.
 
 ## Open questions for the product owner
 

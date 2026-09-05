@@ -505,6 +505,27 @@ and lock hashes, completed verification, and product-owner decision.
 
 ---
 
+### Specification 6.6 — Organizer-quality experiment
+
+Status: `rejected` (product owner, 2026-09-05). The locked A/A0/B experiment
+selected `NONE`: every candidate failed multiple binding bucket floors, and
+the completed blinded review confirmed a broad quality problem. No winner,
+validation-v3 run, private diagnostic, fresh set, or graduation run was
+allowed. Immutable evidence is preserved in
+[`SPEC-6.6-organizer-quality-experiment.md`](SPEC-6.6-organizer-quality-experiment.md).
+
+---
+
+### Specification 6.7 — Structured bucket routing and governed minting
+
+Status: `draft` (binding architecture decisions recorded 2026-09-05;
+implementation approval pending). The product owner authorized a one-off
+narrow dependency on rejected Spec 6.6's immutable evidence without amending
+the general execution protocol. See
+[`SPEC-6.7-structured-bucket-routing.md`](SPEC-6.7-structured-bucket-routing.md).
+
+---
+
 ## Phase exit gate
 
 - **Met (tooling side):** the controlled pilot is consented, supportable, and
