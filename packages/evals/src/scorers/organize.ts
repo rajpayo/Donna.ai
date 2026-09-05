@@ -29,6 +29,7 @@ import { DeterministicProvenanceVerifier } from "@donna/pipeline";
 import type { LoadedCase } from "../datasets.js";
 import type { StageContext, StageScorer } from "../harness.js";
 import type { CaseOutcome } from "../report.js";
+import type { MeteredGatewayClient } from "../scripted.js";
 
 interface OrganizePayload {
   transcript: string;
@@ -87,6 +88,14 @@ function transcriptFixture(caseId: string, text: string): TranscriptRecord {
 
 export interface OrganizeScorerOptions {
   organizer?: Organizer;
+  meteredGateway?: MeteredGatewayClient;
+  /** Private, owner-only blinded-review source; never copied into eval reports. */
+  onMintedReviewItem?: (item: {
+    caseId: string;
+    thought: string;
+    mintedBucketName: string;
+    existingBucketNames: string[];
+  }) => void;
 }
 
 export function createOrganizeScorer(options: OrganizeScorerOptions): StageScorer {
@@ -122,6 +131,7 @@ export function createOrganizeScorer(options: OrganizeScorerOptions): StageScore
       }));
 
       let output;
+      const usageBefore = options.meteredGateway?.usage.length ?? 0;
       try {
         output = await options.organizer.organize(transcript, existingBuckets);
       } catch (error) {
@@ -232,6 +242,12 @@ export function createOrganizeScorer(options: OrganizeScorerOptions): StageScore
         if (exp.bucketOrigin === "minted") {
           mintedExpected += 1;
           if (exactMatch) mintedAgreed += 1;
+          options.onMintedReviewItem?.({
+            caseId: testCase.id,
+            thought: actual?.summary ?? payload.transcript,
+            mintedBucketName: actual?.newBucketName?.trim() ?? "",
+            existingBucketNames: existingBuckets.map((bucket) => bucket.name),
+          });
           if (
             actual?.newBucketName !== undefined &&
             actual.newBucketName.trim().length > 0 &&
@@ -264,11 +280,24 @@ export function createOrganizeScorer(options: OrganizeScorerOptions): StageScore
         scores["organize.bucket_acceptance_joined"] = joinedAgreed / joinedExpected;
       }
 
+      const newUsage = options.meteredGateway?.usage.slice(usageBefore) ?? [];
+      const promptTokens = newUsage.reduce((sum, usage) => sum + (usage.promptTokens ?? 0), 0);
+      const completionTokens = newUsage.reduce(
+        (sum, usage) => sum + (usage.completionTokens ?? 0),
+        0,
+      );
+      const hasCost = newUsage.some((usage) => usage.costUsd !== undefined);
+      const costUsd = newUsage.reduce((sum, usage) => sum + (usage.costUsd ?? 0), 0);
+
       return [{
         caseId: testCase.id,
         scores,
         hardFailures,
         latencyMs: Date.now() - started,
+        ...(promptTokens > 0 || completionTokens > 0
+          ? { tokens: { prompt: promptTokens, completion: completionTokens } }
+          : {}),
+        ...(hasCost ? { costUsd } : {}),
         ...(mintedExpected + joinedExpected > 0
           ? {
               notes: [

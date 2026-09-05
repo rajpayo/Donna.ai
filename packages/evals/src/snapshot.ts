@@ -19,7 +19,6 @@ import { readFile } from "node:fs/promises";
 import { promisify } from "node:util";
 import {
   loadModelsConfig,
-  ORGANIZE_PROMPT_VERSION,
   ORGANIZE_SCHEMA_VERSION,
 } from "@donna/providers";
 import { ANSWER_PROMPT_VERSION } from "@donna/retrieval";
@@ -135,7 +134,7 @@ export async function captureSnapshot(
     },
     dataset: options.dataset,
     versions: {
-      organizePrompt: ORGANIZE_PROMPT_VERSION,
+      organizePrompt: config.stages.organize.default.prompt,
       organizeSchema: ORGANIZE_SCHEMA_VERSION,
       answerPrompt: ANSWER_PROMPT_VERSION,
       emotionAnalyzer: EMOTION_VERSION,

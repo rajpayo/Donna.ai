@@ -32,11 +32,13 @@ stages:
     default:
       provider: openai-compatible
       model: gpt-5-mini
+      prompt: donna.organize-prompt.v2
       params:
         temperature: 0.2
     escalation:
       provider: anthropic
       model: claude-sonnet-5
+      prompt: donna.organize-prompt.v2
       params:
         temperature: 0.2
 

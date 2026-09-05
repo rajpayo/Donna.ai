@@ -158,6 +158,9 @@ interface UsagePayload {
   prompt_tokens?: number;
   completion_tokens?: number;
   total_tokens?: number;
+  /** Anthropic-compatible usage names. */
+  input_tokens?: number;
+  output_tokens?: number;
   cost?: number;
   cost_usd?: number;
 }
@@ -185,9 +188,15 @@ export class MeteredGatewayClient extends GatewayClient {
     const usage = (res as { usage?: UsagePayload } | null)?.usage;
     if (usage === undefined || usage === null) return;
     const record: UsageRecord = { stage };
-    if (usage.prompt_tokens !== undefined) record.promptTokens = usage.prompt_tokens;
-    if (usage.completion_tokens !== undefined) record.completionTokens = usage.completion_tokens;
-    if (usage.total_tokens !== undefined) record.totalTokens = usage.total_tokens;
+    const prompt = usage.prompt_tokens ?? usage.input_tokens;
+    const completion = usage.completion_tokens ?? usage.output_tokens;
+    if (prompt !== undefined) record.promptTokens = prompt;
+    if (completion !== undefined) record.completionTokens = completion;
+    if (usage.total_tokens !== undefined) {
+      record.totalTokens = usage.total_tokens;
+    } else if (prompt !== undefined || completion !== undefined) {
+      record.totalTokens = (prompt ?? 0) + (completion ?? 0);
+    }
     const cost = usage.cost_usd ?? usage.cost;
     if (cost !== undefined) record.costUsd = cost;
     this.usage.push(record);

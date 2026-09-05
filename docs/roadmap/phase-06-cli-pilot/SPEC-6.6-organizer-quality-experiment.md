@@ -2,7 +2,7 @@
 id: "6.6"
 title: "Organizer-quality experiment"
 phase: "06"
-status: "approved"
+status: "in-progress"
 depends_on: ["6.5"]
 ---
 

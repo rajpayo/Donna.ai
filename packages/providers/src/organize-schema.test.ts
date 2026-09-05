@@ -4,6 +4,7 @@ import type { ContextPacket } from "@donna/core";
 import {
   buildOrganizePrompt,
   ORGANIZE_PROMPT_VERSION,
+  ORGANIZE_QUALITY_PROMPT_VERSION,
 } from "./organize-schema.js";
 
 const SEGMENTS = [
@@ -176,5 +177,28 @@ describe("buildOrganizePrompt trust separation (Spec 2.2 SR-1)", () => {
 
   it("prompt version bumped for the trust-separated template", () => {
     assert.equal(ORGANIZE_PROMPT_VERSION, "donna.organize-prompt.v2");
+  });
+
+  it("v3-quality encodes the complete Spec 6.6 quality contract", () => {
+    const prompt = buildOrganizePrompt(
+      "Ask Arjun to send Project Atlas by Thursday",
+      SEGMENTS,
+      [{ name: "Project Atlas", description: "Project notes" }],
+      undefined,
+      undefined,
+      ORGANIZE_QUALITY_PROMPT_VERSION,
+    );
+    const policy = prompt.split("EXISTING BUCKETS")[0]!;
+    assert.match(policy, /Preserve every stated person/);
+    assert.match(policy, /Keep the subject, supporting detail, owner, and deadline/);
+    assert.match(policy, /supplied name EXACTLY/);
+    assert.match(policy, /Mint only when no existing bucket genuinely fits/);
+    assert.match(policy, /1–4-word Title Case noun or topic phrase/);
+    assert.match(policy, /Tasks hard rule is absolute/);
+    assert.match(policy, /sourceText" as verbatim support/);
+    assert.match(policy, /Emit JSON only and conform to donna\.organize\.v1/);
+    assert.match(policy, /UNTRUSTED DATA/);
+    assert.match(policy, /Eval case IDs, expected labels, adjudication values/);
+    assert.ok(!policy.includes("Ask Arjun"));
   });
 });

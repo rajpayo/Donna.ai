@@ -24,6 +24,7 @@
  */
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { existsSync } from "node:fs";
 import { config as loadEnv } from "dotenv";
 import {
   inspectGatewayEnv,
@@ -33,14 +34,24 @@ import {
   type ModelsConfig,
   type ResolvedStack,
 } from "@donna/providers";
-import { copyFile, mkdir, readFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { FileBucketStore } from "@donna/buckets";
-import { FileCorrectionStore } from "@donna/memory";
-import { FileCaptureStore } from "@donna/pipeline";
-import { FilePilotDecisionStore } from "@donna/pilot";
-import { writePrivateFile } from "@donna/file-security";
+import {
+  ContextAssembler,
+  FileConsentStore,
+  FileCorrectionStore,
+  FileMemoryStore,
+  MemoryService,
+} from "@donna/memory";
+import { FileCaptureStore, FileTranscriptStore } from "@donna/pipeline";
+import {
+  FilePilotDecisionStore,
+  latestDecisionsPerThought,
+} from "@donna/pilot";
+import { ensurePrivateDirectory, writePrivateFile } from "@donna/file-security";
 import { loadDataset } from "./datasets.js";
 import { runEval, type StageScorer } from "./harness.js";
+import type { EvalReport } from "./report.js";
 import {
   checkHeldoutLock,
   freezeHeldoutEnvelope,
@@ -74,6 +85,23 @@ import {
   amendOrganizeSnapshotEnvelopes,
   type SnapshotAdjudicationOverride,
 } from "./amend-organize-snapshots.js";
+import {
+  buildBlindedReviewPacket,
+  assertNoFreshResults,
+  canRetryFreshFinal,
+  loadCandidateReports,
+  selectCandidate,
+  sha256,
+  validateContentFreeReview,
+  validateFreshEnvelope,
+  validatePrivateDiagnosticEvidence,
+  validateLockedPlan,
+  type ContentFreeReview,
+  type PrivateMintedReviewSource,
+  type PrivateReviewMap,
+  type SelectionRecord,
+  type FreshLock,
+} from "./organize-experiment.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const evalsDir = resolve(here, "..");
@@ -141,10 +169,10 @@ interface LiveStack {
 }
 
 /** Build the live stack when gateway credentials exist; else undefined. */
-async function liveStack(): Promise<LiveStack | undefined> {
+async function liveStack(modelsPath = configPath()): Promise<LiveStack | undefined> {
   const problems = gatewayEnvProblems(inspectGatewayEnv());
   if (problems.length > 0) return undefined;
-  const config = await loadModelsConfig(configPath());
+  const config = await loadModelsConfig(modelsPath);
   // Metering wraps the real client; adapters are unchanged (ports/adapters).
   const metered = new MeteredGatewayClient({
     baseUrl: process.env.TRUEFOUNDRY_BASE_URL!,
@@ -193,6 +221,7 @@ async function buildScorer(stage: string, live: LiveStack | undefined): Promise<
     case "organize":
       return createOrganizeScorer({
         ...(live !== undefined ? { organizer: live.stack.organizer } : {}),
+        ...(live !== undefined ? { meteredGateway: live.metered } : {}),
       });
     case "full-loop": {
       const config = live?.config ?? (await loadModelsConfig(configPath()));
@@ -245,6 +274,33 @@ async function validateAll(): Promise<boolean> {
   return ok;
 }
 
+function experimentPlanPath(): string {
+  const supplied = arg("--plan");
+  if (supplied === undefined) {
+    return join(evalsDir, "experiments/organize/6.6/plan.json");
+  }
+  return resolveRepoOrCwd(supplied);
+}
+
+function resolveRepoOrCwd(supplied: string): string {
+  if (resolve(supplied) === supplied) return supplied;
+  const fromCwd = resolve(process.cwd(), supplied);
+  return existsSync(fromCwd) ? fromCwd : resolve(repoRoot, supplied);
+}
+
+function experimentReportsRoot(): string {
+  return join(evalsDir, "reports", "organize", "6.6");
+}
+
+async function moveRunArtifact(from: string, to: string): Promise<void> {
+  await rm(to, { force: true });
+  await rename(from, to);
+}
+
+async function readSelection(path: string): Promise<SelectionRecord> {
+  return JSON.parse(await readFile(path, "utf8")) as SelectionRecord;
+}
+
 async function main(): Promise<void> {
   const [command, stage] = process.argv.slice(2);
 
@@ -261,6 +317,638 @@ async function main(): Promise<void> {
     });
     console.log(JSON.stringify({ fingerprint: snapshotFingerprint(snapshot), snapshot }, null, 2));
     return;
+  }
+
+  if (command === "organize-experiment") {
+    const action = stage;
+    const planPath = experimentPlanPath();
+    const validated = await validateLockedPlan({ planPath, repoRoot });
+    const reportsRoot = experimentReportsRoot();
+    if (action === "validate") {
+      console.log(
+        `PLAN LOCKED: ${validated.plan.candidates.map((candidate) => candidate.id).join("/")} — ` +
+          `${validated.plan.candidates.length * 3} binding dev runs`,
+      );
+      console.log(
+        validated.plan.tariff.candidateC === "excluded"
+          ? "C OMITTED — NO AUTHORITATIVE TARIFF; no Sonnet capability request or run is authorized"
+          : "C ADMITTED — TARIFF VERIFIED",
+      );
+      console.log(
+        `dev ${validated.plan.datasets.dev.name} v${validated.plan.datasets.dev.version} ` +
+          `${validated.plan.datasets.dev.cases} cases sha256:${validated.plan.datasets.dev.sha256}`,
+      );
+      console.log(`plan sha256:${validated.planSha256}`);
+      return;
+    }
+
+    if (action === "run") {
+      const candidateId = arg("--candidate");
+      const candidate = validated.plan.candidates.find(
+        (item) => item.id === candidateId,
+      );
+      if (candidate === undefined) {
+        throw new Error(
+          `--candidate must be one of ${validated.plan.candidates.map((item) => item.id).join(", ")}`,
+        );
+      }
+      const candidateDir = join(reportsRoot, candidate.id);
+      await ensurePrivateDirectory(candidateDir);
+      const existing = await readdir(candidateDir);
+      if (existing.some((name) => /^replicate-\d+\.(json|md)$/.test(name))) {
+        throw new Error(
+          `${candidate.id}: binding results already exist; fixed replicates cannot be rerun or replaced`,
+        );
+      }
+      const candidateConfig = resolve(repoRoot, candidate.configPath);
+      const live = await liveStack(candidateConfig);
+      if (live === undefined) {
+        throw new Error(
+          "TrueFoundry gateway prerequisites are absent; zero binding runs were started",
+        );
+      }
+      for (let replicate = 1; replicate <= candidate.replicates; replicate++) {
+        const reviewItems: PrivateMintedReviewSource[] = [];
+        console.log(
+          `DEV ONLY — candidate ${candidate.id} — run ${replicate} of 3 — ` +
+            `dataset ${validated.plan.datasets.dev.sha256.slice(0, 12)}… ` +
+            `config ${candidate.configSha256.slice(0, 12)}… ` +
+            `prompt ${candidate.promptSha256.slice(0, 12)}…`,
+        );
+        console.log("prompt-input audit: no label fields supplied");
+        const scorer = createOrganizeScorer({
+          organizer: live.stack.organizer,
+          meteredGateway: live.metered,
+          onMintedReviewItem: (item) => {
+            reviewItems.push({
+              candidate: candidate.id,
+              replicate,
+              ...item,
+            });
+          },
+        });
+        const result = await runEval({
+          datasetPath: resolve(repoRoot, validated.plan.datasets.dev.path),
+          configPath: candidateConfig,
+          repoRoot,
+          evalsDir,
+          reportsDir: candidateDir,
+          scorer,
+        });
+        const targetJson = join(candidateDir, `replicate-${replicate}.json`);
+        const targetMarkdown = join(candidateDir, `replicate-${replicate}.md`);
+        await moveRunArtifact(result.jsonPath, targetJson);
+        await moveRunArtifact(result.markdownPath, targetMarkdown);
+        await writePrivateFile(
+          join(candidateDir, `review-source-${replicate}.json`),
+          JSON.stringify(reviewItems, null, 2) + "\n",
+        );
+        console.log(
+          `  ${result.report.aggregate.casesRun} cases; errors ` +
+            `${result.report.aggregate.casesErrored} ` +
+            `(external ${result.report.aggregate.externalErrors}, product ${result.report.aggregate.productErrors}); ` +
+            `hard failures ${result.report.aggregate.hardFailureCount}`,
+        );
+        console.log(`  private report: ${targetJson}`);
+      }
+      return;
+    }
+
+    if (action === "prepare-review") {
+      const sources: PrivateMintedReviewSource[] = [];
+      for (const candidate of validated.plan.candidates) {
+        for (let replicate = 1; replicate <= 3; replicate++) {
+          const path = join(
+            reportsRoot,
+            candidate.id,
+            `review-source-${replicate}.json`,
+          );
+          const items = JSON.parse(
+            await readFile(path, "utf8"),
+          ) as PrivateMintedReviewSource[];
+          sources.push(...items);
+        }
+      }
+      const prepared = buildBlindedReviewPacket({
+        planSha256: validated.planSha256,
+        sources,
+      });
+      const privateReviewDir = join(reportsRoot, "blinded-review");
+      await ensurePrivateDirectory(privateReviewDir);
+      const packetRaw = JSON.stringify(prepared.packet, null, 2) + "\n";
+      const packetSha256 = sha256(packetRaw);
+      await writePrivateFile(join(privateReviewDir, "packet.json"), packetRaw);
+      await writePrivateFile(
+        join(privateReviewDir, "map.json"),
+        JSON.stringify(prepared.map, null, 2) + "\n",
+      );
+      const template: Omit<ContentFreeReview, "decisions"> & {
+        decisions: Array<{
+          itemId: string;
+          decisions: Record<string, null>;
+        }>;
+      } = {
+        schema: "donna.minted-name-review.v1",
+        rubricVersion: prepared.packet.rubricVersion,
+        rubricSha256: prepared.packet.rubricSha256,
+        packetSha256,
+        randomizationSha256: prepared.randomizationSha256,
+        reviewer: "product-owner",
+        reviewedAt: "",
+        decisions: prepared.packet.items.map((item) => ({
+          itemId: item.itemId,
+          decisions: { ...item.decisions },
+        })),
+      };
+      await writePrivateFile(
+        join(privateReviewDir, "review-template.json"),
+        JSON.stringify(template, null, 2) + "\n",
+      );
+      console.log(
+        `Blinded minted-name packet ready: ${prepared.packet.items.length} randomized item(s).`,
+      );
+      console.log(`  private packet: ${join(privateReviewDir, "packet.json")}`);
+      console.log(
+        `  fill the five booleans in ${join(privateReviewDir, "review-template.json")}, ` +
+          `then save the content-free result as ${join(dirname(planPath), "review.json")}`,
+      );
+      return;
+    }
+
+    if (action === "select") {
+      const reviewArg = arg("--review");
+      const reviewPath =
+        reviewArg === undefined
+          ? join(dirname(planPath), "review.json")
+          : resolveRepoOrCwd(reviewArg);
+      const privateReviewDir = join(reportsRoot, "blinded-review");
+      const [reviewRaw, mapRaw, packetRaw] = await Promise.all([
+        readFile(reviewPath, "utf8"),
+        readFile(join(privateReviewDir, "map.json"), "utf8"),
+        readFile(join(privateReviewDir, "packet.json"), "utf8"),
+      ]);
+      const review = JSON.parse(reviewRaw) as ContentFreeReview;
+      validateContentFreeReview(review);
+      if (review.packetSha256 !== sha256(packetRaw)) {
+        throw new Error("Review packet hash mismatch");
+      }
+      const reviewMap = JSON.parse(mapRaw) as PrivateReviewMap;
+      if (reviewMap.planSha256 !== validated.planSha256) {
+        throw new Error("Private review map belongs to a different plan");
+      }
+      const aggregates = await loadCandidateReports({
+        reportsRoot,
+        plan: validated.plan,
+      });
+      const selection = selectCandidate({
+        plan: validated.plan,
+        planSha256: validated.planSha256,
+        aggregates,
+        review,
+        reviewSha256: sha256(reviewRaw),
+        reviewMap,
+      });
+      const selectionPath = join(dirname(planPath), "selection.json");
+      await writeFile(selectionPath, JSON.stringify(selection, null, 2) + "\n");
+      if (selection.outcome.kind === "winner") {
+        console.log(`MECHANICAL WINNER: ${selection.outcome.candidate}`);
+      } else if (selection.outcome.kind === "naming-measurement-mismatch") {
+        console.log("STOP: naming-measurement-mismatch — no winner");
+      } else {
+        console.log("NO ELIGIBLE ORGANIZER CANDIDATE");
+      }
+      console.log(`selection: ${selectionPath}`);
+      return;
+    }
+
+    if (action === "validation-v3") {
+      const selectionArg = arg("--selection");
+      const selectionPath =
+        selectionArg === undefined
+          ? join(dirname(planPath), "selection.json")
+          : resolveRepoOrCwd(selectionArg);
+      const selection = await readSelection(selectionPath);
+      if (selection.outcome.kind !== "winner") {
+        throw new Error("Validation-v3 is forbidden without a mechanical winner");
+      }
+      const winnerId = selection.outcome.candidate;
+      const candidate = validated.plan.candidates.find(
+        (item) => item.id === winnerId,
+      )!;
+      const datasetPath = resolve(repoRoot, validated.plan.datasets.validationV3.path);
+      await assertHeldoutLockFor(datasetPath);
+      const preflight = await captureSnapshot({
+        repoRoot,
+        configPath: configPath(),
+        dataset: {
+          name: validated.plan.datasets.validationV3.name,
+          version: validated.plan.datasets.validationV3.version,
+          sha256: validated.plan.datasets.validationV3.sha256,
+        },
+      });
+      if (preflight.dirty) {
+        throw new Error("Validation-v3 requires the clean committed canonical winner");
+      }
+      const canonical = await loadModelsConfig(configPath());
+      const lane = canonical.stages.organize.default;
+      if (
+        lane.provider !== candidate.provider ||
+        lane.model !== candidate.model ||
+        lane.prompt !== candidate.promptVersion ||
+        (typeof lane.params.temperature === "number" ? lane.params.temperature : null) !==
+          candidate.temperature
+      ) {
+        throw new Error("Canonical models.config.yaml does not match the selected winner");
+      }
+      const live = await liveStack();
+      if (live === undefined) throw new Error("Gateway prerequisites are absent");
+      const targetDir = join(reportsRoot, "validation-v3");
+      await ensurePrivateDirectory(targetDir);
+      if (existsSync(join(targetDir, "validation-v3.json"))) {
+        throw new Error("Validation-v3 winner result already exists and cannot be replaced");
+      }
+      console.log(
+        `VALIDATION-V3 — NOT GRADUATION — winner ${candidate.id} — ` +
+          `dataset ${validated.plan.datasets.validationV3.sha256}`,
+      );
+      const result = await runEval({
+        datasetPath,
+        configPath: configPath(),
+        repoRoot,
+        evalsDir,
+        reportsDir: targetDir,
+        scorer: createOrganizeScorer({
+          organizer: live.stack.organizer,
+          meteredGateway: live.metered,
+        }),
+      });
+      await moveRunArtifact(result.jsonPath, join(targetDir, "validation-v3.json"));
+      await moveRunArtifact(result.markdownPath, join(targetDir, "validation-v3.md"));
+      console.log(
+        `VALIDATION ONLY: ${result.report.aggregate.casesRun} cases, ` +
+          `${result.report.aggregate.casesErrored} errors, ` +
+          `${result.report.aggregate.hardFailureCount} hard failures`,
+      );
+      return;
+    }
+
+    if (action === "private-diagnostic") {
+      if (!process.argv.includes("--participant-invoked")) {
+        throw new Error("Private diagnostic requires explicit --participant-invoked");
+      }
+      const sourceDataArg = arg("--source-data") ?? process.env.DONNA_DATA_DIR;
+      const tenantId = process.env.DONNA_TENANT_ID;
+      const userId = process.env.DONNA_USER_ID;
+      if (sourceDataArg === undefined || tenantId === undefined || userId === undefined) {
+        throw new Error(
+          "Private diagnostic requires DONNA_DATA_DIR, DONNA_TENANT_ID, and DONNA_USER_ID; values are never printed",
+        );
+      }
+      const sourceData = resolve(repoRoot, sourceDataArg);
+      const selectionArg = arg("--selection");
+      const selectionPath =
+        selectionArg === undefined
+          ? join(dirname(planPath), "selection.json")
+          : resolveRepoOrCwd(selectionArg);
+      const selectionRaw = await readFile(selectionPath, "utf8");
+      const selection = JSON.parse(selectionRaw) as SelectionRecord;
+      if (selection.outcome.kind !== "winner") {
+        throw new Error("Private diagnostic is forbidden without a mechanical winner");
+      }
+      const winnerId = selection.outcome.candidate;
+      const memory = new MemoryService({
+        memories: new FileMemoryStore(sourceData),
+        consents: new FileConsentStore(sourceData),
+        now: () => new Date(),
+      });
+      const scope = { tenantId, userId };
+      if (!(await memory.hasConsent(scope, "eval-sharing"))) {
+        throw new Error("Private diagnostic blocked: current eval-sharing consent is absent");
+      }
+      const canonical = await loadModelsConfig(configPath());
+      const winner = validated.plan.candidates.find(
+        (candidate) => candidate.id === winnerId,
+      )!;
+      const lane = canonical.stages.organize.default;
+      if (
+        lane.provider !== winner.provider ||
+        lane.model !== winner.model ||
+        lane.prompt !== winner.promptVersion
+      ) {
+        throw new Error("Canonical config does not match the selected winner");
+      }
+      const live = await liveStack();
+      if (live === undefined) throw new Error("Gateway prerequisites are absent");
+      const buckets = new FileBucketStore(sourceData);
+      const captures = new FileCaptureStore(sourceData);
+      const transcripts = new FileTranscriptStore(sourceData);
+      const corrections = new FileCorrectionStore(sourceData);
+      const decisions = latestDecisionsPerThought(
+        await new FilePilotDecisionStore(sourceData).list(tenantId, userId),
+      );
+      const items = await buckets.listItems(tenantId, userId);
+      const thoughtById = new Map(items.map((item) => [item.thought.id, item.thought]));
+      const assembler = new ContextAssembler({
+        memory,
+        buckets,
+        captures,
+        transcripts,
+        corrections: {
+          listAccepted: async (requestedScope) =>
+            (await corrections.listCorrections(
+              requestedScope.tenantId,
+              requestedScope.userId,
+            )).filter((event) => event.status === "accepted"),
+        },
+        budgets: live.stack.contextBudgets,
+        now: () => new Date(),
+      });
+      const tokenize = (text: string): Set<string> =>
+        new Set(
+          text
+            .toLowerCase()
+            .split(/[^a-z0-9]+/)
+            .filter((token) => token.length >= 3),
+        );
+      const scorePlacement = (
+        output: Awaited<ReturnType<typeof live.stack.organizer.organize>>,
+        thoughtText: string,
+        expectedBucket: string,
+      ): boolean => {
+        const wanted = tokenize(thoughtText);
+        const ranked = output.thoughts
+          .map((thought) => {
+            const actual = tokenize(`${thought.summary} ${thought.text}`);
+            let overlap = 0;
+            for (const token of wanted) if (actual.has(token)) overlap += 1;
+            return { thought, overlap };
+          })
+          .sort((left, right) => right.overlap - left.overlap);
+        const best = ranked[0];
+        if (best === undefined || best.overlap === 0) return false;
+        const proposed =
+          best.thought.suggestedBucket ?? best.thought.newBucketName ?? "";
+        return proposed.trim().toLowerCase() === expectedBucket.trim().toLowerCase();
+      };
+      let bucketListCorrect = 0;
+      let fullContextCorrect = 0;
+      let evaluated = 0;
+      const opaqueCaseIds: string[] = [];
+      for (const decision of decisions) {
+        if (decision.captureId === undefined) continue;
+        const thought = thoughtById.get(decision.thoughtId);
+        const record = await transcripts.getTranscript(
+          tenantId,
+          userId,
+          decision.captureId,
+        );
+        if (thought === undefined || record === undefined) continue;
+        const transcript = {
+          captureId: record.captureId,
+          text: record.text,
+          segments: record.segments,
+          model: record.model,
+        };
+        const existingBuckets = (decision.existingBuckets ?? []).map((bucket) => ({
+          name: bucket.name,
+          description: bucket.description,
+        }));
+        const packet = await assembler.assemble(scope, {
+          text: record.text,
+          excludeCaptureId: record.captureId,
+        });
+        const [bucketListOutput, contextOutput] = await Promise.all([
+          live.stack.organizer.organize(transcript, existingBuckets),
+          live.stack.organizer.organize(transcript, existingBuckets, packet),
+        ]);
+        bucketListCorrect += Number(
+          scorePlacement(bucketListOutput, thought.summary, decision.decidedBucket.name),
+        );
+        fullContextCorrect += Number(
+          scorePlacement(contextOutput, thought.summary, decision.decidedBucket.name),
+        );
+        opaqueCaseIds.push(
+          sha256(`${sha256(selectionRaw)}\0private-diagnostic\0${decision.id}`).slice(
+            0,
+            24,
+          ),
+        );
+        evaluated += 1;
+      }
+      if (evaluated === 0) {
+        throw new Error("Private diagnostic found no consented, linked placement cases");
+      }
+      const accepts = decisions.filter((decision) => decision.kind === "accept").length;
+      const diagnostic = {
+        schema: "donna.organize-private-diagnostic.v1",
+        createdAt: new Date().toISOString(),
+        consentCurrent: true,
+        participantInvoked: true,
+        views: {
+          bucketListOnly: {
+            score: bucketListCorrect / evaluated,
+            correct: bucketListCorrect,
+            count: evaluated,
+          },
+          privateFullContext: {
+            score: fullContextCorrect / evaluated,
+            correct: fullContextCorrect,
+            count: evaluated,
+          },
+          observedPilotDecisions: {
+            score: decisions.length === 0 ? 0 : accepts / decisions.length,
+            accepts,
+            count: decisions.length,
+          },
+        },
+        caseIds: opaqueCaseIds,
+        categoryTokens: [
+          "bucket-list-only",
+          "private-full-context",
+          "observed-pilot-decisions",
+        ],
+        configSha256: sha256(await readFile(configPath())),
+        selectionSha256: sha256(selectionRaw),
+        reportHashes: [],
+      };
+      validatePrivateDiagnosticEvidence(diagnostic);
+      const outputPath = join(reportsRoot, "private-context", "diagnostic.json");
+      await writePrivateFile(outputPath, JSON.stringify(diagnostic, null, 2) + "\n");
+      console.log(
+        `Private diagnostic complete: ${evaluated} linked case(s); ` +
+          `bucket-list-only ${(bucketListCorrect / evaluated).toFixed(4)}, ` +
+          `private-context ${(fullContextCorrect / evaluated).toFixed(4)}, ` +
+          `observed decisions ${(accepts / decisions.length).toFixed(4)}`,
+      );
+      console.log(`owner-only allowlisted report: ${outputPath}`);
+      return;
+    }
+
+    if (action === "freeze-fresh") {
+      const selectionArg = arg("--selection");
+      const selectionPath =
+        selectionArg === undefined
+          ? join(dirname(planPath), "selection.json")
+          : resolveRepoOrCwd(selectionArg);
+      const datasetArg = arg("--dataset");
+      if (datasetArg === undefined) {
+        throw new Error("freeze-fresh requires --dataset <fresh-envelope>");
+      }
+      const freshPath = resolveRepoOrCwd(datasetArg);
+      const selectionRaw = await readFile(selectionPath, "utf8");
+      const selection = JSON.parse(selectionRaw) as SelectionRecord;
+      if (selection.outcome.kind !== "winner") {
+        throw new Error("Fresh freeze is forbidden without a mechanical winner");
+      }
+      const summary = await validateFreshEnvelope({
+        freshPath,
+        devPath: resolve(repoRoot, validated.plan.datasets.dev.path),
+        validationPath: resolve(repoRoot, validated.plan.datasets.validationV3.path),
+      });
+      const fresh = await loadDataset(freshPath);
+      const resultsDir = join(reportsRoot, "fresh-final");
+      await assertNoFreshResults(resultsDir);
+      const snapshot = await captureSnapshot({
+        repoRoot,
+        configPath: configPath(),
+        dataset: { name: fresh.name, version: fresh.version, sha256: fresh.sha256 },
+      });
+      if (snapshot.dirty) {
+        throw new Error("Fresh envelope freeze requires a clean winner commit");
+      }
+      const lock: FreshLock = {
+        schema: "donna.organize-fresh-lock.v1",
+        dataset: {
+          name: fresh.name,
+          version: fresh.version,
+          sha256: fresh.sha256,
+          cases: fresh.cases.length,
+        },
+        selectionSha256: sha256(selectionRaw),
+        winnerCommit: snapshot.commit,
+        frozenAt: new Date().toISOString(),
+        classes: summary.byClass,
+        mintedCases: summary.mintedCases,
+        overlap: { caseIds: 0, contentHashes: 0 },
+        resultState: "NO RESULTS YET",
+      };
+      const lockPath = resolve(
+        dirname(freshPath),
+        arg("--lock") ?? "organize.graduation-blind.lock.json",
+      );
+      await writeFile(lockPath, JSON.stringify(lock, null, 2) + "\n");
+      console.log(
+        `FRESH BLIND FROZEN: ${summary.total} cases, all 9 classes >=2, ` +
+          `${summary.mintedCases} minted, zero overlap`,
+      );
+      console.log(`NO RESULTS YET — lock: ${lockPath}`);
+      return;
+    }
+
+    if (action === "final") {
+      const selectionArg = arg("--selection");
+      const selectionPath =
+        selectionArg === undefined
+          ? join(dirname(planPath), "selection.json")
+          : resolveRepoOrCwd(selectionArg);
+      const datasetArg = arg("--dataset");
+      if (datasetArg === undefined) throw new Error("final requires --dataset <fresh-envelope>");
+      const freshPath = resolveRepoOrCwd(datasetArg);
+      const lockPath = resolve(
+        dirname(freshPath),
+        arg("--lock") ?? "organize.graduation-blind.lock.json",
+      );
+      const [selectionRaw, lockRaw] = await Promise.all([
+        readFile(selectionPath, "utf8"),
+        readFile(lockPath, "utf8"),
+      ]);
+      const selection = JSON.parse(selectionRaw) as SelectionRecord;
+      const lock = JSON.parse(lockRaw) as FreshLock;
+      if (selection.outcome.kind !== "winner") {
+        throw new Error("Fresh final is forbidden without a mechanical winner");
+      }
+      const winnerId = selection.outcome.candidate;
+      if (lock.selectionSha256 !== sha256(selectionRaw)) {
+        throw new Error("Fresh lock selection hash mismatch");
+      }
+      const fresh = await loadDataset(freshPath);
+      if (
+        fresh.sha256 !== lock.dataset.sha256 ||
+        fresh.version !== lock.dataset.version ||
+        fresh.cases.length !== lock.dataset.cases
+      ) {
+        throw new Error("Fresh envelope differs from its pre-result lock");
+      }
+      const snapshot = await captureSnapshot({
+        repoRoot,
+        configPath: configPath(),
+        dataset: { name: fresh.name, version: fresh.version, sha256: fresh.sha256 },
+      });
+      if (snapshot.dirty || snapshot.commit !== lock.winnerCommit) {
+        throw new Error("Fresh final requires the unchanged clean winner commit");
+      }
+      const resultsDir = join(reportsRoot, "fresh-final");
+      await ensurePrivateDirectory(resultsDir);
+      const existing = (await readdir(resultsDir))
+        .filter((name) => /^attempt-\d+\.json$/.test(name))
+        .sort();
+      if (existing.length >= 2) throw new Error("Fresh final attempt limit already exhausted");
+      if (existing.length === 1) {
+        if (!process.argv.includes("--retry-external")) {
+          throw new Error("Attempt 1 already exists; only --retry-external can request attempt 2");
+        }
+        const first = JSON.parse(
+          await readFile(join(resultsDir, existing[0]!), "utf8"),
+        ) as EvalReport;
+        if (!canRetryFreshFinal(first)) {
+          throw new Error("Attempt 1 is not a strict external-only retryable failure");
+        }
+      } else if (process.argv.includes("--retry-external")) {
+        throw new Error("--retry-external is invalid before attempt 1");
+      }
+      const candidate = validated.plan.candidates.find(
+        (item) => item.id === winnerId,
+      )!;
+      const canonical = await loadModelsConfig(configPath());
+      const lane = canonical.stages.organize.default;
+      if (
+        lane.provider !== candidate.provider ||
+        lane.model !== candidate.model ||
+        lane.prompt !== candidate.promptVersion
+      ) {
+        throw new Error("Canonical config no longer matches the selected winner");
+      }
+      const live = await liveStack();
+      if (live === undefined) throw new Error("Gateway prerequisites are absent");
+      const attempt = existing.length + 1;
+      console.log(
+        `FRESH BLIND FINAL — ATTEMPT ${attempt} — winner ${candidate.id} — ` +
+          `dataset sha256:${fresh.sha256}`,
+      );
+      const result = await runEval({
+        datasetPath: freshPath,
+        configPath: configPath(),
+        repoRoot,
+        evalsDir,
+        reportsDir: resultsDir,
+        scorer: createOrganizeScorer({
+          organizer: live.stack.organizer,
+          meteredGateway: live.metered,
+        }),
+      });
+      await moveRunArtifact(result.jsonPath, join(resultsDir, `attempt-${attempt}.json`));
+      await moveRunArtifact(result.markdownPath, join(resultsDir, `attempt-${attempt}.md`));
+      console.log(
+        `attempt ${attempt}: errors ${result.report.aggregate.casesErrored}, ` +
+          `product ${result.report.aggregate.productErrors}, ` +
+          `hard failures ${result.report.aggregate.hardFailureCount}`,
+      );
+      return;
+    }
+
+    throw new Error(
+      "usage: organize-experiment validate|run|prepare-review|select|validation-v3|freeze-fresh|final --plan <path>",
+    );
   }
 
   if (command === "run" && stage !== undefined) {
@@ -593,7 +1281,7 @@ async function main(): Promise<void> {
     process.exit(report.decision.verdict === "eligible-for-signoff" ? 0 : 1);
   }
 
-  console.error("usage: cli.ts validate | snapshot | run <stage> [--mode …] [--dataset <path>] | heldout-freeze [--dataset <path>] --report <report.json> | amend-organize-snapshots --source-data <dir> --tenant <scope> --user <scope> [--apply --product-owner-approved] | baseline <stage> | compare <stage> <report> | graduation <reports…> | graduation-run <reports…> [--extras <f>] [--cohort-window <s>..<e>]");
+  console.error("usage: cli.ts validate | snapshot | run <stage> [--mode …] [--dataset <path>] | organize-experiment validate|run|prepare-review|select|validation-v3|private-diagnostic|freeze-fresh|final --plan <path> | heldout-freeze [--dataset <path>] --report <report.json> | amend-organize-snapshots --source-data <dir> --tenant <scope> --user <scope> [--apply --product-owner-approved] | baseline <stage> | compare <stage> <report> | graduation <reports…> | graduation-run <reports…> [--extras <f>] [--cohort-window <s>..<e>]");
   process.exit(2);
 }
 

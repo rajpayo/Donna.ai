@@ -3,6 +3,7 @@ export * from "./scorers.js";
 export * from "./golden.js";
 export * from "./promote-organize.js";
 export * from "./amend-organize-snapshots.js";
+export * from "./organize-experiment.js";
 export * from "./emotion-calibration.js";
 export * from "./retrieval.js";
 export * from "./datasets.js";

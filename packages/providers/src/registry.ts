@@ -16,18 +16,31 @@ import { OpenAiCompatibleOrganizer } from "./openai-organizer.js";
 import { AnthropicOrganizer } from "./anthropic-organizer.js";
 import { OpenAiCompatibleEmbedder } from "./openai-embedder.js";
 import { OpenAiCompatibleAnswerGenerator } from "./answer-generator.js";
+import {
+  ORGANIZE_PROMPT_VERSION,
+  ORGANIZE_QUALITY_PROMPT_VERSION,
+  type OrganizePromptVersion,
+} from "./organize-schema.js";
 
 const laneSchema = z.object({
   provider: z.enum(["openai-compatible", "anthropic"]),
   model: z.string(),
   params: z.record(z.string(), z.unknown()).default({}),
 });
+const organizeLaneSchema = laneSchema.extend({
+  prompt: z
+    .enum([ORGANIZE_PROMPT_VERSION, ORGANIZE_QUALITY_PROMPT_VERSION])
+    .default(ORGANIZE_PROMPT_VERSION),
+});
 
 const configSchema = z.object({
   version: z.number(),
   stages: z.object({
     transcribe: z.object({ default: laneSchema, escalation: laneSchema.optional() }),
-    organize: z.object({ default: laneSchema, escalation: laneSchema.optional() }),
+    organize: z.object({
+      default: organizeLaneSchema,
+      escalation: organizeLaneSchema.optional(),
+    }),
     embed: z.object({ default: laneSchema }),
     tts: z.object({ default: laneSchema }).optional(),
   }),
@@ -139,6 +152,7 @@ const configSchema = z.object({
 
 export type ModelsConfig = z.infer<typeof configSchema>;
 export type Lane = z.infer<typeof laneSchema>;
+export type OrganizeLane = z.infer<typeof organizeLaneSchema>;
 
 export async function loadModelsConfig(path: string): Promise<ModelsConfig> {
   const raw = await readFile(path, "utf8");
@@ -161,12 +175,22 @@ export interface ResolvedStack {
   corrections: ModelsConfig["corrections"];
 }
 
-function makeOrganizer(gateway: GatewayClient, lane: Lane): Organizer {
+function makeOrganizer(gateway: GatewayClient, lane: OrganizeLane): Organizer {
   switch (lane.provider) {
     case "openai-compatible":
-      return new OpenAiCompatibleOrganizer(gateway, lane.model, lane.params);
+      return new OpenAiCompatibleOrganizer(
+        gateway,
+        lane.model,
+        lane.params,
+        lane.prompt as OrganizePromptVersion,
+      );
     case "anthropic":
-      return new AnthropicOrganizer(gateway, lane.model, lane.params);
+      return new AnthropicOrganizer(
+        gateway,
+        lane.model,
+        lane.params,
+        lane.prompt as OrganizePromptVersion,
+      );
   }
 }
 

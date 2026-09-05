@@ -15,6 +15,7 @@ import {
   buildOrganizePrompt,
   ORGANIZE_PROMPT_VERSION,
   ORGANIZE_SCHEMA_VERSION,
+  type OrganizePromptVersion,
   organizeOutputSchema,
 } from "./organize-schema.js";
 
@@ -69,12 +70,12 @@ const ORGANIZE_TOOL = {
 
 export class AnthropicOrganizer implements Organizer {
   readonly schemaVersion = ORGANIZE_SCHEMA_VERSION;
-  readonly promptVersion = ORGANIZE_PROMPT_VERSION;
 
   constructor(
     private readonly gateway: GatewayClient,
     readonly modelId: string,
     private readonly params: Record<string, unknown> = {},
+    readonly promptVersion: OrganizePromptVersion = ORGANIZE_PROMPT_VERSION,
   ) {}
 
   async organize(
@@ -89,6 +90,7 @@ export class AnthropicOrganizer implements Organizer {
       existingBuckets,
       context,
       session,
+      this.promptVersion,
     );
 
     const res = await this.gateway.postJson<AnthropicMessagesResponse>(
