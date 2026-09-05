@@ -1,0 +1,409 @@
+{
+  "schema": "donna.organize-v2-review-packet.v1",
+  "rubricVersion": "donna.minted-name-rubric.v1",
+  "rubricSha256": "46357cb114d9d28f28bab79c5a7be07e133e9317f212d83c1ef567c221910b52",
+  "items": [
+    {
+      "itemId": "7299a52f5f05c0f57e3e09a7",
+      "thought": "Nudge for idle tasks (prefer 5 days)",
+      "mintedBucketName": "",
+      "existingBucketNames": [
+        "Launch Readiness",
+        "Tasks"
+      ],
+      "decisions": {
+        "concise": null,
+        "reusable": null,
+        "correctTopic": null,
+        "distinctFromExisting": null,
+        "avoidsDatesAndOneOffActionWording": null
+      }
+    },
+    {
+      "itemId": "505838df0b13bd90d40e87cf",
+      "thought": "Proactively draft follow-up emails",
+      "mintedBucketName": "",
+      "existingBucketNames": [
+        "Launch Readiness",
+        "Tasks"
+      ],
+      "decisions": {
+        "concise": null,
+        "reusable": null,
+        "correctTopic": null,
+        "distinctFromExisting": null,
+        "avoidsDatesAndOneOffActionWording": null
+      }
+    },
+    {
+      "itemId": "80bb01a7d7dc1923398a01d0",
+      "thought": "Copy draft is two days late.",
+      "mintedBucketName": "",
+      "existingBucketNames": [
+        "Launch Readiness",
+        "Tasks",
+        "Product Ideas"
+      ],
+      "decisions": {
+        "concise": null,
+        "reusable": null,
+        "correctTopic": null,
+        "distinctFromExisting": null,
+        "avoidsDatesAndOneOffActionWording": null
+      }
+    },
+    {
+      "itemId": "614e7dee71d10deca5ee66fa",
+      "thought": "Send revised demo checklist to Tushar",
+      "mintedBucketName": "Tasks",
+      "existingBucketNames": [],
+      "decisions": {
+        "concise": null,
+        "reusable": null,
+        "correctTopic": null,
+        "distinctFromExisting": null,
+        "avoidsDatesAndOneOffActionWording": null
+      }
+    },
+    {
+      "itemId": "323d8214b3448c1e575b8123",
+      "thought": "Quiet mode activated by keyword",
+      "mintedBucketName": "",
+      "existingBucketNames": [
+        "Launch Readiness",
+        "Tasks"
+      ],
+      "decisions": {
+        "concise": null,
+        "reusable": null,
+        "correctTopic": null,
+        "distinctFromExisting": null,
+        "avoidsDatesAndOneOffActionWording": null
+      }
+    },
+    {
+      "itemId": "f683a28f425cd1407c9a9e10",
+      "thought": "Quiet mode activated by keyword",
+      "mintedBucketName": "",
+      "existingBucketNames": [
+        "Launch Readiness",
+        "Tasks"
+      ],
+      "decisions": {
+        "concise": null,
+        "reusable": null,
+        "correctTopic": null,
+        "distinctFromExisting": null,
+        "avoidsDatesAndOneOffActionWording": null
+      }
+    },
+    {
+      "itemId": "9707d0c5bf244a9deaaeb36b",
+      "thought": "Nudge when a task has been idle (prefer 5 days)",
+      "mintedBucketName": "",
+      "existingBucketNames": [
+        "Launch Readiness",
+        "Tasks"
+      ],
+      "decisions": {
+        "concise": null,
+        "reusable": null,
+        "correctTopic": null,
+        "distinctFromExisting": null,
+        "avoidsDatesAndOneOffActionWording": null
+      }
+    },
+    {
+      "itemId": "cd3a59d3edaccaf410a06e1c",
+      "thought": "Arrange 20-minute rehearsal for Friday morning",
+      "mintedBucketName": "Tasks",
+      "existingBucketNames": [],
+      "decisions": {
+        "concise": null,
+        "reusable": null,
+        "correctTopic": null,
+        "distinctFromExisting": null,
+        "avoidsDatesAndOneOffActionWording": null
+      }
+    },
+    {
+      "itemId": "dae71c3047022686494d4a23",
+      "thought": "Decide dashboard layout (open item)",
+      "mintedBucketName": "Tasks",
+      "existingBucketNames": [],
+      "decisions": {
+        "concise": null,
+        "reusable": null,
+        "correctTopic": null,
+        "distinctFromExisting": null,
+        "avoidsDatesAndOneOffActionWording": null
+      }
+    },
+    {
+      "itemId": "3c8c679f84b5cae52b605591",
+      "thought": "Send revised demo checklist to Tushar",
+      "mintedBucketName": "Tasks",
+      "existingBucketNames": [],
+      "decisions": {
+        "concise": null,
+        "reusable": null,
+        "correctTopic": null,
+        "distinctFromExisting": null,
+        "avoidsDatesAndOneOffActionWording": null
+      }
+    },
+    {
+      "itemId": "4b0cbeef6dad60a14809d8fb",
+      "thought": "Discuss onboarding handoff next week",
+      "mintedBucketName": "Tasks",
+      "existingBucketNames": [],
+      "decisions": {
+        "concise": null,
+        "reusable": null,
+        "correctTopic": null,
+        "distinctFromExisting": null,
+        "avoidsDatesAndOneOffActionWording": null
+      }
+    },
+    {
+      "itemId": "5f2658ac0172ca0a464bd487",
+      "thought": "Discuss onboarding handoff next week",
+      "mintedBucketName": "Onboarding",
+      "existingBucketNames": [],
+      "decisions": {
+        "concise": null,
+        "reusable": null,
+        "correctTopic": null,
+        "distinctFromExisting": null,
+        "avoidsDatesAndOneOffActionWording": null
+      }
+    },
+    {
+      "itemId": "bc94f792de5357df25beea83",
+      "thought": "Draft follow-up emails",
+      "mintedBucketName": "",
+      "existingBucketNames": [
+        "Launch Readiness",
+        "Tasks"
+      ],
+      "decisions": {
+        "concise": null,
+        "reusable": null,
+        "correctTopic": null,
+        "distinctFromExisting": null,
+        "avoidsDatesAndOneOffActionWording": null
+      }
+    },
+    {
+      "itemId": "9485ff2b21b50cc8b561a449",
+      "thought": "Dev handoff blocked until copy is provided",
+      "mintedBucketName": "",
+      "existingBucketNames": [
+        "Launch Readiness",
+        "Tasks",
+        "Product Ideas"
+      ],
+      "decisions": {
+        "concise": null,
+        "reusable": null,
+        "correctTopic": null,
+        "distinctFromExisting": null,
+        "avoidsDatesAndOneOffActionWording": null
+      }
+    },
+    {
+      "itemId": "aac8acea4562105fabeea0e3",
+      "thought": "Proactively draft follow-up emails",
+      "mintedBucketName": "",
+      "existingBucketNames": [
+        "Launch Readiness",
+        "Tasks"
+      ],
+      "decisions": {
+        "concise": null,
+        "reusable": null,
+        "correctTopic": null,
+        "distinctFromExisting": null,
+        "avoidsDatesAndOneOffActionWording": null
+      }
+    },
+    {
+      "itemId": "4682b71ede17a3d93aebaf4e",
+      "thought": "Copy draft is two days late",
+      "mintedBucketName": "",
+      "existingBucketNames": [
+        "Launch Readiness",
+        "Tasks",
+        "Product Ideas"
+      ],
+      "decisions": {
+        "concise": null,
+        "reusable": null,
+        "correctTopic": null,
+        "distinctFromExisting": null,
+        "avoidsDatesAndOneOffActionWording": null
+      }
+    },
+    {
+      "itemId": "0d2ac89d3a2956f448ccdb83",
+      "thought": "Arrange 20-minute rehearsal for Friday morning",
+      "mintedBucketName": "Tasks",
+      "existingBucketNames": [],
+      "decisions": {
+        "concise": null,
+        "reusable": null,
+        "correctTopic": null,
+        "distinctFromExisting": null,
+        "avoidsDatesAndOneOffActionWording": null
+      }
+    },
+    {
+      "itemId": "2544a9be7aaf17a2cb237675",
+      "thought": "Quiet mode activated by keyword",
+      "mintedBucketName": "Quiet Mode",
+      "existingBucketNames": [
+        "Launch Readiness",
+        "Tasks"
+      ],
+      "decisions": {
+        "concise": null,
+        "reusable": null,
+        "correctTopic": null,
+        "distinctFromExisting": null,
+        "avoidsDatesAndOneOffActionWording": null
+      }
+    },
+    {
+      "itemId": "0866329e6788489ac92d9af1",
+      "thought": "Decide dashboard layout",
+      "mintedBucketName": "Tasks",
+      "existingBucketNames": [],
+      "decisions": {
+        "concise": null,
+        "reusable": null,
+        "correctTopic": null,
+        "distinctFromExisting": null,
+        "avoidsDatesAndOneOffActionWording": null
+      }
+    },
+    {
+      "itemId": "5579895485d8d90f538959a6",
+      "thought": "Dev handoff cannot start without the copy",
+      "mintedBucketName": "",
+      "existingBucketNames": [
+        "Launch Readiness",
+        "Tasks",
+        "Product Ideas"
+      ],
+      "decisions": {
+        "concise": null,
+        "reusable": null,
+        "correctTopic": null,
+        "distinctFromExisting": null,
+        "avoidsDatesAndOneOffActionWording": null
+      }
+    },
+    {
+      "itemId": "8e1a2bf15d0650cba5609078",
+      "thought": "Send revised demo checklist to Tushar",
+      "mintedBucketName": "Tasks",
+      "existingBucketNames": [],
+      "decisions": {
+        "concise": null,
+        "reusable": null,
+        "correctTopic": null,
+        "distinctFromExisting": null,
+        "avoidsDatesAndOneOffActionWording": null
+      }
+    },
+    {
+      "itemId": "496a31c472919da0613ad43c",
+      "thought": "Dev handoff cannot start without the copy",
+      "mintedBucketName": "",
+      "existingBucketNames": [
+        "Launch Readiness",
+        "Tasks",
+        "Product Ideas"
+      ],
+      "decisions": {
+        "concise": null,
+        "reusable": null,
+        "correctTopic": null,
+        "distinctFromExisting": null,
+        "avoidsDatesAndOneOffActionWording": null
+      }
+    },
+    {
+      "itemId": "b8b49c649386794242c1c29c",
+      "thought": "Nudge when a task has been idle (prefer 5 days)",
+      "mintedBucketName": "",
+      "existingBucketNames": [
+        "Launch Readiness",
+        "Tasks"
+      ],
+      "decisions": {
+        "concise": null,
+        "reusable": null,
+        "correctTopic": null,
+        "distinctFromExisting": null,
+        "avoidsDatesAndOneOffActionWording": null
+      }
+    },
+    {
+      "itemId": "11f6eed904888e22aec5dfd4",
+      "thought": "Dashboard layout undecided (open item)",
+      "mintedBucketName": "Tasks",
+      "existingBucketNames": [],
+      "decisions": {
+        "concise": null,
+        "reusable": null,
+        "correctTopic": null,
+        "distinctFromExisting": null,
+        "avoidsDatesAndOneOffActionWording": null
+      }
+    },
+    {
+      "itemId": "a2b01c3d452f12b6e1af8cc9",
+      "thought": "Schedule a 20-minute rehearsal on Friday morning.",
+      "mintedBucketName": "Rehearsals",
+      "existingBucketNames": [],
+      "decisions": {
+        "concise": null,
+        "reusable": null,
+        "correctTopic": null,
+        "distinctFromExisting": null,
+        "avoidsDatesAndOneOffActionWording": null
+      }
+    },
+    {
+      "itemId": "ad4f46f53b3464265d03bac5",
+      "thought": "Copy draft overdue by two days",
+      "mintedBucketName": "",
+      "existingBucketNames": [
+        "Launch Readiness",
+        "Tasks",
+        "Product Ideas"
+      ],
+      "decisions": {
+        "concise": null,
+        "reusable": null,
+        "correctTopic": null,
+        "distinctFromExisting": null,
+        "avoidsDatesAndOneOffActionWording": null
+      }
+    },
+    {
+      "itemId": "7ba072c456c41441cc96a608",
+      "thought": "Discuss onboarding handoff next week",
+      "mintedBucketName": "Onboarding",
+      "existingBucketNames": [],
+      "decisions": {
+        "concise": null,
+        "reusable": null,
+        "correctTopic": null,
+        "distinctFromExisting": null,
+        "avoidsDatesAndOneOffActionWording": null
+      }
+    }
+  ]
+}

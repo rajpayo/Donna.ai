@@ -2,7 +2,7 @@
 id: "6.7"
 title: "Structured bucket routing and governed minting"
 phase: "06"
-status: "in-progress"
+status: "blocked"
 depends_on: ["6.6"]
 ---
 
@@ -1138,6 +1138,95 @@ Tasks vs injection, provenance fail-closed, extraction immutability), CLI
 end-to-end review flow with no IDs in output, eval metric separation,
 plan immutability, and floor evaluation including the mint-specific
 failure signal.
+
+### Live dev experiment result (2026-09-05): STOP — STRUCTURED ROUTING FAILED
+
+Three fixed live replicates of the locked structured baseline S
+(gpt-5-mini, `donna.organize.v2`, prompt v4-structured, frozen
+near-duplicate threshold 0.88) ran against the frozen dev envelope
+(`organize.dev.v2`, 28 cases, sha256 `79eeb575…`). No best-of-three, no
+omitted run, no post-result mutation. Every replicate: 28/28 cases, zero
+external errors, zero product errors, zero hard failures; provenance 1.0,
+schema 1.0, Tasks hard-rule 1.0 in every replicate (blocking safety
+invariants all pass). Reports: `packages/evals/reports/organize/6.7/S/`
+(replicate-1..3, hashes recorded in `experiments/organize/6.7/eligibility.json`).
+
+Aggregated metrics (arithmetic mean of the three run means) versus the
+binding floors, from the mechanical eligibility record:
+
+| Floor | Threshold | Actual | Result |
+|---|---|---|---|
+| thought coverage | >= 0.97 | 1.00000 | PASS |
+| task recall | >= 0.95 | 1.00000 | PASS |
+| task precision (no regression vs A baseline) | >= 0.82143 | 0.70238 | **FAIL** |
+| provenance fidelity | 1.0 | 1.00000 | PASS |
+| schema/referential validity | 1.0 | 1.00000 | PASS |
+| Tasks hard rule | 1.0 | 1.00000 | PASS |
+| join-by-ID accuracy | >= 0.90 | 0.64912 | **FAIL** |
+| join-vs-mint decision accuracy | >= 0.90 | 0.75000 | **FAIL** |
+| canonical minted-name validator pass | >= 0.90 | 1.00000 | PASS |
+| deterministic final placement acceptance | >= 0.90 | 0.44048 | **FAIL** |
+| organizer p90 latency | <= 20,000 ms | 16,946 ms | PASS |
+| product/external/hard failures | 0 | 0 | PASS |
+| per-replicate safety invariants | all pass | all pass | PASS |
+| deterministic suites (decision table, concurrency/replay, security, parity) | all pass | all pass | PASS |
+| blinded minted-name usefulness | >= 0.85 | not evaluated | moot (floors already failed) |
+
+Mandatory diagnostics (counts beside rates in the reports): mint decision
+precision 0.67143, recall 0.48148; joined override/conflict rate 0.22807;
+review pending rate 0.21429; minted exact-name reproducibility diagnostic
+0.22222 (6.6 candidate A was 0.33333).
+
+**Outcome: STOP — STRUCTURED ROUTING FAILED** (mechanical record:
+`experiments/organize/6.7/eligibility.json`). `mintSpecificFailure` is
+**false**: the failure is NOT mint-only. Canonical name validation passed
+perfectly (1.0), but the routing layer itself missed its floors —
+join-by-ID 0.649 and final placement 0.440 — and task precision regressed
+below the 6.6 A baseline.
+
+**Honest reading against the calibrated expectations:** the product owner
+expected join accuracy to improve substantially from the structural fix.
+Measured join-by-ID accuracy (0.649) did not improve over 6.6 A's joined
+exact-name rate (0.667) on this envelope — the structural
+existing-by-ID contract did not fix the underlying route-choice reasoning
+problem, and the conservative agreement rule converts every
+model/geometry disagreement into pending review (pending rate 0.214),
+which caps deterministic final acceptance. Mint naming validity is fixed
+(validator pass 1.0), but mint decision recall (0.481) and exact-name
+reproducibility (0.222) remain poor — consistent with the product owner's
+expectation that mint quality may still fail on the same underlying
+reasoning problem.
+
+**Limitations / deviations:**
+
+- The deterministic-final metric seeds eval bucket centroids from
+  name+description descriptor embeddings (the harness has no member
+  thoughts); production centroids are member-thought embeddings. This
+  deterministic choice was committed before any run and was not changed
+  after results; it may depress geometry/model agreement relative to
+  production.
+- Blinded minted-name usefulness was not evaluated: the floors failed
+  before it could matter. The private blinded packet (27 items) is
+  prepared for the product owner at
+  `reports/organize/6.7/blinded-review/` should a diagnostic review still
+  be wanted; it cannot change the STOP outcome.
+- A pre-calibration replicate at the 0.90 candidate was voided before
+  aggregation or interpretation (recorded above); the binding three
+  replicates all ran at the frozen 0.88.
+
+**What was NOT done (per protocol):** no validation-v3 run, no fresh P-00
+matrix, no held-out/final/graduation run, no prompt/model retry, no
+threshold or label tuning after results, no gate migration. Validation-v3
+bytes, locks, and history are unchanged (`git diff` empty for those
+paths). Phase 7 remains blocked.
+
+**Product-owner decision: PENDING.** The evidence supports a narrow
+follow-up discussion: mint naming validation worked, but route-choice
+reasoning (join-by-ID and join-vs-mint) is the failing layer — a future
+specification should target routing reasoning (e.g. richer per-bucket
+signal, few-shot routing exemplars, or a different decision split), not
+repeat this architecture or mint naming. Awaiting the product owner's
+examination and direction.
 
 ## Product-owner decision
 
