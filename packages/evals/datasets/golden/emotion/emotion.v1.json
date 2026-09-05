@@ -1,0 +1,18 @@
+{
+  "schema": "donna.eval-dataset.v1",
+  "name": "emotion.v1",
+  "stage": "emotion",
+  "version": 1,
+  "description": "Emotion calibration cases for the deterministic session heuristic (false-confident and abstention measurement). Case content is single-sourced in the pre-Phase-4 flat file ../emotion.v1.json (legacyImport); this envelope adds the 4.1 metadata, versioning, and adjudication log.",
+  "defaultMeta": {
+    "provenance": "synthetic",
+    "labeler": "labeler:product-owner",
+    "adjudicator": "labeler:product-owner",
+    "consent": "not-required-synthetic",
+    "sensitivity": "none",
+    "language": "en"
+  },
+  "cases": [],
+  "legacyImport": { "path": "../emotion.v1.json", "format": "emotion-legacy-v1" },
+  "adjudications": []
+}

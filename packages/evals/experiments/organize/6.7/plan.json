@@ -1,0 +1,83 @@
+{
+  "schema": "donna.organize-v2-plan.v1",
+  "spec": "6.7",
+  "status": "locked",
+  "lockedAt": "2026-09-05T14:30:00.000Z",
+  "implementation": {
+    "id": "S",
+    "provider": "openai-compatible",
+    "model": "gpt-5-mini",
+    "contract": "donna.organize.v2",
+    "promptVersion": "donna.organize-prompt.v4-structured",
+    "promptSha256": "7b5467e8d5d5fae8acadc83f0c4b51444f2e6beb791dc91692d0d4d223c6784a",
+    "configPath": "packages/evals/experiments/organize/6.7/candidates/S.models.config.yaml",
+    "configSha256": "c22d0c66675f5fb857d07b30a48c9133121cfd9a1213a0830710aac01b9c9fc9",
+    "nearDuplicateThreshold": 0.88,
+    "replicates": 3
+  },
+  "datasets": {
+    "dev": {
+      "path": "packages/evals/datasets/golden/organize/organize.dev.v2.json",
+      "name": "organize.dev.v2",
+      "version": 1,
+      "cases": 28,
+      "sha256": "79eeb575896815c58d75f7c4b7c5b200a37e0dcd51d0f92994f96db409abf552"
+    },
+    "validationV3": {
+      "path": "packages/evals/datasets/golden/organize/organize.heldout.v1.json",
+      "sha256": "7c66e17c52186e19f6e1c8bf544e8f5f78b4af9c91ea6c92b1667103151d6a89",
+      "lockPath": "packages/evals/datasets/golden/organize/organize.heldout.lock.json",
+      "lockSha256": "afad35278ac4723d574327b38f5303fc27d7737eb1072d08fce2929937f037bd",
+      "purpose": "preserved-history-not-run"
+    }
+  },
+  "aggregation": {
+    "metricMeans": "arithmetic-mean-of-three-run-means",
+    "latencyP90": "all-successful-case-latencies",
+    "bestOfThree": false,
+    "stopOnAnyFloorFailure": true
+  },
+  "floors": {
+    "thoughtCoverage": 0.97,
+    "taskRecall": 0.95,
+    "taskPrecisionBaseline": 0.8214285714,
+    "provenance": 1,
+    "schema": 1,
+    "tasksHardRule": 1,
+    "joinIdAccuracy": 0.9,
+    "modeAccuracy": 0.9,
+    "validatorPass": 0.9,
+    "blindedUsefulness": 0.85,
+    "finalPlacementAcceptance": 0.9,
+    "latencyP90Ms": 20000
+  },
+  "safetyInvariants": {
+    "crossTenantOrForgedIdSuccesses": 0,
+    "duplicateBucketCreationUnderReplay": 0,
+    "productErrors": 0,
+    "hardFailures": 0,
+    "securityPrivacyFailures": 0,
+    "deterministicSuitesMustPass": true,
+    "eachReplicateIndependently": true
+  },
+  "gateMigration": {
+    "state": "dual-evidence-first",
+    "futureGate": "GATE v2: FINAL PLACEMENT >= 0.85",
+    "thresholdUnchanged": 0.85,
+    "diagnosticsRetained": [
+      "route.join_id_accuracy",
+      "route.mode_accuracy",
+      "mint.precision",
+      "mint.recall",
+      "mint.exact_name",
+      "blinded-usefulness"
+    ],
+    "requiresProductOwnerApproval": true
+  },
+  "rubric": {
+    "version": "donna.minted-name-rubric.v1",
+    "sha256": "46357cb114d9d28f28bab79c5a7be07e133e9317f212d83c1ef567c221910b52",
+    "diagnosticOnly": true,
+    "blindedReviewer": "product-owner"
+  }
+}

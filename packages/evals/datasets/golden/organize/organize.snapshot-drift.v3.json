@@ -1,0 +1,9 @@
+{
+  "schema": "donna.organize-snapshot-drift.v1",
+  "generatedAt": "2026-09-04T21:02:00.049Z",
+  "candidateCases": 57,
+  "reconstructibleCases": 55,
+  "overriddenCases": 2,
+  "unresolvedCases": 0,
+  "cases": []
+}

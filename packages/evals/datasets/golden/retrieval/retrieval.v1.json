@@ -1,0 +1,38 @@
+{
+  "schema": "donna.eval-dataset.v1",
+  "name": "retrieval.v1",
+  "stage": "retrieval",
+  "version": 1,
+  "description": "Golden retrieval set (22 labeled cases, hit@3, bar 80%). Case content is single-sourced in the pre-Phase-4 flat file ../retrieval.v1.json (legacyImport) with hand-crafted 5-dim embeddings — deterministic and offline. This envelope adds the 4.1 metadata, versioning, and adjudication log.",
+  "defaultMeta": {
+    "provenance": "synthetic",
+    "labeler": "labeler:product-owner",
+    "adjudicator": "labeler:product-owner",
+    "consent": "not-required-synthetic",
+    "sensitivity": "none",
+    "language": "en",
+    "notes": "synthetic fixtures with clean vector separation; grow with real misfires"
+  },
+  "cases": [
+    {
+      "id": "stale-deleted-01",
+      "meta": { "notes": "deleted content must never resurface in search (Spec 3.3 SR-3)" },
+      "query": "vendor contract renewal",
+      "embedding": [0.1, 1, 0, 0, 0],
+      "deleteBeforeQuery": ["th-vendor"],
+      "mustNotHit": ["th-vendor"],
+      "relevant": []
+    },
+    {
+      "id": "stale-deleted-02",
+      "meta": { "notes": "deleting one thought leaves other relevant hits intact" },
+      "query": "onboarding plan for the new analyst",
+      "embedding": [0.95, 0.1, 0, 0, 0],
+      "deleteBeforeQuery": ["th-onboarding"],
+      "mustNotHit": ["th-onboarding"],
+      "relevant": []
+    }
+  ],
+  "legacyImport": { "path": "../retrieval.v1.json", "format": "retrieval-legacy-v1" },
+  "adjudications": []
+}

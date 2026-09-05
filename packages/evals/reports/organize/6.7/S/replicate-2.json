@@ -1,0 +1,1361 @@
+{
+  "schema": "donna.eval-report.v1",
+  "stage": "organize",
+  "dataset": {
+    "name": "organize.dev.v2",
+    "version": 1,
+    "sha256": "79eeb575896815c58d75f7c4b7c5b200a37e0dcd51d0f92994f96db409abf552",
+    "cases": 28
+  },
+  "snapshot": {
+    "schema": "donna.config-snapshot.v1",
+    "commit": "73d2c7e7e83c6dac89051dbc0741d73c96878f35",
+    "branch": "cursor/import-mvp-scaffold-b430",
+    "dirty": true,
+    "modelsConfig": {
+      "path": "C:\\PAYO(Local)\\Donna.ai-cursor-import-mvp-scaffold-b430\\packages\\evals\\experiments\\organize\\6.7\\candidates\\S.models.config.yaml",
+      "sha256": "c22d0c66675f5fb857d07b30a48c9133121cfd9a1213a0830710aac01b9c9fc9"
+    },
+    "dataset": {
+      "name": "organize.dev.v2",
+      "version": 1,
+      "sha256": "79eeb575896815c58d75f7c4b7c5b200a37e0dcd51d0f92994f96db409abf552"
+    },
+    "versions": {
+      "organizePrompt": "donna.organize-prompt.v4-structured",
+      "organizeSchema": "donna.organize.v2",
+      "answerPrompt": "donna.answer-prompt.v1",
+      "emotionAnalyzer": "donna.emotion-heuristic.v1"
+    },
+    "ranking": {
+      "rankingVersion": "donna.hybrid-ranking.v1",
+      "weights": {
+        "text": 0.3,
+        "semantic": 0.3,
+        "bucketAffinity": 0.1,
+        "recency": 0.1,
+        "personalization": 0.15,
+        "taskMatch": 0.05
+      },
+      "recencyHalfLifeDays": 30,
+      "candidateLimit": 100,
+      "minScore": 0.2
+    },
+    "memoryPolicy": {
+      "contextBudgets": {
+        "maxTokens": 1200,
+        "maxItems": 24,
+        "recentCaptures": 3,
+        "maxMemories": 12,
+        "maxBucketSummaries": 10,
+        "maxCorrectionExamples": 3,
+        "maxExternalSnippets": 6
+      },
+      "adherenceSemanticThreshold": 0.5
+    },
+    "bucketTuning": {
+      "assignThreshold": 0.82,
+      "createThreshold": 0.65
+    },
+    "environment": {
+      "node": "v24.15.0",
+      "platform": "win32",
+      "arch": "x64",
+      "ci": false
+    },
+    "capturedAt": "2026-09-05T16:23:35.660Z"
+  },
+  "fingerprint": "a0771d9ddc059618d3cf8328d34a4920f4c4e6e239f8d892be748f4cdc202b6d",
+  "startedAt": "2026-09-05T16:23:35.665Z",
+  "finishedAt": "2026-09-05T16:29:50.531Z",
+  "durationMs": 374866,
+  "cases": [
+    {
+      "caseId": "organize-pilot-44123a90c85f",
+      "scores": {
+        "organize.schema_valid": 1,
+        "organize.thought_coverage": 1,
+        "organize.thought_count_f1": 1,
+        "organize.task_precision": 1,
+        "organize.task_recall": 1,
+        "organize.provenance_fidelity": 1,
+        "route.mode_accuracy": 1,
+        "final.placement_acceptance": 1,
+        "review.pending_rate": 0,
+        "mint.precision": 1,
+        "mint.recall": 1,
+        "mint.exact_name": 1,
+        "mint.validator_pass": 1,
+        "tasks.hard_rule": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 16080,
+      "tokens": {
+        "prompt": 965,
+        "completion": 1420
+      },
+      "notes": [
+        "expected-with-origin:1",
+        "mode-correct:1",
+        "join-id:0/0",
+        "final-accepted:1/1",
+        "mint-decision:1/1-said/1-needed",
+        "validator:1/1",
+        "pending:0"
+      ],
+      "cohort": {
+        "language": "en"
+      }
+    },
+    {
+      "caseId": "organize-pilot-2e92c926d69e",
+      "scores": {
+        "organize.schema_valid": 1,
+        "organize.thought_coverage": 1,
+        "organize.thought_count_f1": 1,
+        "organize.task_precision": 1,
+        "organize.task_recall": 1,
+        "organize.provenance_fidelity": 1,
+        "route.mode_accuracy": 1,
+        "final.placement_acceptance": 1,
+        "review.pending_rate": 0,
+        "mint.precision": 1,
+        "mint.recall": 1,
+        "mint.exact_name": 1,
+        "mint.validator_pass": 1,
+        "tasks.hard_rule": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 14374,
+      "tokens": {
+        "prompt": 965,
+        "completion": 1287
+      },
+      "notes": [
+        "expected-with-origin:1",
+        "mode-correct:1",
+        "join-id:0/0",
+        "final-accepted:1/1",
+        "mint-decision:1/1-said/1-needed",
+        "validator:1/1",
+        "pending:0"
+      ],
+      "cohort": {
+        "language": "en"
+      }
+    },
+    {
+      "caseId": "organize-pilot-adfc1c7c9ba0",
+      "scores": {
+        "organize.schema_valid": 1,
+        "organize.thought_coverage": 1,
+        "organize.thought_count_f1": 1,
+        "organize.task_precision": 0,
+        "organize.task_recall": 1,
+        "organize.provenance_fidelity": 1,
+        "route.mode_accuracy": 1,
+        "final.placement_acceptance": 1,
+        "review.pending_rate": 0,
+        "mint.precision": 1,
+        "mint.recall": 1,
+        "mint.exact_name": 0,
+        "mint.validator_pass": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 13333,
+      "tokens": {
+        "prompt": 963,
+        "completion": 1470
+      },
+      "notes": [
+        "expected-with-origin:1",
+        "mode-correct:1",
+        "join-id:0/0",
+        "final-accepted:1/1",
+        "mint-decision:1/1-said/1-needed",
+        "validator:1/1",
+        "pending:0"
+      ],
+      "cohort": {
+        "language": "en"
+      }
+    },
+    {
+      "caseId": "organize-pilot-22e900b5241e",
+      "scores": {
+        "organize.schema_valid": 1,
+        "organize.thought_coverage": 1,
+        "organize.thought_count_f1": 1,
+        "organize.task_precision": 1,
+        "organize.task_recall": 1,
+        "organize.provenance_fidelity": 1,
+        "route.mode_accuracy": 1,
+        "final.placement_acceptance": 1,
+        "review.pending_rate": 0,
+        "mint.precision": 1,
+        "mint.recall": 1,
+        "mint.exact_name": 0,
+        "mint.validator_pass": 1,
+        "tasks.hard_rule": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 16565,
+      "tokens": {
+        "prompt": 960,
+        "completion": 1856
+      },
+      "notes": [
+        "expected-with-origin:1",
+        "mode-correct:1",
+        "join-id:0/0",
+        "final-accepted:1/1",
+        "mint-decision:1/1-said/1-needed",
+        "validator:1/1",
+        "pending:0"
+      ],
+      "cohort": {
+        "language": "en"
+      }
+    },
+    {
+      "caseId": "organize-pilot-3e5db92a8889",
+      "scores": {
+        "organize.schema_valid": 1,
+        "organize.thought_coverage": 1,
+        "organize.thought_count_f1": 1,
+        "organize.task_precision": 1,
+        "organize.task_recall": 1,
+        "organize.provenance_fidelity": 1,
+        "route.mode_accuracy": 1,
+        "final.placement_acceptance": 1,
+        "review.pending_rate": 0,
+        "route.join_id_accuracy": 1,
+        "route.joined_conflict_rate": 0,
+        "tasks.hard_rule": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 11473,
+      "tokens": {
+        "prompt": 1010,
+        "completion": 1020
+      },
+      "notes": [
+        "expected-with-origin:1",
+        "mode-correct:1",
+        "join-id:1/1",
+        "final-accepted:1/1",
+        "mint-decision:0/0-said/0-needed",
+        "validator:0/0",
+        "pending:0"
+      ],
+      "cohort": {
+        "language": "en"
+      }
+    },
+    {
+      "caseId": "organize-pilot-33bfa698bcf7",
+      "scores": {
+        "organize.schema_valid": 1,
+        "organize.thought_coverage": 1,
+        "organize.thought_count_f1": 1,
+        "organize.task_precision": 1,
+        "organize.task_recall": 1,
+        "organize.provenance_fidelity": 1,
+        "route.mode_accuracy": 1,
+        "final.placement_acceptance": 1,
+        "review.pending_rate": 0,
+        "route.join_id_accuracy": 1,
+        "route.joined_conflict_rate": 0,
+        "tasks.hard_rule": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 11058,
+      "tokens": {
+        "prompt": 1011,
+        "completion": 700
+      },
+      "notes": [
+        "expected-with-origin:1",
+        "mode-correct:1",
+        "join-id:1/1",
+        "final-accepted:1/1",
+        "mint-decision:0/0-said/0-needed",
+        "validator:0/0",
+        "pending:0"
+      ],
+      "cohort": {
+        "language": "en"
+      }
+    },
+    {
+      "caseId": "organize-pilot-3745612ca3d6",
+      "scores": {
+        "organize.schema_valid": 1,
+        "organize.thought_coverage": 1,
+        "organize.thought_count_f1": 1,
+        "organize.task_precision": 1,
+        "organize.task_recall": 1,
+        "organize.provenance_fidelity": 1,
+        "route.mode_accuracy": 1,
+        "final.placement_acceptance": 1,
+        "review.pending_rate": 0,
+        "route.join_id_accuracy": 1,
+        "route.joined_conflict_rate": 0,
+        "tasks.hard_rule": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 12060,
+      "tokens": {
+        "prompt": 1013,
+        "completion": 1216
+      },
+      "notes": [
+        "expected-with-origin:1",
+        "mode-correct:1",
+        "join-id:1/1",
+        "final-accepted:1/1",
+        "mint-decision:0/0-said/0-needed",
+        "validator:0/0",
+        "pending:0"
+      ],
+      "cohort": {
+        "language": "en"
+      }
+    },
+    {
+      "caseId": "organize-pilot-c6574e37f556",
+      "scores": {
+        "organize.schema_valid": 1,
+        "organize.thought_coverage": 1,
+        "organize.thought_count_f1": 1,
+        "organize.task_precision": 0,
+        "organize.task_recall": 1,
+        "organize.provenance_fidelity": 1,
+        "route.mode_accuracy": 0,
+        "final.placement_acceptance": 0,
+        "review.pending_rate": 0,
+        "mint.recall": 0,
+        "mint.exact_name": 0
+      },
+      "hardFailures": [],
+      "latencyMs": 11925,
+      "tokens": {
+        "prompt": 1033,
+        "completion": 1116
+      },
+      "notes": [
+        "expected-with-origin:1",
+        "mode-correct:0",
+        "join-id:0/0",
+        "final-accepted:0/1",
+        "mint-decision:0/0-said/1-needed",
+        "validator:0/0",
+        "pending:0"
+      ],
+      "cohort": {
+        "language": "en"
+      }
+    },
+    {
+      "caseId": "organize-pilot-e9233092bf82",
+      "scores": {
+        "organize.schema_valid": 1,
+        "organize.thought_coverage": 1,
+        "organize.thought_count_f1": 1,
+        "organize.task_precision": 0,
+        "organize.task_recall": 1,
+        "organize.provenance_fidelity": 1,
+        "route.mode_accuracy": 0,
+        "final.placement_acceptance": 0,
+        "review.pending_rate": 0,
+        "mint.recall": 0,
+        "mint.exact_name": 0
+      },
+      "hardFailures": [],
+      "latencyMs": 11804,
+      "tokens": {
+        "prompt": 1010,
+        "completion": 956
+      },
+      "notes": [
+        "expected-with-origin:1",
+        "mode-correct:0",
+        "join-id:0/0",
+        "final-accepted:0/1",
+        "mint-decision:0/0-said/1-needed",
+        "validator:0/0",
+        "pending:0"
+      ],
+      "cohort": {
+        "language": "en"
+      }
+    },
+    {
+      "caseId": "organize-pilot-096ee9b9c59c",
+      "scores": {
+        "organize.schema_valid": 1,
+        "organize.thought_coverage": 1,
+        "organize.thought_count_f1": 1,
+        "organize.task_precision": 1,
+        "organize.task_recall": 1,
+        "organize.provenance_fidelity": 1,
+        "route.mode_accuracy": 1,
+        "final.placement_acceptance": 1,
+        "review.pending_rate": 0,
+        "mint.precision": 1,
+        "mint.recall": 1,
+        "mint.exact_name": 0,
+        "mint.validator_pass": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 10015,
+      "tokens": {
+        "prompt": 1059,
+        "completion": 686
+      },
+      "notes": [
+        "expected-with-origin:1",
+        "mode-correct:1",
+        "join-id:0/0",
+        "final-accepted:1/1",
+        "mint-decision:1/1-said/1-needed",
+        "validator:1/1",
+        "pending:0"
+      ],
+      "cohort": {
+        "language": "en"
+      }
+    },
+    {
+      "caseId": "organize-pilot-9202859574c3",
+      "scores": {
+        "organize.schema_valid": 1,
+        "organize.thought_coverage": 1,
+        "organize.thought_count_f1": 1,
+        "organize.task_precision": 1,
+        "organize.task_recall": 1,
+        "organize.provenance_fidelity": 1,
+        "route.mode_accuracy": 1,
+        "final.placement_acceptance": 1,
+        "review.pending_rate": 0,
+        "route.join_id_accuracy": 1,
+        "route.joined_conflict_rate": 0,
+        "tasks.hard_rule": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 13781,
+      "tokens": {
+        "prompt": 1062,
+        "completion": 1501
+      },
+      "notes": [
+        "expected-with-origin:1",
+        "mode-correct:1",
+        "join-id:1/1",
+        "final-accepted:1/1",
+        "mint-decision:0/0-said/0-needed",
+        "validator:0/0",
+        "pending:0"
+      ],
+      "cohort": {
+        "language": "en"
+      }
+    },
+    {
+      "caseId": "organize-pilot-3a789117ded6",
+      "scores": {
+        "organize.schema_valid": 1,
+        "organize.thought_coverage": 1,
+        "organize.thought_count_f1": 1,
+        "organize.task_precision": 1,
+        "organize.task_recall": 1,
+        "organize.provenance_fidelity": 1,
+        "route.mode_accuracy": 1,
+        "final.placement_acceptance": 1,
+        "review.pending_rate": 0,
+        "route.join_id_accuracy": 1,
+        "route.joined_conflict_rate": 0,
+        "tasks.hard_rule": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 13885,
+      "tokens": {
+        "prompt": 1059,
+        "completion": 1300
+      },
+      "notes": [
+        "expected-with-origin:1",
+        "mode-correct:1",
+        "join-id:1/1",
+        "final-accepted:1/1",
+        "mint-decision:0/0-said/0-needed",
+        "validator:0/0",
+        "pending:0"
+      ],
+      "cohort": {
+        "language": "en"
+      }
+    },
+    {
+      "caseId": "organize-pilot-7fb14eea3904",
+      "scores": {
+        "organize.schema_valid": 1,
+        "organize.thought_coverage": 1,
+        "organize.thought_count_f1": 1,
+        "organize.task_precision": 1,
+        "organize.task_recall": 1,
+        "organize.provenance_fidelity": 1,
+        "route.mode_accuracy": 1,
+        "final.placement_acceptance": 0,
+        "review.pending_rate": 1,
+        "route.join_id_accuracy": 1,
+        "route.joined_conflict_rate": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 10832,
+      "tokens": {
+        "prompt": 1072,
+        "completion": 772
+      },
+      "notes": [
+        "expected-with-origin:1",
+        "mode-correct:1",
+        "join-id:1/1",
+        "final-accepted:0/1",
+        "mint-decision:0/0-said/0-needed",
+        "validator:0/0",
+        "pending:1"
+      ],
+      "cohort": {
+        "language": "en"
+      }
+    },
+    {
+      "caseId": "organize-pilot-69cdc746bf08",
+      "scores": {
+        "organize.schema_valid": 1,
+        "organize.thought_coverage": 1,
+        "organize.thought_count_f1": 1,
+        "organize.task_precision": 1,
+        "organize.task_recall": 1,
+        "organize.provenance_fidelity": 1,
+        "route.mode_accuracy": 0,
+        "final.placement_acceptance": 0,
+        "review.pending_rate": 0,
+        "route.join_id_accuracy": 0,
+        "route.joined_conflict_rate": 0,
+        "mint.precision": 0,
+        "mint.validator_pass": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 11785,
+      "tokens": {
+        "prompt": 1105,
+        "completion": 946
+      },
+      "notes": [
+        "expected-with-origin:1",
+        "mode-correct:0",
+        "join-id:0/1",
+        "final-accepted:0/1",
+        "mint-decision:0/1-said/0-needed",
+        "validator:1/1",
+        "pending:0"
+      ],
+      "cohort": {
+        "language": "en"
+      }
+    },
+    {
+      "caseId": "organize-pilot-bcd0ed72ba08",
+      "scores": {
+        "organize.schema_valid": 1,
+        "organize.thought_coverage": 1,
+        "organize.thought_count_f1": 1,
+        "organize.task_precision": 0,
+        "organize.task_recall": 1,
+        "organize.provenance_fidelity": 1,
+        "route.mode_accuracy": 1,
+        "final.placement_acceptance": 0,
+        "review.pending_rate": 0,
+        "route.join_id_accuracy": 0,
+        "route.joined_conflict_rate": 0
+      },
+      "hardFailures": [],
+      "latencyMs": 19279,
+      "tokens": {
+        "prompt": 1044,
+        "completion": 1345
+      },
+      "notes": [
+        "expected-with-origin:1",
+        "mode-correct:1",
+        "join-id:0/1",
+        "final-accepted:0/1",
+        "mint-decision:0/0-said/0-needed",
+        "validator:0/0",
+        "pending:0"
+      ],
+      "cohort": {
+        "language": "en"
+      }
+    },
+    {
+      "caseId": "organize-pilot-d477d2b44296",
+      "scores": {
+        "organize.schema_valid": 1,
+        "organize.thought_coverage": 1,
+        "organize.thought_count_f1": 1,
+        "organize.task_precision": 1,
+        "organize.task_recall": 1,
+        "organize.provenance_fidelity": 1,
+        "route.mode_accuracy": 1,
+        "final.placement_acceptance": 0,
+        "review.pending_rate": 1,
+        "route.join_id_accuracy": 1,
+        "route.joined_conflict_rate": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 17848,
+      "tokens": {
+        "prompt": 1050,
+        "completion": 1972
+      },
+      "notes": [
+        "expected-with-origin:1",
+        "mode-correct:1",
+        "join-id:1/1",
+        "final-accepted:0/1",
+        "mint-decision:0/0-said/0-needed",
+        "validator:0/0",
+        "pending:1"
+      ],
+      "cohort": {
+        "language": "en"
+      }
+    },
+    {
+      "caseId": "organize-pilot-718ad79bc294",
+      "scores": {
+        "organize.schema_valid": 1,
+        "organize.thought_coverage": 1,
+        "organize.thought_count_f1": 1,
+        "organize.task_precision": 1,
+        "organize.task_recall": 1,
+        "organize.provenance_fidelity": 1,
+        "route.mode_accuracy": 1,
+        "final.placement_acceptance": 0,
+        "review.pending_rate": 1,
+        "route.join_id_accuracy": 1,
+        "route.joined_conflict_rate": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 14333,
+      "tokens": {
+        "prompt": 1053,
+        "completion": 1399
+      },
+      "notes": [
+        "expected-with-origin:1",
+        "mode-correct:1",
+        "join-id:1/1",
+        "final-accepted:0/1",
+        "mint-decision:0/0-said/0-needed",
+        "validator:0/0",
+        "pending:1"
+      ],
+      "cohort": {
+        "language": "en"
+      }
+    },
+    {
+      "caseId": "organize-pilot-7bf31075401d",
+      "scores": {
+        "organize.schema_valid": 1,
+        "organize.thought_coverage": 1,
+        "organize.thought_count_f1": 1,
+        "organize.task_precision": 1,
+        "organize.task_recall": 1,
+        "organize.provenance_fidelity": 1,
+        "route.mode_accuracy": 0,
+        "final.placement_acceptance": 0,
+        "review.pending_rate": 1,
+        "mint.recall": 0,
+        "mint.exact_name": 0
+      },
+      "hardFailures": [],
+      "latencyMs": 10260,
+      "tokens": {
+        "prompt": 1039,
+        "completion": 875
+      },
+      "notes": [
+        "expected-with-origin:1",
+        "mode-correct:0",
+        "join-id:0/0",
+        "final-accepted:0/1",
+        "mint-decision:0/0-said/1-needed",
+        "validator:0/0",
+        "pending:1"
+      ],
+      "cohort": {
+        "language": "en"
+      }
+    },
+    {
+      "caseId": "organize-pilot-fcdf67c9f21f",
+      "scores": {
+        "organize.schema_valid": 1,
+        "organize.thought_coverage": 1,
+        "organize.thought_count_f1": 1,
+        "organize.task_precision": 1,
+        "organize.task_recall": 1,
+        "organize.provenance_fidelity": 1,
+        "route.mode_accuracy": 0,
+        "final.placement_acceptance": 0,
+        "review.pending_rate": 1,
+        "mint.recall": 0,
+        "mint.exact_name": 0
+      },
+      "hardFailures": [],
+      "latencyMs": 20737,
+      "tokens": {
+        "prompt": 1045,
+        "completion": 2446
+      },
+      "notes": [
+        "expected-with-origin:1",
+        "mode-correct:0",
+        "join-id:0/0",
+        "final-accepted:0/1",
+        "mint-decision:0/0-said/1-needed",
+        "validator:0/0",
+        "pending:1"
+      ],
+      "cohort": {
+        "language": "en"
+      }
+    },
+    {
+      "caseId": "organize-pilot-94d204ecdd0c",
+      "scores": {
+        "organize.schema_valid": 1,
+        "organize.thought_coverage": 1,
+        "organize.thought_count_f1": 1,
+        "organize.task_precision": 1,
+        "organize.task_recall": 1,
+        "organize.provenance_fidelity": 1,
+        "route.mode_accuracy": 1,
+        "final.placement_acceptance": 1,
+        "review.pending_rate": 0,
+        "route.join_id_accuracy": 1,
+        "route.joined_conflict_rate": 0,
+        "tasks.hard_rule": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 10251,
+      "tokens": {
+        "prompt": 1041,
+        "completion": 960
+      },
+      "notes": [
+        "expected-with-origin:1",
+        "mode-correct:1",
+        "join-id:1/1",
+        "final-accepted:1/1",
+        "mint-decision:0/0-said/0-needed",
+        "validator:0/0",
+        "pending:0"
+      ],
+      "cohort": {
+        "language": "en"
+      }
+    },
+    {
+      "caseId": "organize-pilot-0580fdc50282",
+      "scores": {
+        "organize.schema_valid": 1,
+        "organize.thought_coverage": 1,
+        "organize.thought_count_f1": 1,
+        "organize.task_precision": 1,
+        "organize.task_recall": 1,
+        "organize.provenance_fidelity": 1,
+        "route.mode_accuracy": 1,
+        "final.placement_acceptance": 0,
+        "review.pending_rate": 1,
+        "route.join_id_accuracy": 1,
+        "route.joined_conflict_rate": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 12374,
+      "tokens": {
+        "prompt": 1044,
+        "completion": 753
+      },
+      "notes": [
+        "expected-with-origin:1",
+        "mode-correct:1",
+        "join-id:1/1",
+        "final-accepted:0/1",
+        "mint-decision:0/0-said/0-needed",
+        "validator:0/0",
+        "pending:1"
+      ],
+      "cohort": {
+        "language": "en"
+      }
+    },
+    {
+      "caseId": "organize-pilot-88d6b53f9d55",
+      "scores": {
+        "organize.schema_valid": 1,
+        "organize.thought_coverage": 1,
+        "organize.thought_count_f1": 1,
+        "organize.task_precision": 0,
+        "organize.task_recall": 1,
+        "organize.provenance_fidelity": 1,
+        "route.mode_accuracy": 1,
+        "final.placement_acceptance": 0,
+        "review.pending_rate": 0,
+        "route.join_id_accuracy": 0,
+        "route.joined_conflict_rate": 0
+      },
+      "hardFailures": [],
+      "latencyMs": 9832,
+      "tokens": {
+        "prompt": 1067,
+        "completion": 823
+      },
+      "notes": [
+        "expected-with-origin:1",
+        "mode-correct:1",
+        "join-id:0/1",
+        "final-accepted:0/1",
+        "mint-decision:0/0-said/0-needed",
+        "validator:0/0",
+        "pending:0"
+      ],
+      "cohort": {
+        "language": "en"
+      }
+    },
+    {
+      "caseId": "organize-pilot-57e0c7a3668f",
+      "scores": {
+        "organize.schema_valid": 1,
+        "organize.thought_coverage": 1,
+        "organize.thought_count_f1": 1,
+        "organize.task_precision": 1,
+        "organize.task_recall": 1,
+        "organize.provenance_fidelity": 1,
+        "route.mode_accuracy": 1,
+        "final.placement_acceptance": 0,
+        "review.pending_rate": 1,
+        "route.join_id_accuracy": 1,
+        "route.joined_conflict_rate": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 11405,
+      "tokens": {
+        "prompt": 1076,
+        "completion": 1009
+      },
+      "notes": [
+        "expected-with-origin:1",
+        "mode-correct:1",
+        "join-id:1/1",
+        "final-accepted:0/1",
+        "mint-decision:0/0-said/0-needed",
+        "validator:0/0",
+        "pending:1"
+      ],
+      "cohort": {
+        "language": "en"
+      }
+    },
+    {
+      "caseId": "organize-pilot-f8e9b02c5951",
+      "scores": {
+        "organize.schema_valid": 1,
+        "organize.thought_coverage": 1,
+        "organize.thought_count_f1": 1,
+        "organize.task_precision": 1,
+        "organize.task_recall": 1,
+        "organize.provenance_fidelity": 1,
+        "route.mode_accuracy": 1,
+        "final.placement_acceptance": 1,
+        "review.pending_rate": 0,
+        "route.join_id_accuracy": 1,
+        "route.joined_conflict_rate": 0,
+        "tasks.hard_rule": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 15040,
+      "tokens": {
+        "prompt": 1086,
+        "completion": 1546
+      },
+      "notes": [
+        "expected-with-origin:1",
+        "mode-correct:1",
+        "join-id:1/1",
+        "final-accepted:1/1",
+        "mint-decision:0/0-said/0-needed",
+        "validator:0/0",
+        "pending:0"
+      ],
+      "cohort": {
+        "language": "en"
+      }
+    },
+    {
+      "caseId": "organize-pilot-897bbbac2906",
+      "scores": {
+        "organize.schema_valid": 1,
+        "organize.thought_coverage": 1,
+        "organize.thought_count_f1": 1,
+        "organize.task_precision": 0,
+        "organize.task_recall": 1,
+        "organize.provenance_fidelity": 1,
+        "route.mode_accuracy": 1,
+        "final.placement_acceptance": 0,
+        "review.pending_rate": 0,
+        "route.join_id_accuracy": 0,
+        "route.joined_conflict_rate": 0
+      },
+      "hardFailures": [],
+      "latencyMs": 13177,
+      "tokens": {
+        "prompt": 1064,
+        "completion": 1203
+      },
+      "notes": [
+        "expected-with-origin:1",
+        "mode-correct:1",
+        "join-id:0/1",
+        "final-accepted:0/1",
+        "mint-decision:0/0-said/0-needed",
+        "validator:0/0",
+        "pending:0"
+      ],
+      "cohort": {
+        "language": "en"
+      }
+    },
+    {
+      "caseId": "organize-pilot-578d420add30",
+      "scores": {
+        "organize.schema_valid": 1,
+        "organize.thought_coverage": 1,
+        "organize.thought_count_f1": 1,
+        "organize.task_precision": 0,
+        "organize.task_recall": 1,
+        "organize.provenance_fidelity": 1,
+        "route.mode_accuracy": 1,
+        "final.placement_acceptance": 0,
+        "review.pending_rate": 0,
+        "route.join_id_accuracy": 0,
+        "route.joined_conflict_rate": 0
+      },
+      "hardFailures": [],
+      "latencyMs": 16566,
+      "tokens": {
+        "prompt": 1067,
+        "completion": 1590
+      },
+      "notes": [
+        "expected-with-origin:1",
+        "mode-correct:1",
+        "join-id:0/1",
+        "final-accepted:0/1",
+        "mint-decision:0/0-said/0-needed",
+        "validator:0/0",
+        "pending:0"
+      ],
+      "cohort": {
+        "language": "en"
+      }
+    },
+    {
+      "caseId": "organize-pilot-03bb37de25ed",
+      "scores": {
+        "organize.schema_valid": 1,
+        "organize.thought_coverage": 1,
+        "organize.thought_count_f1": 1,
+        "organize.task_precision": 1,
+        "organize.task_recall": 1,
+        "organize.provenance_fidelity": 1,
+        "route.mode_accuracy": 0,
+        "final.placement_acceptance": 0,
+        "review.pending_rate": 0,
+        "route.join_id_accuracy": 0,
+        "route.joined_conflict_rate": 0,
+        "mint.precision": 0,
+        "mint.validator_pass": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 11663,
+      "tokens": {
+        "prompt": 1154,
+        "completion": 882
+      },
+      "notes": [
+        "expected-with-origin:1",
+        "mode-correct:0",
+        "join-id:0/1",
+        "final-accepted:0/1",
+        "mint-decision:0/1-said/0-needed",
+        "validator:1/1",
+        "pending:0"
+      ],
+      "cohort": {
+        "language": "en"
+      }
+    },
+    {
+      "caseId": "organize-pilot-ded96d8c3abd",
+      "scores": {
+        "organize.schema_valid": 1,
+        "organize.thought_coverage": 1,
+        "organize.thought_count_f1": 1,
+        "organize.task_precision": 1,
+        "organize.task_recall": 1,
+        "organize.provenance_fidelity": 1,
+        "route.mode_accuracy": 1,
+        "final.placement_acceptance": 1,
+        "review.pending_rate": 0,
+        "route.join_id_accuracy": 1,
+        "route.joined_conflict_rate": 0,
+        "tasks.hard_rule": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 13131,
+      "tokens": {
+        "prompt": 1076,
+        "completion": 1213
+      },
+      "notes": [
+        "expected-with-origin:1",
+        "mode-correct:1",
+        "join-id:1/1",
+        "final-accepted:1/1",
+        "mint-decision:0/0-said/0-needed",
+        "validator:0/0",
+        "pending:0"
+      ],
+      "cohort": {
+        "language": "en"
+      }
+    }
+  ],
+  "aggregate": {
+    "casesRun": 28,
+    "casesErrored": 0,
+    "externalErrors": 0,
+    "productErrors": 0,
+    "hardFailureCount": 0,
+    "hardFailures": [],
+    "metrics": {
+      "organize.schema_valid": {
+        "n": 28,
+        "missing": 0,
+        "mean": 1,
+        "min": 1,
+        "p50": 1,
+        "p90": 1,
+        "max": 1
+      },
+      "organize.thought_coverage": {
+        "n": 28,
+        "missing": 0,
+        "mean": 1,
+        "min": 1,
+        "p50": 1,
+        "p90": 1,
+        "max": 1
+      },
+      "organize.thought_count_f1": {
+        "n": 28,
+        "missing": 0,
+        "mean": 1,
+        "min": 1,
+        "p50": 1,
+        "p90": 1,
+        "max": 1
+      },
+      "organize.task_precision": {
+        "n": 28,
+        "missing": 0,
+        "mean": 0.75,
+        "min": 0,
+        "p50": 1,
+        "p90": 1,
+        "max": 1
+      },
+      "organize.task_recall": {
+        "n": 28,
+        "missing": 0,
+        "mean": 1,
+        "min": 1,
+        "p50": 1,
+        "p90": 1,
+        "max": 1
+      },
+      "organize.provenance_fidelity": {
+        "n": 28,
+        "missing": 0,
+        "mean": 1,
+        "min": 1,
+        "p50": 1,
+        "p90": 1,
+        "max": 1
+      },
+      "route.mode_accuracy": {
+        "n": 28,
+        "missing": 0,
+        "mean": 0.7857142857142857,
+        "min": 0,
+        "p50": 1,
+        "p90": 1,
+        "max": 1
+      },
+      "final.placement_acceptance": {
+        "n": 28,
+        "missing": 0,
+        "mean": 0.4642857142857143,
+        "min": 0,
+        "p50": 0,
+        "p90": 1,
+        "max": 1
+      },
+      "review.pending_rate": {
+        "n": 28,
+        "missing": 0,
+        "mean": 0.25,
+        "min": 0,
+        "p50": 0,
+        "p90": 1,
+        "max": 1
+      },
+      "mint.precision": {
+        "n": 7,
+        "missing": 21,
+        "mean": 0.7142857142857143,
+        "min": 0,
+        "p50": 1,
+        "p90": 1,
+        "max": 1
+      },
+      "mint.recall": {
+        "n": 9,
+        "missing": 19,
+        "mean": 0.5555555555555556,
+        "min": 0,
+        "p50": 1,
+        "p90": 1,
+        "max": 1
+      },
+      "mint.exact_name": {
+        "n": 9,
+        "missing": 19,
+        "mean": 0.2222222222222222,
+        "min": 0,
+        "p50": 0,
+        "p90": 1,
+        "max": 1
+      },
+      "mint.validator_pass": {
+        "n": 7,
+        "missing": 21,
+        "mean": 1,
+        "min": 1,
+        "p50": 1,
+        "p90": 1,
+        "max": 1
+      },
+      "tasks.hard_rule": {
+        "n": 11,
+        "missing": 17,
+        "mean": 1,
+        "min": 1,
+        "p50": 1,
+        "p90": 1,
+        "max": 1
+      },
+      "route.join_id_accuracy": {
+        "n": 19,
+        "missing": 9,
+        "mean": 0.6842105263157895,
+        "min": 0,
+        "p50": 1,
+        "p90": 1,
+        "max": 1
+      },
+      "route.joined_conflict_rate": {
+        "n": 19,
+        "missing": 9,
+        "mean": 0.2631578947368421,
+        "min": 0,
+        "p50": 0,
+        "p90": 1,
+        "max": 1
+      }
+    }
+  },
+  "cohorts": [
+    {
+      "slice": {
+        "language": "en"
+      },
+      "n": 28,
+      "metrics": {
+        "organize.schema_valid": {
+          "n": 28,
+          "missing": 0,
+          "mean": 1,
+          "min": 1,
+          "p50": 1,
+          "p90": 1,
+          "max": 1
+        },
+        "organize.thought_coverage": {
+          "n": 28,
+          "missing": 0,
+          "mean": 1,
+          "min": 1,
+          "p50": 1,
+          "p90": 1,
+          "max": 1
+        },
+        "organize.thought_count_f1": {
+          "n": 28,
+          "missing": 0,
+          "mean": 1,
+          "min": 1,
+          "p50": 1,
+          "p90": 1,
+          "max": 1
+        },
+        "organize.task_precision": {
+          "n": 28,
+          "missing": 0,
+          "mean": 0.75,
+          "min": 0,
+          "p50": 1,
+          "p90": 1,
+          "max": 1
+        },
+        "organize.task_recall": {
+          "n": 28,
+          "missing": 0,
+          "mean": 1,
+          "min": 1,
+          "p50": 1,
+          "p90": 1,
+          "max": 1
+        },
+        "organize.provenance_fidelity": {
+          "n": 28,
+          "missing": 0,
+          "mean": 1,
+          "min": 1,
+          "p50": 1,
+          "p90": 1,
+          "max": 1
+        },
+        "route.mode_accuracy": {
+          "n": 28,
+          "missing": 0,
+          "mean": 0.7857142857142857,
+          "min": 0,
+          "p50": 1,
+          "p90": 1,
+          "max": 1
+        },
+        "final.placement_acceptance": {
+          "n": 28,
+          "missing": 0,
+          "mean": 0.4642857142857143,
+          "min": 0,
+          "p50": 0,
+          "p90": 1,
+          "max": 1
+        },
+        "review.pending_rate": {
+          "n": 28,
+          "missing": 0,
+          "mean": 0.25,
+          "min": 0,
+          "p50": 0,
+          "p90": 1,
+          "max": 1
+        },
+        "mint.precision": {
+          "n": 7,
+          "missing": 21,
+          "mean": 0.7142857142857143,
+          "min": 0,
+          "p50": 1,
+          "p90": 1,
+          "max": 1
+        },
+        "mint.recall": {
+          "n": 9,
+          "missing": 19,
+          "mean": 0.5555555555555556,
+          "min": 0,
+          "p50": 1,
+          "p90": 1,
+          "max": 1
+        },
+        "mint.exact_name": {
+          "n": 9,
+          "missing": 19,
+          "mean": 0.2222222222222222,
+          "min": 0,
+          "p50": 0,
+          "p90": 1,
+          "max": 1
+        },
+        "mint.validator_pass": {
+          "n": 7,
+          "missing": 21,
+          "mean": 1,
+          "min": 1,
+          "p50": 1,
+          "p90": 1,
+          "max": 1
+        },
+        "tasks.hard_rule": {
+          "n": 11,
+          "missing": 17,
+          "mean": 1,
+          "min": 1,
+          "p50": 1,
+          "p90": 1,
+          "max": 1
+        },
+        "route.join_id_accuracy": {
+          "n": 19,
+          "missing": 9,
+          "mean": 0.6842105263157895,
+          "min": 0,
+          "p50": 1,
+          "p90": 1,
+          "max": 1
+        },
+        "route.joined_conflict_rate": {
+          "n": 19,
+          "missing": 9,
+          "mean": 0.2631578947368421,
+          "min": 0,
+          "p50": 0,
+          "p90": 1,
+          "max": 1
+        }
+      },
+      "hardFailures": 0
+    }
+  ],
+  "redactionNote": "Contains case IDs, scores, model/config fingerprints, and machine tokens only. No transcript text, credentials, gateway error bodies, or personal data are recorded."
+}

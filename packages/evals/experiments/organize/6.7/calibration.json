@@ -1,0 +1,98 @@
+{
+  "schema": "donna.near-duplicate-calibration.v1",
+  "spec": "6.7",
+  "calibratedAt": "2026-09-05T16:14:26.426Z",
+  "embedderModel": "text-embedding-3-large",
+  "thresholdCandidate": 0.88,
+  "syntheticPairs": 12,
+  "rows": [
+    {
+      "kind": "near-duplicate",
+      "leftName": "Vendor Contracts",
+      "rightName": "Vendor Agreements",
+      "similarity": 0.9428,
+      "flagged": true
+    },
+    {
+      "kind": "near-duplicate",
+      "leftName": "Project Atlas",
+      "rightName": "Atlas Project",
+      "similarity": 0.93535,
+      "flagged": true
+    },
+    {
+      "kind": "near-duplicate",
+      "leftName": "Hiring",
+      "rightName": "Recruiting",
+      "similarity": 0.97959,
+      "flagged": true
+    },
+    {
+      "kind": "near-duplicate",
+      "leftName": "Investor Updates",
+      "rightName": "Investor Communications",
+      "similarity": 0.88553,
+      "flagged": true
+    },
+    {
+      "kind": "near-duplicate",
+      "leftName": "Launch Readiness",
+      "rightName": "Launch Prep",
+      "similarity": 0.895,
+      "flagged": true
+    },
+    {
+      "kind": "near-duplicate",
+      "leftName": "Onboarding Improvements",
+      "rightName": "Onboarding Fixes",
+      "similarity": 0.92054,
+      "flagged": true
+    },
+    {
+      "kind": "distinct",
+      "leftName": "Vendor Contracts",
+      "rightName": "Gardening",
+      "similarity": 0.22021,
+      "flagged": false
+    },
+    {
+      "kind": "distinct",
+      "leftName": "Project Atlas",
+      "rightName": "Dental",
+      "similarity": 0.2096,
+      "flagged": false
+    },
+    {
+      "kind": "distinct",
+      "leftName": "Hiring",
+      "rightName": "Investor Updates",
+      "similarity": 0.32453,
+      "flagged": false
+    },
+    {
+      "kind": "distinct",
+      "leftName": "Launch Readiness",
+      "rightName": "Book Recommendations",
+      "similarity": 0.2941,
+      "flagged": false
+    },
+    {
+      "kind": "distinct",
+      "leftName": "M365 Migration",
+      "rightName": "Team Offsite",
+      "similarity": 0.38451,
+      "flagged": false
+    },
+    {
+      "kind": "distinct",
+      "leftName": "Product Ideas",
+      "rightName": "Expense Policy",
+      "similarity": 0.28516,
+      "flagged": false
+    }
+  ],
+  "falseNegatives": 0,
+  "falsePositives": 0,
+  "separationOk": true,
+  "note": "Synthetic fixtures only; frozen before live dev result interpretation. Never calibrated on pilot or private data."
+}

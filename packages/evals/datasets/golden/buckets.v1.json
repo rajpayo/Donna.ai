@@ -1,0 +1,64 @@
+{
+  "name": "buckets.v1",
+  "description": "Bucket-assignment cases: given existing buckets and a new thought, where should it land? Seeded from real demo misfires (2026-09-02). Consumed by the Phase 4 bucket-assignment scorer.",
+  "cases": [
+    {
+      "id": "onboarding-duplicate-misfire-01",
+      "source": "live demo misfire, WhatsApp voice capture 2026-09-02",
+      "existingBuckets": [
+        { "name": "Onboarding improvements", "description": "Ideas and experiments to reduce onboarding drop-off and improve user activation." },
+        { "name": "Tasks", "description": "Commitments and action items extracted from voice notes." },
+        { "name": "Vendor management", "description": "Issues, timelines, and communications with external vendors." }
+      ],
+      "thought": {
+        "summary": "Import contacts from Gmail to reduce onboarding drop-off",
+        "text": "What if we just let users import contacts straight from Gmail? Could kill the onboarding drop-off.",
+        "isTask": false
+      },
+      "expected": {
+        "action": "join",
+        "bucket": "Onboarding improvements",
+        "mustNotCreate": ["Onboarding improvements"]
+      },
+      "notes": "Observed: engine minted a duplicate 'Onboarding improvements' bucket. Embedding sim to existing centroid was 0.640 vs create_threshold 0.65 (near-miss), AND the organizer proposed the identical bucket name — name-collision guard added to engine. Threshold tuning itself is a Phase 4 measured decision."
+    },
+    {
+      "id": "onboarding-prefill-misfire-02",
+      "source": "live demo misfire, synthetic capture 2026-09-02",
+      "existingBuckets": [
+        { "name": "Onboarding improvements", "description": "Ideas and experiments to reduce onboarding drop-off and improve user activation." },
+        { "name": "Tasks", "description": "Commitments and action items extracted from voice notes." }
+      ],
+      "thought": {
+        "summary": "Test pre-filling the onboarding form from invite links",
+        "text": "One more onboarding idea: what if we prefill the form from the invite link? That is worth testing.",
+        "isTask": false
+      },
+      "expected": {
+        "action": "join",
+        "bucket": "Onboarding improvements",
+        "mustNotCreate": ["Onboarding improvements"]
+      },
+      "notes": "Observed: duplicate bucket minted; sim 0.508-0.518 to existing centroid. Same-topic short thoughts with different surface vocabulary score moderately on text-embedding-3-large@1024 — dataset should accumulate more of these before threshold changes."
+    },
+    {
+      "id": "task-vs-idea-boundary-03",
+      "source": "live demo observation, synthetic capture 2026-09-02",
+      "existingBuckets": [
+        { "name": "Onboarding improvements", "description": "Ideas and experiments to reduce onboarding drop-off." },
+        { "name": "Tasks", "description": "Commitments and action items." }
+      ],
+      "thought": {
+        "summary": "Test removing email verification from onboarding",
+        "text": "We should also test removing the email verification step, that might be causing drop-off too.",
+        "isTask": false
+      },
+      "expected": {
+        "action": "join",
+        "bucket": "Onboarding improvements",
+        "mustNotCreate": []
+      },
+      "notes": "Organizer classed 'we should test X' as a task (drove task precision to 0.61 in the first live eval). Ambiguous phrasing: experiment proposal vs commitment. Human adjudication: experiment ideas belong to the topic bucket unless a concrete owner/deliverable is stated."
+    }
+  ]
+}

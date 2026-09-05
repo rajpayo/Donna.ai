@@ -1,0 +1,69 @@
+{
+  "schema": "donna.eval-dataset.v1",
+  "name": "memory.v1",
+  "stage": "memory",
+  "version": 1,
+  "description": "Memory decision-layer cases: proposal precision (what may enter the quarantined proposal queue — synthetic secrets are materialized by the scorer at runtime, never stored in git), correction adherence (followed/contradicted/not-applicable), and conflict handling (same-subject contradiction → conflict event + explicit supersession).",
+  "defaultMeta": {
+    "provenance": "synthetic",
+    "labeler": "labeler:product-owner",
+    "adjudicator": "labeler:product-owner",
+    "consent": "not-required-synthetic",
+    "sensitivity": "none",
+    "language": "en"
+  },
+  "cases": [
+    {
+      "id": "proposal-precision-01",
+      "kind": "proposal-precision",
+      "given": {
+        "candidates": [
+          { "text": "Prefers short bullet summaries", "kind": "preference", "subject": "preference:summary-style", "shouldEnterQueue": true },
+          { "text": "Recurring theme: onboarding drop-off experiments", "kind": "theme", "subject": "theme:onboarding", "shouldEnterQueue": true },
+          { "syntheticSecret": "password", "kind": "fact", "subject": "fact:credentials", "shouldEnterQueue": false },
+          { "syntheticSecret": "api-token", "kind": "fact", "subject": "fact:api-access", "shouldEnterQueue": false }
+        ]
+      },
+      "expect": { "minPrecision": 1.0 }
+    },
+    {
+      "id": "correction-adherence-01",
+      "kind": "correction-adherence",
+      "meta": { "notes": "keyword-overlap applicability (deterministic path; no embedder)" },
+      "given": {
+        "correction": {
+          "type": "bucket.move",
+          "thoughtSummary": "ACME vendor contract renewal is scheduled for October.",
+          "fromBucketName": "Vendor Contracts",
+          "toBucketName": "Negotiations"
+        },
+        "placements": [
+          { "thoughtText": "The ACME vendor contract renewal moved to late October.", "placedBucket": "Negotiations", "expect": "followed" },
+          { "thoughtText": "ACME vendor contract renewal terms need a countersign.", "placedBucket": "Vendor Contracts", "expect": "contradicted" },
+          { "thoughtText": "The onboarding checklist needs a refresh.", "placedBucket": "Onboarding improvements", "expect": "not-applicable" }
+        ]
+      },
+      "expect": { "followed": 1, "contradicted": 1, "notApplicable": 1 }
+    },
+    {
+      "id": "conflict-handling-01",
+      "kind": "conflict-handling",
+      "given": {
+        "existing": { "text": "Prefers short bullet summaries", "kind": "preference", "subject": "preference:summary-style" },
+        "incoming": { "text": "Prefers long narrative summaries", "kind": "preference", "subject": "preference:summary-style" }
+      },
+      "expect": { "conflictDetected": true, "resolvedBy": "supersession" }
+    },
+    {
+      "id": "conflict-handling-02",
+      "kind": "conflict-handling",
+      "meta": { "notes": "same subject AND same text is a restatement, not a conflict" },
+      "given": {
+        "existing": { "text": "Prefers short bullet summaries", "kind": "preference", "subject": "preference:summary-style" },
+        "incoming": { "text": "Prefers short bullet summaries", "kind": "preference", "subject": "preference:summary-style" }
+      },
+      "expect": { "conflictDetected": false }
+    }
+  ],
+  "adjudications": []
+}

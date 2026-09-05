@@ -1,0 +1,341 @@
+{
+  "schema": "donna.eval-report.v1",
+  "stage": "full-loop",
+  "dataset": {
+    "name": "full-loop.v1",
+    "version": 1,
+    "sha256": "9a4b8d9f76da3433d3a809fd27a06dfba9590ecaa0e7f1b82d363499b843d165",
+    "cases": 2
+  },
+  "snapshot": {
+    "schema": "donna.config-snapshot.v1",
+    "commit": "c0ffcb3600e63aa949f285965d67cb2eeafbdb10",
+    "branch": "cursor/import-mvp-scaffold-b430",
+    "dirty": true,
+    "modelsConfig": {
+      "path": "/workspace/models.config.yaml",
+      "sha256": "8a0c4462662bfe4836bbd7bc0651fa359cd2210c772dcb0ec6031e6fe5a237e3"
+    },
+    "dataset": {
+      "name": "full-loop.v1",
+      "version": 1,
+      "sha256": "9a4b8d9f76da3433d3a809fd27a06dfba9590ecaa0e7f1b82d363499b843d165"
+    },
+    "versions": {
+      "organizePrompt": "donna.organize-prompt.v2",
+      "organizeSchema": "donna.organize.v1",
+      "answerPrompt": "donna.answer-prompt.v1",
+      "emotionAnalyzer": "donna.emotion-heuristic.v1"
+    },
+    "ranking": {
+      "rankingVersion": "donna.hybrid-ranking.v1",
+      "weights": {
+        "text": 0.3,
+        "semantic": 0.3,
+        "bucketAffinity": 0.1,
+        "recency": 0.1,
+        "personalization": 0.15,
+        "taskMatch": 0.05
+      },
+      "recencyHalfLifeDays": 30,
+      "candidateLimit": 100,
+      "minScore": 0.2
+    },
+    "memoryPolicy": {
+      "contextBudgets": {
+        "maxTokens": 1200,
+        "maxItems": 24,
+        "recentCaptures": 3,
+        "maxMemories": 12,
+        "maxBucketSummaries": 10,
+        "maxCorrectionExamples": 3
+      },
+      "adherenceSemanticThreshold": 0.5
+    },
+    "bucketTuning": {
+      "assignThreshold": 0.82,
+      "createThreshold": 0.65
+    },
+    "environment": {
+      "node": "v22.14.0",
+      "platform": "linux",
+      "arch": "x64",
+      "ci": false
+    },
+    "capturedAt": "2026-09-03T15:32:55.573Z"
+  },
+  "fingerprint": "3b7b61fa5eb4694deefee37500148cda7ccaf143fd2f85810313a84af9c0bca9",
+  "startedAt": "2026-09-03T15:32:55.575Z",
+  "finishedAt": "2026-09-03T15:32:55.610Z",
+  "durationMs": 35,
+  "cases": [
+    {
+      "caseId": "weekly-evolution-01/c1",
+      "scores": {
+        "loop.accepted": 1,
+        "routing.escalated": 0,
+        "loop.tasks_hard_rule": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 13,
+      "notes": [
+        "thoughts:2",
+        "stt-ms:0",
+        "organize-ms:2",
+        "embed-ms:0",
+        "wall-ms:13"
+      ],
+      "cohort": {
+        "language": "en"
+      }
+    },
+    {
+      "caseId": "weekly-evolution-01/c2",
+      "scores": {
+        "loop.accepted": 1,
+        "routing.escalated": 0,
+        "loop.tasks_hard_rule": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 2,
+      "notes": [
+        "thoughts:1",
+        "stt-ms:0",
+        "organize-ms:1",
+        "embed-ms:0",
+        "wall-ms:3"
+      ],
+      "cohort": {
+        "language": "en"
+      }
+    },
+    {
+      "caseId": "weekly-evolution-01/c3",
+      "scores": {
+        "loop.accepted": 1,
+        "routing.escalated": 0,
+        "loop.tasks_hard_rule": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 3,
+      "notes": [
+        "thoughts:1",
+        "stt-ms:0",
+        "organize-ms:2",
+        "embed-ms:0",
+        "wall-ms:3"
+      ],
+      "cohort": {
+        "language": "en"
+      }
+    },
+    {
+      "caseId": "weekly-evolution-01/summary",
+      "scores": {
+        "loop.bucket_state_correct": 1,
+        "loop.tasks_final_in_tasks": 1,
+        "loop.adherence_as_expected": 1
+      },
+      "hardFailures": [],
+      "notes": [
+        "buckets:Growth Experiments|Onboarding improvements|Tasks",
+        "followed:1",
+        "contradicted:0",
+        "accepted-loops:3",
+        "personalized:true"
+      ],
+      "cohort": {
+        "language": "en"
+      }
+    },
+    {
+      "caseId": "tasks-hard-rule-02/c1",
+      "scores": {
+        "loop.accepted": 1,
+        "routing.escalated": 0,
+        "loop.tasks_hard_rule": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 3,
+      "notes": [
+        "thoughts:1",
+        "stt-ms:0",
+        "organize-ms:0",
+        "embed-ms:0",
+        "wall-ms:3"
+      ],
+      "cohort": {
+        "language": "en"
+      }
+    },
+    {
+      "caseId": "tasks-hard-rule-02/c2",
+      "scores": {
+        "loop.accepted": 1,
+        "routing.escalated": 0,
+        "loop.tasks_hard_rule": 1
+      },
+      "hardFailures": [],
+      "latencyMs": 3,
+      "notes": [
+        "thoughts:1",
+        "stt-ms:0",
+        "organize-ms:1",
+        "embed-ms:0",
+        "wall-ms:3"
+      ],
+      "cohort": {
+        "language": "en"
+      }
+    },
+    {
+      "caseId": "tasks-hard-rule-02/summary",
+      "scores": {
+        "loop.bucket_state_correct": 1,
+        "loop.tasks_final_in_tasks": 1,
+        "loop.adherence_as_expected": 1
+      },
+      "hardFailures": [],
+      "notes": [
+        "buckets:Growth Experiments|Onboarding improvements|Tasks",
+        "followed:0",
+        "contradicted:1",
+        "accepted-loops:2",
+        "personalized:true"
+      ],
+      "cohort": {
+        "language": "en"
+      }
+    }
+  ],
+  "aggregate": {
+    "casesRun": 7,
+    "casesErrored": 0,
+    "externalErrors": 0,
+    "productErrors": 0,
+    "hardFailureCount": 0,
+    "hardFailures": [],
+    "metrics": {
+      "loop.accepted": {
+        "n": 5,
+        "missing": 2,
+        "mean": 1,
+        "min": 1,
+        "p50": 1,
+        "p90": 1,
+        "max": 1
+      },
+      "routing.escalated": {
+        "n": 5,
+        "missing": 2,
+        "mean": 0,
+        "min": 0,
+        "p50": 0,
+        "p90": 0,
+        "max": 0
+      },
+      "loop.tasks_hard_rule": {
+        "n": 5,
+        "missing": 2,
+        "mean": 1,
+        "min": 1,
+        "p50": 1,
+        "p90": 1,
+        "max": 1
+      },
+      "loop.bucket_state_correct": {
+        "n": 2,
+        "missing": 5,
+        "mean": 1,
+        "min": 1,
+        "p50": 1,
+        "p90": 1,
+        "max": 1
+      },
+      "loop.tasks_final_in_tasks": {
+        "n": 2,
+        "missing": 5,
+        "mean": 1,
+        "min": 1,
+        "p50": 1,
+        "p90": 1,
+        "max": 1
+      },
+      "loop.adherence_as_expected": {
+        "n": 2,
+        "missing": 5,
+        "mean": 1,
+        "min": 1,
+        "p50": 1,
+        "p90": 1,
+        "max": 1
+      }
+    }
+  },
+  "cohorts": [
+    {
+      "slice": {
+        "language": "en"
+      },
+      "n": 7,
+      "metrics": {
+        "loop.accepted": {
+          "n": 5,
+          "missing": 2,
+          "mean": 1,
+          "min": 1,
+          "p50": 1,
+          "p90": 1,
+          "max": 1
+        },
+        "routing.escalated": {
+          "n": 5,
+          "missing": 2,
+          "mean": 0,
+          "min": 0,
+          "p50": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "loop.tasks_hard_rule": {
+          "n": 5,
+          "missing": 2,
+          "mean": 1,
+          "min": 1,
+          "p50": 1,
+          "p90": 1,
+          "max": 1
+        },
+        "loop.bucket_state_correct": {
+          "n": 2,
+          "missing": 5,
+          "mean": 1,
+          "min": 1,
+          "p50": 1,
+          "p90": 1,
+          "max": 1
+        },
+        "loop.tasks_final_in_tasks": {
+          "n": 2,
+          "missing": 5,
+          "mean": 1,
+          "min": 1,
+          "p50": 1,
+          "p90": 1,
+          "max": 1
+        },
+        "loop.adherence_as_expected": {
+          "n": 2,
+          "missing": 5,
+          "mean": 1,
+          "min": 1,
+          "p50": 1,
+          "p90": 1,
+          "max": 1
+        }
+      },
+      "hardFailures": 0
+    }
+  ],
+  "redactionNote": "Contains case IDs, scores, model/config fingerprints, and machine tokens only. No transcript text, credentials, gateway error bodies, or personal data are recorded."
+}

@@ -1,0 +1,46 @@
+{
+  "name": "emotion.v1",
+  "description": "Calibration cases for the deterministic session emotion/intent heuristic (Spec 2.4 AC-3). Synthetic texts only; measures false-confident inference and abstention.",
+  "cases": [
+    {
+      "id": "frustration-clear-01",
+      "text": "This is the third time the deploy pipeline failed this week. It is honestly ridiculous and I am fed up with it.",
+      "expect": { "label": "frustration", "minConfidence": 0.4 }
+    },
+    {
+      "id": "urgency-clear-01",
+      "text": "We need the board deck finished by Friday, this is urgent, please treat it as the deadline.",
+      "expect": { "label": "urgency", "minConfidence": 0.4 }
+    },
+    {
+      "id": "uncertainty-clear-01",
+      "text": "I am not sure whether we should hire now or wait. Maybe we revisit it next quarter, I think.",
+      "expect": { "label": "uncertainty", "minConfidence": 0.4 }
+    },
+    {
+      "id": "positive-clear-01",
+      "text": "The launch went great and the team did a fantastic job. I love how it came together.",
+      "expect": { "label": "positive", "minConfidence": 0.4 }
+    },
+    {
+      "id": "neutral-abstain-01",
+      "text": "The vendor renewal is in October and covers twelve seats on the current plan.",
+      "expect": { "abstain": true }
+    },
+    {
+      "id": "ambiguous-abstain-02",
+      "text": "Interesting idea from the offsite about pricing tiers for the mid-market segment.",
+      "expect": { "abstain": true }
+    },
+    {
+      "id": "process-abstain-03",
+      "text": "Standup moved to nine thirty on Tuesdays. The sprint board has fourteen open tickets.",
+      "expect": { "abstain": true }
+    },
+    {
+      "id": "mixed-capped-01",
+      "text": "The launch went well and the team celebrated, though the metrics dashboard is late again and that is annoying.",
+      "expect": { "maxConfidence": 0.7 }
+    }
+  ]
+}

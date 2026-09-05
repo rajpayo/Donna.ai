@@ -1,0 +1,128 @@
+# Donna eval CI (Specification 4.3)
+#
+# Two jobs:
+#   - deterministic: runs on every PR and push. No secrets or external APIs —
+#     unit tests (including PostgreSQL + pgvector RLS), typecheck, dataset
+#     validation, and deterministic eval stages compared against the accepted
+#     baselines in packages/evals/baselines/. Merge-blocking: any hard safety failure
+#     (tenant leak, invalid provenance, unapproved write, duplicate
+#     action) or material regression fails the job.
+#   - live-gateway: the credentialed suite. Manual trigger only
+#     (workflow_dispatch) — it NEVER runs on PRs and NEVER fails a PR for
+#     missing secrets. When the TrueFoundry secrets are not configured the
+#     job skips itself successfully.
+name: eval
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: Why the credentialed live suite is being run
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  deterministic:
+    runs-on: ubuntu-latest
+    env:
+      DONNA_TEST_DATABASE_URL: postgresql://donna_app@localhost:5432/donna_test
+      DONNA_TEST_ADMIN_URL: postgresql://postgres@localhost:5432/donna_test
+      DONNA_TEST_BACKUP_URL: postgresql://postgres@localhost:5432/donna_test
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.1-pg16@sha256:33198da2828a14c30348d2ccb4750833d5ed9a44c88d840a0e523d7417120337
+        env:
+          POSTGRES_DB: donna_test
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d donna_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci --no-audit --no-fund
+
+      - name: Create the RLS-bound application role
+        run: >-
+          psql "$DONNA_TEST_ADMIN_URL" -v ON_ERROR_STOP=1
+          -c "CREATE ROLE donna_app LOGIN"
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit and PostgreSQL integration tests
+        run: npm test
+
+      - name: Validate eval datasets (schema, consent, metadata)
+        run: npm run eval:harness --workspace @donna/evals -- validate
+
+      - name: Deterministic eval stages vs accepted baselines
+        run: npm run eval:harness --workspace @donna/evals -- check
+
+  live-gateway:
+    runs-on: ubuntu-latest
+    # Guarded: manual trigger only. Never runs on PRs, so a fork or a
+    # missing secret can never fail a pull request.
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci --no-audit --no-fund
+
+      - name: Check gateway credentials (skips cleanly when absent)
+        id: creds
+        env:
+          TRUEFOUNDRY_BASE_URL: ${{ secrets.TRUEFOUNDRY_BASE_URL }}
+          TRUEFOUNDRY_API_KEY: ${{ secrets.TRUEFOUNDRY_API_KEY }}
+        run: |
+          if [ -z "${TRUEFOUNDRY_BASE_URL:-}" ] || [ -z "${TRUEFOUNDRY_API_KEY:-}" ]; then
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::TrueFoundry secrets not configured — the live suite is skipped (this is never a failure)."
+          else
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Live gateway stages (transcribe, organize, retrieval, full-loop)
+        if: steps.creds.outputs.present == 'true'
+        env:
+          TRUEFOUNDRY_BASE_URL: ${{ secrets.TRUEFOUNDRY_BASE_URL }}
+          TRUEFOUNDRY_API_KEY: ${{ secrets.TRUEFOUNDRY_API_KEY }}
+        run: |
+          set -e
+          cd packages/evals
+          npx tsx src/cli.ts run transcribe
+          npx tsx src/cli.ts run organize
+          npx tsx src/cli.ts run retrieval
+          npx tsx src/cli.ts run full-loop --mode live
+
+      - name: Upload sanitized eval reports
+        if: steps.creds.outputs.present == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-eval-reports
+          path: |
+            packages/evals/reports/transcribe/*.json
+            packages/evals/reports/organize/*.json
+            packages/evals/reports/retrieval/*.json
+            packages/evals/reports/full-loop/*.json
+          retention-days: 14

@@ -1,0 +1,377 @@
+{
+  "schema": "donna.organize-experiment-selection.v1",
+  "spec": "6.6",
+  "planSha256": "3c7a7e09e359090d2e00794f9b08d251915e5ec509477a3b196a1b49b6ee963a",
+  "selectedAt": "2026-09-05T13:33:58.547Z",
+  "tariffOutcome": "C-excluded-no-authoritative-tariff",
+  "reports": [
+    {
+      "candidate": "A",
+      "reports": [
+        {
+          "path": "A/replicate-1.json",
+          "sha256": "24f3547e0fc5c3e0cb10fec2874f1802bb6456f1c9fb1a85e1804fc1e16cc739"
+        },
+        {
+          "path": "A/replicate-2.json",
+          "sha256": "5bafe7ad3d31322dd92544c8e600f0918af55848c18547ec81187fb8246622e4"
+        },
+        {
+          "path": "A/replicate-3.json",
+          "sha256": "7742bc7b382e1b4482c06be2c27fca79f7a5d33f2fe972deef6e7bdbb7e3e05b"
+        }
+      ],
+      "metrics": {
+        "organize.schema_valid": 1,
+        "organize.thought_coverage": 1,
+        "organize.thought_count_f1": 0.996031746031746,
+        "organize.task_precision": 0.8214285714285713,
+        "organize.task_recall": 1,
+        "organize.provenance_fidelity": 1,
+        "organize.bucket_acceptance": 0.5595238095238094,
+        "organize.bucket_acceptance_minted": 0.3333333333333333,
+        "organize.bucket_name_equivalence": 0.3333333333333333,
+        "organize.bucket_acceptance_joined": 0.6666666666666666
+      },
+      "metricCounts": {
+        "organize.schema_valid": {
+          "passed": 84,
+          "n": 84
+        },
+        "organize.thought_coverage": {
+          "passed": 84,
+          "n": 84
+        },
+        "organize.thought_count_f1": {
+          "passed": 83,
+          "n": 84
+        },
+        "organize.task_precision": {
+          "passed": 69,
+          "n": 84
+        },
+        "organize.task_recall": {
+          "passed": 84,
+          "n": 84
+        },
+        "organize.provenance_fidelity": {
+          "passed": 84,
+          "n": 84
+        },
+        "organize.bucket_acceptance": {
+          "passed": 47,
+          "n": 84
+        },
+        "organize.bucket_acceptance_minted": {
+          "passed": 9,
+          "n": 27
+        },
+        "organize.bucket_name_equivalence": {
+          "passed": 9,
+          "n": 27
+        },
+        "organize.bucket_acceptance_joined": {
+          "passed": 38,
+          "n": 57
+        }
+      },
+      "latencyMs": {
+        "n": 84,
+        "mean": 9065.547619047618,
+        "min": 4904,
+        "p50": 8538,
+        "p90": 13033,
+        "max": 18809
+      },
+      "gatewayCost": {
+        "status": "not-reported",
+        "totalUsd": null,
+        "perSuccessfulCaseUsd": null
+      },
+      "tokens": {
+        "prompt": 62043,
+        "completion": 87786,
+        "total": 149829
+      },
+      "cases": {
+        "successful": 84,
+        "errored": 0,
+        "externalErrors": 0,
+        "productErrors": 0
+      },
+      "hardFailures": 0
+    },
+    {
+      "candidate": "A0",
+      "reports": [
+        {
+          "path": "A0/replicate-1.json",
+          "sha256": "ca01e73f1662fae0841a86245175f9dd97b67b0536c2a5f025261a41181312b7"
+        },
+        {
+          "path": "A0/replicate-2.json",
+          "sha256": "358b01ff31ad95d7ff00e4b7ecee8c5336c07507342ea3b0f44092d9e6dda693"
+        },
+        {
+          "path": "A0/replicate-3.json",
+          "sha256": "93fa02d1a938e8cc05108207c13b5678e6a2a9ec9c215e1952cc34f8fa185a4a"
+        }
+      ],
+      "metrics": {
+        "organize.schema_valid": 1,
+        "organize.thought_coverage": 1,
+        "organize.thought_count_f1": 1,
+        "organize.task_precision": 0.7738095238095237,
+        "organize.task_recall": 1,
+        "organize.provenance_fidelity": 1,
+        "organize.bucket_acceptance": 0.5119047619047619,
+        "organize.bucket_acceptance_minted": 0.3333333333333333,
+        "organize.bucket_name_equivalence": 0.3333333333333333,
+        "organize.bucket_acceptance_joined": 0.5964912280701754
+      },
+      "metricCounts": {
+        "organize.schema_valid": {
+          "passed": 84,
+          "n": 84
+        },
+        "organize.thought_coverage": {
+          "passed": 84,
+          "n": 84
+        },
+        "organize.thought_count_f1": {
+          "passed": 84,
+          "n": 84
+        },
+        "organize.task_precision": {
+          "passed": 65,
+          "n": 84
+        },
+        "organize.task_recall": {
+          "passed": 84,
+          "n": 84
+        },
+        "organize.provenance_fidelity": {
+          "passed": 84,
+          "n": 84
+        },
+        "organize.bucket_acceptance": {
+          "passed": 43,
+          "n": 84
+        },
+        "organize.bucket_acceptance_minted": {
+          "passed": 9,
+          "n": 27
+        },
+        "organize.bucket_name_equivalence": {
+          "passed": 9,
+          "n": 27
+        },
+        "organize.bucket_acceptance_joined": {
+          "passed": 34,
+          "n": 57
+        }
+      },
+      "latencyMs": {
+        "n": 84,
+        "mean": 9521.809523809523,
+        "min": 4524,
+        "p50": 9205,
+        "p90": 13398,
+        "max": 16082
+      },
+      "gatewayCost": {
+        "status": "not-reported",
+        "totalUsd": null,
+        "perSuccessfulCaseUsd": null
+      },
+      "tokens": {
+        "prompt": 62043,
+        "completion": 87830,
+        "total": 149873
+      },
+      "cases": {
+        "successful": 84,
+        "errored": 0,
+        "externalErrors": 0,
+        "productErrors": 0
+      },
+      "hardFailures": 0
+    },
+    {
+      "candidate": "B",
+      "reports": [
+        {
+          "path": "B/replicate-1.json",
+          "sha256": "75c4e1278fe0bd5d9e26db8b971cfc2d46c37a48b16c0d6900daae86ac5eea0d"
+        },
+        {
+          "path": "B/replicate-2.json",
+          "sha256": "8155882c07b8a80fe438938f500749d1a5ffd2783f8cb05400903c2b4189e0a0"
+        },
+        {
+          "path": "B/replicate-3.json",
+          "sha256": "db2fe6e95848317d9b33184ba7a7a70a00a0dd146f7758096d9338206154fd01"
+        }
+      ],
+      "metrics": {
+        "organize.schema_valid": 1,
+        "organize.thought_coverage": 1,
+        "organize.thought_count_f1": 0.996031746031746,
+        "organize.task_precision": 0.6547619047619048,
+        "organize.task_recall": 1,
+        "organize.provenance_fidelity": 1,
+        "organize.bucket_acceptance": 0.4523809523809524,
+        "organize.bucket_acceptance_minted": 0.1851851851851852,
+        "organize.bucket_name_equivalence": 0.1851851851851852,
+        "organize.bucket_acceptance_joined": 0.5789473684210527
+      },
+      "metricCounts": {
+        "organize.schema_valid": {
+          "passed": 84,
+          "n": 84
+        },
+        "organize.thought_coverage": {
+          "passed": 84,
+          "n": 84
+        },
+        "organize.thought_count_f1": {
+          "passed": 83,
+          "n": 84
+        },
+        "organize.task_precision": {
+          "passed": 55,
+          "n": 84
+        },
+        "organize.task_recall": {
+          "passed": 84,
+          "n": 84
+        },
+        "organize.provenance_fidelity": {
+          "passed": 84,
+          "n": 84
+        },
+        "organize.bucket_acceptance": {
+          "passed": 38,
+          "n": 84
+        },
+        "organize.bucket_acceptance_minted": {
+          "passed": 5,
+          "n": 27
+        },
+        "organize.bucket_name_equivalence": {
+          "passed": 5,
+          "n": 27
+        },
+        "organize.bucket_acceptance_joined": {
+          "passed": 33,
+          "n": 57
+        }
+      },
+      "latencyMs": {
+        "n": 84,
+        "mean": 10503.238095238095,
+        "min": 6301,
+        "p50": 10080,
+        "p90": 15474,
+        "max": 19304
+      },
+      "gatewayCost": {
+        "status": "not-reported",
+        "totalUsd": null,
+        "perSuccessfulCaseUsd": null
+      },
+      "tokens": {
+        "prompt": 76155,
+        "completion": 98890,
+        "total": 175045
+      },
+      "cases": {
+        "successful": 84,
+        "errored": 0,
+        "externalErrors": 0,
+        "productErrors": 0
+      },
+      "hardFailures": 0
+    }
+  ],
+  "comparisons": [
+    {
+      "label": "A-vs-A0:temperature",
+      "metricDeltas": {
+        "organize.bucket_acceptance": -0.04761904761904756,
+        "organize.bucket_acceptance_joined": -0.07017543859649122,
+        "organize.bucket_acceptance_minted": 0,
+        "organize.bucket_name_equivalence": 0,
+        "organize.provenance_fidelity": 0,
+        "organize.schema_valid": 0,
+        "organize.task_precision": -0.04761904761904756,
+        "organize.task_recall": 0,
+        "organize.thought_count_f1": 0.003968253968253954,
+        "organize.thought_coverage": 0
+      },
+      "latencyP90DeltaMs": 365
+    },
+    {
+      "label": "A0-vs-B:prompt",
+      "metricDeltas": {
+        "organize.bucket_acceptance": -0.05952380952380948,
+        "organize.bucket_acceptance_joined": -0.01754385964912275,
+        "organize.bucket_acceptance_minted": -0.1481481481481481,
+        "organize.bucket_name_equivalence": -0.1481481481481481,
+        "organize.provenance_fidelity": 0,
+        "organize.schema_valid": 0,
+        "organize.task_precision": -0.11904761904761896,
+        "organize.task_recall": 0,
+        "organize.thought_count_f1": -0.003968253968253954,
+        "organize.thought_coverage": 0
+      },
+      "latencyP90DeltaMs": 2076
+    }
+  ],
+  "eligibility": [
+    {
+      "candidate": "A",
+      "eligible": false,
+      "failures": [
+        "bucket-overall",
+        "bucket-joined",
+        "bucket-minted"
+      ],
+      "passesAllExceptMinted": false,
+      "rubricPass": false
+    },
+    {
+      "candidate": "A0",
+      "eligible": false,
+      "failures": [
+        "bucket-overall",
+        "bucket-joined",
+        "bucket-minted",
+        "task-precision-below-A"
+      ],
+      "passesAllExceptMinted": false,
+      "rubricPass": false
+    },
+    {
+      "candidate": "B",
+      "eligible": false,
+      "failures": [
+        "bucket-overall",
+        "bucket-joined",
+        "bucket-minted",
+        "task-precision-below-A"
+      ],
+      "passesAllExceptMinted": false,
+      "rubricPass": false
+    }
+  ],
+  "outcome": {
+    "kind": "none"
+  },
+  "review": {
+    "rubricSha256": "46357cb114d9d28f28bab79c5a7be07e133e9317f212d83c1ef567c221910b52",
+    "packetSha256": "33dc4afbd19d7158526179675bfce50c8f6bcafa9ada61809cb56339c75a3b70",
+    "reviewSha256": "53d4652b834935de45301ced2bafd8ea32572dcd1a78186d5c6a49804f859550",
+    "diagnosticOnly": true
+  }
+}

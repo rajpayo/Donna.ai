@@ -1,0 +1,30 @@
+{
+  "name": "@donna/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "test": "tsx --test src/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@donna/buckets": "*",
+    "@donna/core": "*",
+    "@donna/destinations": "*",
+    "@donna/evals": "*",
+    "@donna/file-security": "*",
+    "@donna/integrations-m365": "*",
+    "@donna/memory": "*",
+    "@donna/pipeline": "*",
+    "@donna/pilot": "*",
+    "@donna/privacy": "*",
+    "@donna/providers": "*",
+    "@donna/retrieval": "*",
+    "dotenv": "^17.4.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0"
+  }
+}

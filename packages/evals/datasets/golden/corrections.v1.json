@@ -1,0 +1,24 @@
+{
+  "name": "corrections.v1",
+  "description": "De-identified golden cases promoted from accepted user corrections with explicit eval-sharing consent. Never contains tenant/user IDs.",
+  "cases": [
+    {
+      "id": "52e90ff0-7690-4289-afed-c25fdd0af990",
+      "type": "bucket.move",
+      "thoughtSummary": "ACME vendor contract renewal is scheduled for October.",
+      "fromBucketName": "Vendor Contracts",
+      "toBucketName": "Negotiations",
+      "promotedAt": "2026-09-03T11:54:14.672Z",
+      "source": "consented-correction-deidentified"
+    },
+    {
+      "id": "4d7e4b5c-1e44-4dbd-8abf-8c361f4488ff",
+      "type": "bucket.move",
+      "thoughtSummary": "Add quiet mode to vendor portal to hide badges",
+      "fromBucketName": "Product Ideas",
+      "toBucketName": "Vendor Portal",
+      "promotedAt": "2026-09-03T18:14:31.431Z",
+      "source": "consented-correction-deidentified"
+    }
+  ]
+}

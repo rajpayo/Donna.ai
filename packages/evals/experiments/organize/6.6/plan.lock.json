@@ -1,0 +1,6 @@
+{
+  "schema": "donna.organize-experiment-lock.v1",
+  "planSha256": "3c7a7e09e359090d2e00794f9b08d251915e5ec509477a3b196a1b49b6ee963a",
+  "lockedAt": "2026-09-05T12:15:00.000Z",
+  "mutationAfterResults": "forbidden"
+}
