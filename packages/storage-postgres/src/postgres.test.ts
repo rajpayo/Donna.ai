@@ -38,7 +38,33 @@ import {
   PostgresMemoryStore,
 } from "./memory-stores.pg.js";
 import { PostgresRetrievalIndex } from "./retrieval-index.pg.js";
+import { PostgresPendingPlacementStore } from "./pending-store.pg.js";
 import { importFileFixtures } from "./import-file.js";
+import type { PendingPlacement } from "@donna/core";
+
+/** Spec 6.7 pending-placement fixture (scoped, minimal verified thought). */
+function pendingRecord(tenantId: string, userId: string, id: string): PendingPlacement {
+  return {
+    id,
+    tenantId,
+    userId,
+    thought: makeThought(tenantId, userId, `th-${id}`, "pending thought", [1, 0, 0], "2026-09-05T00:00:00.000Z", {
+      provenance: {
+        captureId: "cap-pg",
+        segmentIds: ["seg-0"],
+        sourceText: "pending thought",
+        startSec: 0,
+        endSec: 1,
+      },
+    }),
+    proposal: { mode: "new", name: "Vendor Contracts", description: "Renewals." },
+    reason: "naming-invalid",
+    candidates: [],
+    allowlistHash: "0".repeat(64),
+    createdAt: "2026-09-05T00:00:00.000Z",
+    status: "pending",
+  };
+}
 
 const execFileAsync = promisify(execFile);
 
@@ -118,7 +144,8 @@ describe("PostgreSQL storage (Spec 3.2)", { skip: !DB_AVAILABLE }, () => {
   it("AC-1: clean install, idempotent up, down, and re-up", async () => {
     await migrateDown(adminPool, MIGRATIONS_DIR);
     const first = await migrateUp(adminPool, MIGRATIONS_DIR);
-    assert.deepEqual(first.applied, [1]);
+    // Spec 6.7: migration 0002 (pending placements + canonical keys).
+    assert.deepEqual(first.applied, [1, 2]);
     const second = await migrateUp(adminPool, MIGRATIONS_DIR);
     assert.deepEqual(second.applied, []);
     // All tables exist.
@@ -137,6 +164,7 @@ describe("PostgreSQL storage (Spec 3.2)", { skip: !DB_AVAILABLE }, () => {
       "consents",
       "corrections",
       "retrieval_index",
+      "pending_placements",
       "schema_migrations",
     ]) {
       assert.ok(names.includes(expected), `missing table ${expected}`);
@@ -148,7 +176,7 @@ describe("PostgreSQL storage (Spec 3.2)", { skip: !DB_AVAILABLE }, () => {
     assert.equal(ext.rows.length, 1);
     // Down rolls back cleanly, and re-up restores (rollback path).
     const down = await migrateDown(adminPool, MIGRATIONS_DIR);
-    assert.deepEqual(down.rolledBack, [1]);
+    assert.deepEqual(down.rolledBack, [2, 1]);
     const after2 = await adminPool.query<{ tablename: string }>(
       `SELECT tablename FROM pg_tables WHERE schemaname = 'public'`,
     );
@@ -625,5 +653,69 @@ describe("PostgreSQL storage (Spec 3.2)", { skip: !DB_AVAILABLE }, () => {
       await adminPool.query(`DROP DATABASE IF EXISTS ${restoreDb}`);
       await rm(dumpDir, { recursive: true, force: true });
     }
+  });
+
+  /* ------------------ Spec 6.7: pending placements ------------------ */
+
+  it("6.7: migration 0002 down refuses to drop unresolved pending placements", async () => {
+    await migrateUp(adminPool, MIGRATIONS_DIR);
+    const pending = new PostgresPendingPlacementStore(appPool);
+    const tenant = `t-${Math.random().toString(36).slice(2, 8)}`;
+    await pending.save(pendingRecord(tenant, "u-1", "pp-mig"));
+    await assert.rejects(
+      migrateDown(adminPool, MIGRATIONS_DIR, 1),
+      /unresolved pending/,
+    );
+    await pending.deleteAll(tenant, "u-1");
+    // Once resolved/exported, down to 1 and re-up both work.
+    const down = await migrateDown(adminPool, MIGRATIONS_DIR, 1);
+    assert.deepEqual(down.rolledBack, [2]);
+    await migrateUp(adminPool, MIGRATIONS_DIR);
+  });
+
+  it("6.7: canonical-name uniqueness is enforced per user (file-store parity)", async () => {
+    const buckets = new PostgresBucketStore(appPool);
+    const tenant = `t-${Math.random().toString(36).slice(2, 8)}`;
+    await buckets.createBucket(makeBucket(tenant, "u-1", `b-${tenant}-1`, "Vendor Contracts"));
+    // Same canonical key (case/whitespace fold) fails closed.
+    await assert.rejects(
+      buckets.createBucket(makeBucket(tenant, "u-1", `b-${tenant}-2`, "vendor  contracts")),
+    );
+    // A different user in the same tenant may reuse the name (scoped).
+    await buckets.createBucket(makeBucket(tenant, "u-2", `b-${tenant}-3`, "Vendor Contracts"));
+    // Rename into a colliding canonical key fails closed.
+    await buckets.createBucket(makeBucket(tenant, "u-1", `b-${tenant}-4`, "Vendor Portal"));
+    await assert.rejects(
+      buckets.renameBucket(tenant, "u-1", `b-${tenant}-4`, "vendor contracts"),
+    );
+  });
+
+  it("6.7: pending placements persist, resolve idempotently, and stay RLS-scoped", async () => {
+    const pending = new PostgresPendingPlacementStore(appPool);
+    const tenant = `t-${Math.random().toString(36).slice(2, 8)}`;
+    await pending.save(pendingRecord(tenant, "u-1", "pp-1"));
+    assert.equal((await pending.list(tenant, "u-1", "pending")).length, 1);
+    // RLS: another scope sees nothing.
+    assert.equal((await pending.list(tenant, "u-other")).length, 0);
+
+    const resolution = {
+      action: "create" as const,
+      bucketId: "b-1",
+      name: "Vendor Contracts",
+      audit: "user-confirmed",
+    };
+    const first = await pending.markResolved(tenant, "u-1", "pp-1", resolution, "2026-09-05T01:00:00.000Z");
+    assert.equal(first.status, "resolved");
+    // Identical replay is a no-op; a conflicting replay fails closed.
+    const replay = await pending.markResolved(tenant, "u-1", "pp-1", resolution, "2026-09-05T01:00:00.000Z");
+    assert.equal(replay.status, "resolved");
+    await assert.rejects(
+      pending.markResolved(tenant, "u-1", "pp-1", { action: "reject", audit: "user-rejected" }, "2026-09-05T01:00:00.000Z"),
+      /different action/,
+    );
+    // Deletion propagation by capture.
+    const removed = await pending.deleteForCapture(tenant, "u-1", "cap-pg");
+    assert.equal(removed.removed, 1);
+    assert.equal((await pending.list(tenant, "u-1")).length, 0);
   });
 });

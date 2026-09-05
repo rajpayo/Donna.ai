@@ -233,7 +233,8 @@ describe("6.7 plan immutability and floors (AC-10)", () => {
   it("the locked plan validates against its lock", async () => {
     const { plan } = await validateLockedV2Plan({ planPath, repoRoot });
     assert.equal(plan.implementation.model, "gpt-5-mini");
-    assert.equal(plan.implementation.nearDuplicateThreshold, 0.9);
+    // Frozen at 0.88 after synthetic-fixture calibration (calibration.json).
+    assert.equal(plan.implementation.nearDuplicateThreshold, 0.88);
   });
 
   it("any plan-byte mutation is detected against the lock", async () => {
