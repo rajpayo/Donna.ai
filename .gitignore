@@ -24,3 +24,4 @@ data/
 
 # Spec 6.7: private blinded-review sources (owner-only, never committed)
 packages/evals/reports/organize/6.7/S/review-source-*.json
+packages/evals/reports/organize/6.7/blinded-review/
