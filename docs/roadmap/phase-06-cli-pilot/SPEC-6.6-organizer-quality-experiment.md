@@ -1175,6 +1175,29 @@ Causal deltas (right minus left):
   design; the exact nine binding runs are the local private reports hashed
   above.
 
+### Blinded minted-name diagnostic follow-up
+
+- On 2026-09-05 the product owner explicitly authorized agent-assisted
+  blinded review under this binding perspective: “Would I be happy if Donna
+  created this bucket, and would I continue using it for future related
+  thoughts?” The five criteria were concise, reusable, correct-topic,
+  distinct-from-existing, and avoids-dates/one-off-action wording.
+- All 81 items and 405 booleans were completed before unblinding. The
+  content-free `review.json` sha256 is
+  `53d4652b834935de45301ced2bafd8ea32572dcd1a78186d5c6a49804f859550`.
+  Pass counts/rates were: concise `38/81` (`46.91%`), reusable `38/81`
+  (`46.91%`), correct-topic `36/81` (`44.44%`),
+  distinct-from-existing `38/81` (`46.91%`), and
+  avoids-dates/one-off-action wording `38/81` (`46.91%`). Overall,
+  `188/405` decisions passed (`46.42%`), with all five passing on `36/81`
+  items (`44.44%`). Four items required resolved rubric judgment about topic
+  breadth; no decision remained ambiguous or unset.
+- The locked-plan `organize-experiment select` command validated the review
+  and emitted `outcome.kind: "none"` with `review.diagnosticOnly: true`.
+  Every candidate still failed multiple binding bucket floors, so the
+  automatic outcome remains **`NONE`**. The review changed no metric, gate,
+  eligibility decision, or winner-selection rule.
+
 ## Review gate
 
 The 2026-09-05 approval authorizes implementation. At implementation start,
