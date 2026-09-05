@@ -2,7 +2,7 @@
 id: "6.7"
 title: "Structured bucket routing and governed minting"
 phase: "06"
-status: "draft"
+status: "approved"
 depends_on: ["6.6"]
 ---
 
@@ -28,9 +28,11 @@ depends_on: ["6.6"]
 > placement acceptance at the unchanged `0.85` graduation threshold; and
 > three fixed dev replicates plus deterministic safety/concurrency tests.
 >
-> Status remains `draft`. These decisions resolve product architecture but do
-> not authorize implementation, config/schema changes, dataset amendment,
-> model runs, held-out runs, or fresh P-00 collection.
+> Status is `approved` (product owner, 2026-09-05). These decisions resolve
+> product architecture; implementation and dev-only evidence collection are
+> authorized. Held-out runs, validation-v3 runs, and fresh P-00 collection
+> remain unauthorized until dev eligibility passes and the product owner
+> separately approves the next step.
 
 ## Outcome
 
@@ -1021,23 +1023,37 @@ Before this specification can move to `in-review`, record:
 
 ## Completion evidence
 
-Intentionally empty. Implementation is forbidden while status is `draft`.
+Implementation is approved (2026-09-05). Evidence is appended below as
+implementation and verification complete.
 
 ## Product-owner decision
 
-**Architecture resolved; implementation approval pending (product owner,
-2026-09-05).** The ten decisions below are binding if this draft is later
-approved. They do not authorize implementation, config/schema changes, dataset
-changes, model runs, validation-v3, fresh evidence, graduation, or Phase 7.
-Status remains `draft`.
+**Approved for implementation (product owner, 2026-09-05).** The product
+owner approved this specification on 2026-09-05 with calibrated expectations,
+recorded verbatim:
+
+> Join accuracy should improve substantially from the structural fix; mint
+> quality may still fail because the same underlying reasoning problem
+> remains. If it fails specifically on minting, that evidence should justify
+> a narrow mint-focused follow-up rather than repeating this architecture.
+> Security, provenance, Tasks, and tenant isolation are not weakened, and
+> this specification alone never unlocks Phase 7.
+
+The ten decisions below are binding. Implementation, the dev-only
+schema/eval migration, config changes, synthetic-fixture threshold
+calibration, and the three fixed live dev replicates are now authorized.
+Validation-v3 runs, a fresh P-00 matrix, held-out/final/graduation runs, and
+Phase 7 remain unauthorized until dev eligibility passes and the product
+owner separately approves the next step.
+
+Prior state: architecture resolved 2026-09-05 with implementation approval
+pending; that approval is now granted as recorded above.
 
 ## Review gate
 
-Status remains `draft`; implementation approval is pending even though the
-product owner has resolved the architecture questions and one-off 6.6
-dependency exception below. After separately approved implementation, set
-status to `in-review` only when all strict dev floors and evidence requirements
-pass. If structured routing fails, stop: no full-stage prompt/model retry,
+Status is `approved` (product owner, 2026-09-05; see Product-owner decision).
+Set status to `in-review` only when all strict dev floors and evidence
+requirements pass. If structured routing fails, stop: no full-stage prompt/model retry,
 label edit, threshold weakening, validation-v3, fresh blind, held-out, or
 graduation attempt. The one isolated naming retry is the sole approved retry.
 Explicit product-owner acceptance is required before any later specification
