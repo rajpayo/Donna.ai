@@ -31,7 +31,25 @@ function assertPartitionId(kind: "tenant" | "user", value: string): void {
 }
 
 export class FilePendingPlacementStore implements PendingPlacementStore {
+  /** In-process per-file serialization, same rationale as FileBucketStore. */
+  private static locks = new Map<string, Promise<void>>();
+
   constructor(private readonly dataDir: string) {}
+
+  private async withLock<T>(file: string, fn: () => Promise<T>): Promise<T> {
+    const prior = FilePendingPlacementStore.locks.get(file) ?? Promise.resolve();
+    let release!: () => void;
+    const current = new Promise<void>((res) => {
+      release = res;
+    });
+    FilePendingPlacementStore.locks.set(file, prior.then(() => current));
+    await prior;
+    try {
+      return await fn();
+    } finally {
+      release();
+    }
+  }
 
   private fileFor(tenantId: string, userId: string): string {
     assertPartitionId("tenant", tenantId);
@@ -83,12 +101,14 @@ export class FilePendingPlacementStore implements PendingPlacementStore {
   }
 
   async save(record: PendingPlacement): Promise<void> {
-    const data = await this.load(record.tenantId, record.userId);
-    if (data.pendingPlacements.some((existing) => existing.id === record.id)) {
-      throw new Error("Pending placement ID already exists in this scope");
-    }
-    data.pendingPlacements.push(record);
-    await this.write(record.tenantId, record.userId, data);
+    return this.withLock(this.fileFor(record.tenantId, record.userId), async () => {
+      const data = await this.load(record.tenantId, record.userId);
+      if (data.pendingPlacements.some((existing) => existing.id === record.id)) {
+        throw new Error("Pending placement ID already exists in this scope");
+      }
+      data.pendingPlacements.push(record);
+      await this.write(record.tenantId, record.userId, data);
+    });
   }
 
   async get(
@@ -119,6 +139,7 @@ export class FilePendingPlacementStore implements PendingPlacementStore {
     resolution: PendingPlacementResolution,
     resolvedAt: string,
   ): Promise<PendingPlacement> {
+    return this.withLock(this.fileFor(tenantId, userId), async () => {
     const data = await this.load(tenantId, userId);
     const record = data.pendingPlacements.find((existing) => existing.id === id);
     if (record === undefined) {
@@ -139,18 +160,21 @@ export class FilePendingPlacementStore implements PendingPlacementStore {
     record.resolvedAt = resolvedAt;
     await this.write(tenantId, userId, data);
     return record;
+    });
   }
 
   async deleteAll(
     tenantId: string,
     userId: string,
   ): Promise<{ removed: number }> {
+    return this.withLock(this.fileFor(tenantId, userId), async () => {
     const data = await this.load(tenantId, userId);
     const removed = data.pendingPlacements.length;
     if (removed === 0) return { removed: 0 };
     data.pendingPlacements = [];
     await this.write(tenantId, userId, data);
     return { removed };
+    });
   }
 
   async deleteForCapture(
@@ -158,6 +182,7 @@ export class FilePendingPlacementStore implements PendingPlacementStore {
     userId: string,
     captureId: string,
   ): Promise<{ removed: number }> {
+    return this.withLock(this.fileFor(tenantId, userId), async () => {
     const data = await this.load(tenantId, userId);
     const kept = data.pendingPlacements.filter(
       (record) => record.thought.provenance.captureId !== captureId,
@@ -167,5 +192,6 @@ export class FilePendingPlacementStore implements PendingPlacementStore {
     data.pendingPlacements = kept;
     await this.write(tenantId, userId, data);
     return { removed };
+    });
   }
 }

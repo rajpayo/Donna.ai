@@ -208,8 +208,16 @@ async function scoreTenantScope(
     embedding: [1, 0, 0],
     createdAt: "2026-08-01T00:00:00.000Z",
   };
-  await store.createBucket(foreignBucket);
-  await store.saveItem({ thought: foreignThought, bucketId: foreignBucket.id });
+  // Fixture setup is idempotent: several tenant-scope cases share the
+  // scratch store, and Spec 6.7 canonical-name uniqueness rejects a
+  // duplicate append.
+  const existingForeign = await store.getBucketByName(
+    FOREIGN.tenantId,
+    FOREIGN.userId,
+    foreignBucket.name,
+  );
+  const seededForeign = existingForeign ?? (await store.createBucket(foreignBucket));
+  await store.saveItem({ thought: foreignThought, bucketId: seededForeign.id });
 
   switch (operation) {
     case "read-items": {

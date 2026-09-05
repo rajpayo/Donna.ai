@@ -139,6 +139,8 @@ const DATASETS: Record<string, string> = {
  */
 const EXTRA_VALIDATE: Record<string, string> = {
   "organize-dev": "datasets/golden/organize/organize.dev.v1.json",
+  // Spec 6.7: the structured-routing dev envelope with fixture IDs.
+  "organize-dev-v2": "datasets/golden/organize/organize.dev.v2.json",
   "organize-prepilot": "datasets/golden/organize/organize.v1.json",
 };
 

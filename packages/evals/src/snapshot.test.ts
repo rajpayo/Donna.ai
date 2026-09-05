@@ -31,8 +31,9 @@ describe("captureSnapshot (FR-1)", () => {
     assert.notEqual(snapshot.branch, "");
     assert.notEqual(snapshot.branch, "unknown");
     assert.equal(snapshot.modelsConfig.sha256.length, 64);
-    assert.equal(snapshot.versions.organizePrompt, "donna.organize-prompt.v2");
-    assert.equal(snapshot.versions.organizeSchema, "donna.organize.v1");
+    // Spec 6.7: the canonical config selects the structured v2 lane.
+    assert.equal(snapshot.versions.organizePrompt, "donna.organize-prompt.v4-structured");
+    assert.equal(snapshot.versions.organizeSchema, "donna.organize.v2");
     assert.equal(snapshot.versions.answerPrompt, "donna.answer-prompt.v1");
     assert.equal(snapshot.ranking.rankingVersion, "donna.hybrid-ranking.v1");
     assert.equal(snapshot.ranking.weights["text"], 0.3);

@@ -73,6 +73,7 @@ intended privacy behavior, not missing data.
 ```bash
 donna pilot run start --scenario SC-MEET-01      # opens the instrumented run
 donna capture <recording> [--session <id>]       # one or more captures
+donna review placements                          # Spec 6.7: pending filing decisions
 donna pilot review                               # work the review queue
 donna pilot decide accept <thought-id>           # explicit accept (Spec 6.4)
 donna pilot decide move <thought-id> --to <bucket>   # explicit move (queues + links the correction)
@@ -82,6 +83,31 @@ donna retrieval-feedback <thought-id> --verdict relevant|irrelevant --query "<te
 donna pilot decisions                            # accept/move counts + first-pass acceptance rate
 donna pilot run end <run-id> --notes "V-NOISE, café"
 ```
+
+**Structured routing (Specification 6.7).** Capture now prints one of the
+exact states per thought: `Filed in X` (clear existing placement),
+`Created new bucket Y — filed` (valid, distinct new topic — no
+confirmation interruption), or a pending state that files NOTHING until
+you decide: `Create new bucket Y?` (name needs review), `Use X instead?`
+(likely duplicate), `Review needed: A or B?` (uncertain match), or
+`I couldn't verify that destination; choose a bucket`. Task thoughts still
+print `Filed in Tasks` with the stated assignee/deadline. Pending choices
+survive restarts and never appear in search until resolved:
+
+```bash
+donna review placements                                        # list unfinished choices
+donna review placements resolve <id> --create                  # confirm the new bucket
+donna review placements resolve <id> --file-existing <name>    # file into an existing bucket
+donna review placements resolve <id> --edit-name <name> [--description <text>]
+donna review placements resolve <id> --reject                  # file nothing
+```
+
+Every resolution is idempotent (replaying prints `Already filed in X` /
+`Already rejected`) and re-validates current bucket state before writing,
+so a capture that raced your review becomes a named conflict, never a
+duplicate bucket. Pending placements export and delete with the rest of
+your data (`donna pilot export`, `donna pilot leave --delete-all`).
+Internal bucket IDs are never shown.
 
 The run record captures the pseudonymous participant ID, scenario ID,
 config fingerprint, window capture IDs, and decision counts — never
@@ -275,9 +301,10 @@ donna pilot leave --out <file> [--delete-all]
 
 Exports first, revokes every consent, disconnects Microsoft 365 (cache
 purged), and — with `--delete-all` — deletes captures, transcripts,
-thoughts, memories, corrections, sessions, and the misfire register, then
-re-lists every store and prints the zero-count verification. Consent
-history and the exited profile remain as the audit trail.
+thoughts, memories, corrections, sessions, pending placements (Spec 6.7),
+and the misfire register, then re-lists every store and prints the
+zero-count verification. Consent history and the exited profile remain as
+the audit trail.
 
 ## 8. Support and incidents
 

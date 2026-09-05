@@ -24,7 +24,31 @@ function assertPartitionId(kind: "tenant" | "user", value: string): void {
 }
 
 export class FileBucketStore implements BucketStore {
+  /**
+   * In-process per-file serialization (Spec 6.7 SR-10): load-modify-save
+   * cycles for the same partition file are chained so concurrent
+   * placements/confirmations in one process cannot lose a write or create
+   * a duplicate bucket. Cross-process safety is the PostgreSQL adapter's
+   * row locks and unique indexes.
+   */
+  private static locks = new Map<string, Promise<void>>();
+
   constructor(private readonly dataDir: string) {}
+
+  private async withLock<T>(file: string, fn: () => Promise<T>): Promise<T> {
+    const prior = FileBucketStore.locks.get(file) ?? Promise.resolve();
+    let release!: () => void;
+    const current = new Promise<void>((res) => {
+      release = res;
+    });
+    FileBucketStore.locks.set(file, prior.then(() => current));
+    await prior;
+    try {
+      return await fn();
+    } finally {
+      release();
+    }
+  }
 
   private fileFor(tenantId: string, userId: string): string {
     assertPartitionId("tenant", tenantId);
@@ -102,6 +126,7 @@ export class FileBucketStore implements BucketStore {
   }
 
   async createBucket(bucket: Bucket): Promise<Bucket> {
+    return this.withLock(this.fileFor(bucket.tenantId, bucket.userId), async () => {
     const data = await this.load(bucket.tenantId, bucket.userId);
     // Spec 6.7 (architecture D): per-user canonical-name uniqueness is
     // enforced before append, with parity to the PostgreSQL
@@ -119,6 +144,7 @@ export class FileBucketStore implements BucketStore {
     data.buckets.push(bucket);
     await this.save(bucket.tenantId, bucket.userId, data);
     return bucket;
+    });
   }
 
   async updateBucketStats(
@@ -128,6 +154,7 @@ export class FileBucketStore implements BucketStore {
     centroid: number[],
     itemCount: number,
   ): Promise<void> {
+    return this.withLock(this.fileFor(tenantId, userId), async () => {
     const data = await this.load(tenantId, userId);
     const bucket = data.buckets.find((candidate) => candidate.id === bucketId);
     if (!bucket) {
@@ -136,10 +163,12 @@ export class FileBucketStore implements BucketStore {
     bucket.centroid = centroid;
     bucket.itemCount = itemCount;
     await this.save(tenantId, userId, data);
+    });
   }
 
   async saveItem(item: { thought: Thought; bucketId: string }): Promise<void> {
     const { tenantId, userId } = item.thought;
+    return this.withLock(this.fileFor(tenantId, userId), async () => {
     const data = await this.load(tenantId, userId);
     if (!data.buckets.some((bucket) => bucket.id === item.bucketId)) {
       throw new Error("Bucket does not exist in the requested tenant/user scope");
@@ -152,6 +181,7 @@ export class FileBucketStore implements BucketStore {
     }
     data.items.push(item);
     await this.save(tenantId, userId, data);
+    });
   }
 
   async listItems(
@@ -205,6 +235,7 @@ export class FileBucketStore implements BucketStore {
     userId: string,
     captureId: string,
   ): Promise<{ removed: number }> {
+    return this.withLock(this.fileFor(tenantId, userId), async () => {
     const data = await this.load(tenantId, userId);
     const kept = data.items.filter(
       (item) => item.thought.provenance.captureId !== captureId,
@@ -218,6 +249,7 @@ export class FileBucketStore implements BucketStore {
     }
     await this.save(tenantId, userId, data);
     return { removed };
+    });
   }
 
   async moveItem(
@@ -226,6 +258,7 @@ export class FileBucketStore implements BucketStore {
     thoughtId: string,
     toBucketId: string,
   ): Promise<void> {
+    return this.withLock(this.fileFor(tenantId, userId), async () => {
     const data = await this.load(tenantId, userId);
     const item = data.items.find((candidate) => candidate.thought.id === thoughtId);
     if (!item) {
@@ -240,6 +273,7 @@ export class FileBucketStore implements BucketStore {
       recomputeBucketStats(bucket, data.items);
     }
     await this.save(tenantId, userId, data);
+    });
   }
 
   async renameBucket(
@@ -251,6 +285,7 @@ export class FileBucketStore implements BucketStore {
     if (newName.trim().length === 0) {
       throw new Error("Bucket name must not be empty");
     }
+    return this.withLock(this.fileFor(tenantId, userId), async () => {
     const data = await this.load(tenantId, userId);
     const bucket = data.buckets.find((candidate) => candidate.id === bucketId);
     if (!bucket) {
@@ -258,6 +293,7 @@ export class FileBucketStore implements BucketStore {
     }
     bucket.name = newName.trim();
     await this.save(tenantId, userId, data);
+    });
   }
 
   async mergeBuckets(
@@ -269,6 +305,7 @@ export class FileBucketStore implements BucketStore {
     if (sourceBucketId === targetBucketId) {
       throw new Error("Cannot merge a bucket into itself");
     }
+    return this.withLock(this.fileFor(tenantId, userId), async () => {
     const data = await this.load(tenantId, userId);
     const source = data.buckets.find((candidate) => candidate.id === sourceBucketId);
     const target = data.buckets.find((candidate) => candidate.id === targetBucketId);
@@ -281,6 +318,7 @@ export class FileBucketStore implements BucketStore {
     data.buckets = data.buckets.filter((candidate) => candidate.id !== sourceBucketId);
     recomputeBucketStats(target, data.items);
     await this.save(tenantId, userId, data);
+    });
   }
 
   async updateItem(
@@ -295,6 +333,7 @@ export class FileBucketStore implements BucketStore {
       embedding?: number[];
     },
   ): Promise<void> {
+    return this.withLock(this.fileFor(tenantId, userId), async () => {
     const data = await this.load(tenantId, userId);
     const item = data.items.find((candidate) => candidate.thought.id === thoughtId);
     if (!item) {
@@ -312,6 +351,7 @@ export class FileBucketStore implements BucketStore {
     if (updates.provenance !== undefined) item.thought.provenance = updates.provenance;
     if (updates.embedding !== undefined) item.thought.embedding = updates.embedding;
     await this.save(tenantId, userId, data);
+    });
   }
 }
 

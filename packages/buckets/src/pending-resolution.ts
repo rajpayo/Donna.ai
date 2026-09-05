@@ -71,11 +71,34 @@ export class PendingPlacementResolver {
       );
     }
     const action = editedName !== undefined ? "edit-name" : "create";
-    const { bucket } = await this.engine.mintAndFile(
-      record.thought,
-      revalidated.name,
-      revalidated.description,
-    );
+    let bucket: Awaited<ReturnType<StructuredBucketEngine["mintAndFile"]>>["bucket"];
+    try {
+      bucket = (
+        await this.engine.mintAndFile(
+          record.thought,
+          revalidated.name,
+          revalidated.description,
+        )
+      ).bucket;
+    } catch (error) {
+      // A concurrent mint won the race between revalidation and creation:
+      // surface a conflict (or the idempotent already-filed outcome),
+      // never a duplicate bucket (SR-10).
+      if (error instanceof Error && /canonical name/i.test(error.message)) {
+        const repaired = await this.repairIfFiled(scope, record);
+        if (repaired !== undefined) return repaired;
+        const existing = await this.store.getBucketByName(
+          scope.tenantId,
+          scope.userId,
+          revalidated.name,
+        );
+        return {
+          status: "conflict",
+          existingName: existing?.name ?? revalidated.name,
+        };
+      }
+      throw error;
+    }
     await this.store.saveItem({ thought: withBucket(record.thought, bucket.id), bucketId: bucket.id });
     await this.index(record, bucket.id);
     await this.pending.markResolved(scope.tenantId, scope.userId, id, {

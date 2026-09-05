@@ -135,7 +135,9 @@ export async function captureSnapshot(
     dataset: options.dataset,
     versions: {
       organizePrompt: config.stages.organize.default.prompt,
-      organizeSchema: ORGANIZE_SCHEMA_VERSION,
+      // Spec 6.7: the schema version follows the config-selected contract
+      // (v1 remains selectable for rollback).
+      organizeSchema: config.stages.organize.default.contract ?? ORGANIZE_SCHEMA_VERSION,
       answerPrompt: ANSWER_PROMPT_VERSION,
       emotionAnalyzer: EMOTION_VERSION,
     },
