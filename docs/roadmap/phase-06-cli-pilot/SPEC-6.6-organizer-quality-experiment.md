@@ -1161,6 +1161,20 @@ Causal deltas (right minus left):
   new prompt/model remediation. Do **not** record the fresh P-00 matrix,
   run validation-v3, or invoke the private diagnostic under this outcome.
 
+### Final outcome and CI note
+
+- `eb60b05` — `evals: record spec 6.6 no-winner outcome`.
+- The committed LF-normalized `no-winner.json` sha256 is
+  `b524b04ae1a59b546eb43c00f76574a097fafe151386aa48a538170841b4863f`
+  (this supersedes the CRLF working-tree creation hash above for durable
+  evidence).
+- PR #1 deterministic CI run `33966624671` for `eb60b05` passed in 1m04s:
+  **537/537 tests**, zero failures/skips; full typecheck, all dataset
+  validation, validation-v3 lock verification, and all 59 deterministic
+  baseline cases passed. The live-gateway job skipped by its manual-only
+  design; the exact nine binding runs are the local private reports hashed
+  above.
+
 ## Review gate
 
 The 2026-09-05 approval authorizes implementation. At implementation start,
