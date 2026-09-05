@@ -518,10 +518,16 @@ allowed. Immutable evidence is preserved in
 
 ### Specification 6.7 — Structured bucket routing and governed minting
 
-Status: `draft` (binding architecture decisions recorded 2026-09-05;
-implementation approval pending). The product owner authorized a one-off
-narrow dependency on rejected Spec 6.6's immutable evidence without amending
-the general execution protocol. See
+Status: `blocked` (2026-09-05). The product owner approved the structured
+v2 routing architecture with calibrated expectations; implementation,
+deterministic suites, and three fixed live dev replicates completed with
+zero hard/security failures, but the mechanical eligibility record is
+**STOP — STRUCTURED ROUTING FAILED**: join-by-ID 0.649, join-vs-mint
+0.750, deterministic final placement 0.440, and task precision 0.702 all
+missed binding floors, while canonical mint-name validation passed 1.0 —
+the failure is in route-choice reasoning, not mint naming, and is not
+mint-specific. No retry, validation-v3 run, fresh matrix, or gate change
+occurred. Awaiting product-owner examination. See
 [`SPEC-6.7-structured-bucket-routing.md`](SPEC-6.7-structured-bucket-routing.md).
 
 ---
