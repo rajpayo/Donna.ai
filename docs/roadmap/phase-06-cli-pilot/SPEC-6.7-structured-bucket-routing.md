@@ -1026,6 +1026,119 @@ Before this specification can move to `in-review`, record:
 Implementation is approved (2026-09-05). Evidence is appended below as
 implementation and verification complete.
 
+### Implementation evidence (2026-09-05)
+
+**Commits (in order):**
+
+- `5957650` docs: approve spec 6.7 structured bucket routing
+- `96cce55` feat: structured bucket routing and governed minting (spec 6.7)
+- `a1fc652` evals: normalize 6.7 plan artifacts to LF and relock hashes
+- `0d4ebba` test: spec 6.7 decision-table, pending, schema, pipeline, CLI,
+  and eval-machinery coverage
+- `37af326` evals: calibrate and freeze near-duplicate threshold at 0.88
+  (synthetic fixtures)
+- `086f6e2` evals: void pre-calibration replicates, normalize candidate
+  config to LF, relock 6.7 plan at 0.88
+
+**Changed files / interfaces:**
+
+- `packages/core/src/types.ts` — `PlacementProposal`, `PendingPlacement`,
+  `PendingPlacementResolution`, `PlacementCandidate`,
+  `PendingPlacementReason`, `PlacementOutcome`; `CoreLoopResult` gains
+  `pendingPlacements`. No `Thought`/`TaskCandidate` content expansion.
+- `packages/core/src/ports.ts` — `BucketOption`, `OrganizeOutputV2`,
+  `OrganizerV2`, `BucketNamer` (isolated naming-only port),
+  `PendingPlacementStore`; `BucketStore` gains scoped `getBucketById`.
+- `packages/providers/src/organize-schema.ts` — `donna.organize.v2` strict
+  discriminated Zod + JSON schemas, `donna.organize-naming.v1`, v4
+  structured prompt with the dedicated allowlist rendered identically in
+  both branches, `nameContainsIdReference`; v1 retained byte-identical.
+- `packages/providers/src/openai-organizer-v2.ts`,
+  `anthropic-organizer-v2.ts` — adapter validation incl. ID-in-new-name
+  rejection; `openai-organizer-v2.ts` also implements the isolated namer.
+- `packages/providers/src/registry.ts` — config-selected `contract`
+  (v1 default for rollback, v2 for 6.7), `near_duplicate_threshold`
+  (default 0.90), v2 organizer/escalation/namer resolution.
+- `packages/buckets/src/canonical.ts` — NFKC display canonicalization,
+  canonical validators (1–4 words, no sentence punctuation/dates/
+  deadlines/urgency/imperatives/one-off wording/IDs/control chars),
+  canonical comparison key, lexical containment, descriptor builder.
+- `packages/buckets/src/engine-v2.ts` — `StructuredBucketEngine`: Tasks
+  absolute (conflict diagnostic), allowlist fail-closed (`unknown-id`),
+  agreement auto-file, middle-band/mismatch/new-vs-existing pending,
+  validated-immediate mint, exact/lexical/semantic duplicate checks at the
+  frozen 0.88 descriptor threshold, atomic `revalidateMint`.
+- `packages/buckets/src/pending-store.file.ts` — durable scoped pending
+  store (restart-safe, idempotent resolution, deletion propagation).
+- `packages/buckets/src/pending-resolution.ts` — idempotent
+  create/file-existing/edit-name/reject with atomic revalidation and
+  crash/replay repair.
+- `packages/buckets/src/store.file.ts` — canonical-name uniqueness before
+  append, idempotent `saveItem` (PG parity), per-file write
+  serialization for concurrent placements.
+- `packages/storage-postgres/src/pending-store.pg.ts`,
+  `bucket-store.pg.ts` — RLS-protected pending store, canonical key on
+  create/rename, scoped `getBucketById`.
+- `database/migrations/0002_pending_placements_and_canonical_keys.{up,down}.sql`
+  — additive/reversible; fail-closed collision-reporting backfill; down
+  refuses to drop unresolved pending records.
+- `packages/pipeline/src/run.ts` — v2 lane: full scoped allowlist,
+  pipeline-side referential validation, exactly one escalation, at most
+  one isolated naming retry, pending persistence, extraction immutable,
+  token-only telemetry.
+- `apps/cli/src/main.ts`, `placements.ts` — exact user-facing states
+  (`Filed in X`, `Created new bucket Y — filed`, `Create new bucket Y?`,
+  `Review needed: A or B?`, safe unknown-ID message), `donna review
+  placements` + idempotent resolve, export/leave/delete propagation.
+- `packages/pilot/src/onboarding.ts` — pending placements in the private
+  export bundle.
+- `packages/evals/src/datasets.ts` — additive per-case opaque fixture IDs
+  (`eval-b-*`), uniqueness validation.
+- `packages/evals/datasets/golden/organize/organize.dev.v2.json` — dev v60
+  content + additive fixture IDs (28 cases; validation-v3 untouched).
+- `packages/evals/src/scorers/organize-v2.ts` — real-pipeline scorer with
+  separated MODEL PROPOSAL / DETERMINISTIC FINAL / MINT QUALITY /
+  TASK/PROVENANCE metric families; labels never enter prompts.
+- `packages/evals/src/organize-v2-experiment.ts` + `cli.ts` — locked plan,
+  three fixed replicates, common aggregation, mechanical floors/stop,
+  blinded-review packet, gate-migration readiness record.
+- `packages/evals/experiments/organize/6.7/` — locked plan
+  (`9250477c4dc3fd367db6fd35fd8c2ef049eb0c67bd8be263f47b34f29bb12e2f`),
+  candidate config snapshot, synthetic calibration report.
+- `models.config.yaml` — gpt-5-mini only (default + escalation), contract
+  v2, prompt v4-structured, frozen `near_duplicate_threshold: 0.88`.
+- `docs/pilot/RUNBOOK.md` — structured-routing capture states, review
+  commands, pending export/deletion coverage.
+
+**Near-duplicate threshold calibration (synthetic fixtures only, frozen
+before live dev results):** 12 synthetic pairs through the config-selected
+embedder (text-embedding-3-large@1024). The 0.90 initial candidate missed
+2/6 near-duplicates (0.88553, 0.89500) with zero false positives and a
+distinct-pair ceiling of 0.38451; 0.88 separates every synthetic pair
+(false negatives 0, false positives 0) and errs toward review. Frozen at
+**0.88** in `models.config.yaml`, the candidate snapshot, and the locked
+plan (`calibration.json` sha256
+`296ec152fb6afe0d2955695d994336276e38ae4b03bf640a89000391318fa4aa`).
+A replicate started at 0.90 before calibration completed was voided
+before any aggregation or interpretation; no best-of-three occurred.
+
+**Test results (2026-09-05, local):** full `npm test` 606 tests, 605 pass,
+0 fail, 1 environment-gated skip (PostgreSQL suite runs in CI);
+`npm run typecheck` clean across all workspaces; dataset validation green
+including `organize.dev.v2`; deterministic baseline check green
+(adversarial/provenance/buckets/memory/emotion/retrieval/full-loop all
+pass vs accepted baselines). New focused coverage: schema mutual
+exclusion/strictness, prompt allowlist parity and no-label audit, the full
+engine decision table (Tasks override, agreement auto-file, middle band,
+mismatch, new-vs-existing, valid mint, exact collision, lexical and
+semantic near-duplicate, naming retry once, second failure pending,
+unknown-ID zero writes, no-fit fallback), pending restart/idempotency/
+replay/concurrency/crash-repair, pipeline v2 (escalation exactly once,
+Tasks vs injection, provenance fail-closed, extraction immutability), CLI
+end-to-end review flow with no IDs in output, eval metric separation,
+plan immutability, and floor evaluation including the mint-specific
+failure signal.
+
 ## Product-owner decision
 
 **Approved for implementation (product owner, 2026-09-05).** The product
