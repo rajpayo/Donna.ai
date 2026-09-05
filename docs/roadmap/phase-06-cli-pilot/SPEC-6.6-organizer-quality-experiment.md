@@ -2,7 +2,7 @@
 id: "6.6"
 title: "Organizer-quality experiment"
 phase: "06"
-status: "in-progress"
+status: "blocked"
 depends_on: ["6.5"]
 ---
 
@@ -957,10 +957,209 @@ historical validation-v3 or fresh graduation evidence.
 
 ## Completion evidence
 
-_Approved 2026-09-05. Implementation evidence will be appended after the
-binding experiment and verification. No tariff acquisition, capability
-request, candidate run, private diagnostic, fresh recording, or graduation
-result existed at approval time._
+Implemented and run on 2026-09-05. The binding experiment has a definitive
+`NONE` outcome: all three eligible candidates failed multiple exact-bucket
+floors. Per FR-11, no canonical winner was committed and validation-v3,
+private-context, fresh-blind, and graduation runs were not performed.
+
+### Lifecycle and commits
+
+- `fee539d` — `docs: approve spec 6.6 organizer-quality experiment` (separate
+  approval commit; records all five revisions, six resolved policies, and the
+  no-tariff outcome).
+- `39fc012` — `feat: implement spec 6.6 organizer experiment tooling`.
+- `e3c9215` — `evals: lock spec 6.6 organizer experiment plan`.
+- The final content-free no-winner evidence and this blocked status are
+  committed after the run; their commit is recorded in the follow-up CI note.
+
+### Implemented interfaces
+
+- Versioned `donna.organize-prompt.v3-quality`, retaining v2 byte behavior and
+  the unchanged `donna.organize.v1` schema. Prompt version resolves through
+  each organize lane's `prompt` field in `models.config.yaml`; provider/model/
+  prompt/temperature remain config-driven with no candidate/model branch.
+- OpenAI-compatible and Anthropic adapters consume the resolved prompt version.
+  Generic offline tests cover the tariff-admitted four-candidate/12-run path,
+  but no binding C config/manifest exists in this no-tariff plan.
+- `organize-experiment validate|run|prepare-review|select|validation-v3|
+  private-diagnostic|freeze-fresh|final` implements plan/config/dataset hash
+  validation; fixed three-replicate isolation; prompt-label leakage audit;
+  common aggregation; blinded review packet/map; deterministic floors and
+  tie-breaks; validation-v3 non-graduation mode; private diagnostic field
+  allowlist/current-consent/explicit-invocation gates; fresh class/count/
+  minted/overlap/freeze checks; clean-winner guards; and one strict
+  external-only final retry.
+- Organize reports now attribute per-case OpenAI or Anthropic token usage and
+  gateway cost when supplied; absent money remains `not reported`, never
+  estimated. Reports include separate minted/joined/count metrics and all
+  successful-case latencies.
+- `docs/pilot/SPEC-6.6-FRESH-MATRIX.md` contains the exact nine-scenario
+  capture, decision, preview/confirm, freeze, one-run, retry, and graduation
+  instructions. The tooling is ready but correctly unreachable with no winner.
+- Deep Spec 6.6 candidate/review/diagnostic reports are explicitly gitignored.
+
+### Locked plan and no-tariff proof
+
+- Plan: `packages/evals/experiments/organize/6.6/plan.json`, sha256
+  `3c7a7e09e359090d2e00794f9b08d251915e5ec509477a3b196a1b49b6ee963a`.
+  `plan.lock.json` makes any byte mutation fail hard.
+- Selection-policy hash:
+  `000cfe23035fd0ee6b83fb8ac57207b7502a4a869ae48968f408fc7dc4e9b460`.
+- Rubric artifact hash:
+  `46357cb114d9d28f28bab79c5a7be07e133e9317f212d83c1ef567c221910b52`.
+- Frozen dev identity: `organize.dev.v1` v60, 28 cases, sha256
+  `85b06d30fe6d091e26568c46ed7aecd80d45b91f678258c19b7d7e767ed75666`.
+- Validation-v3 identity (unused): `organize.heldout.v1` v3, 32 cases,
+  sha256
+  `7c66e17c52186e19f6e1c8bf544e8f5f78b4af9c91ea6c92b1667103151d6a89`;
+  lock sha256
+  `afad35278ac4723d574327b38f5303fc27d7737eb1072d08fce2929937f037bd`.
+- A config/prompt hashes:
+  `df77bf090aeb3637433c9d03ba065eda6675022b105f49f7c8626c60b44e4205` /
+  `ce84985447c2f17b3d61593c319137ca2eaf0aacc48068bbe49bbc6eca9563cd`.
+- A0 config/prompt hashes:
+  `152df76984317a997f52b72a4ad1c2748a2f942aad638f871005446d9075751e` /
+  `ce84985447c2f17b3d61593c319137ca2eaf0aacc48068bbe49bbc6eca9563cd`.
+- B config/prompt hashes:
+  `1977ca226bc71175f87d48c58fe6647ac015cbbc1b59605564f50ef3fe8f970d` /
+  `551741c4d88fc063afaa20132053c0b08e0031dc54931f028bf7af9e0cba3922`.
+- No authoritative TrueFoundry tariff artifact was available. C is absent
+  from binding candidates/configs/reports; the binding report tree contains
+  only A/A0/B. No C capability preflight occurred and no Sonnet call was
+  made. Exactly nine reports exist: three per eligible GPT candidate.
+
+### Exact fixed dev results
+
+All nine runs used the same 28 dev cases. Every run had 28 successful cases,
+zero external errors, zero product errors, zero hard failures, provenance
+`1.0`, schema `1.0`, coverage `1.0`, task recall `1.0`, and gateway monetary
+cost `not reported`.
+
+- A replicate 1: overall `0.5714285714285714`, joined
+  `0.6842105263157895`, minted `0.3333333333333333` (`3/9`), task precision
+  `0.8214285714285714`, p90 `13,033 ms`, tokens `20,681/28,580`; report
+  sha256 `24f3547e0fc5c3e0cb10fec2874f1802bb6456f1c9fb1a85e1804fc1e16cc739`.
+- A replicate 2: overall `0.5714285714285714`, joined
+  `0.6842105263157895`, minted `0.3333333333333333` (`3/9`), task precision
+  `0.8571428571428571`, p90 `10,740 ms`, tokens `20,681/27,882`; report
+  sha256 `5bafe7ad3d31322dd92544c8e600f0918af55848c18547ec81187fb8246622e4`.
+- A replicate 3: overall `0.5357142857142857`, joined
+  `0.631578947368421`, minted `0.3333333333333333` (`3/9`), task precision
+  `0.7857142857142857`, p90 `15,005 ms`, tokens `20,681/31,324`; report
+  sha256 `7742bc7b382e1b4482c06be2c27fca79f7a5d33f2fe972deef6e7bdbb7e3e05b`.
+- A0 replicate 1: overall `0.5`, joined `0.5789473684210527`, minted
+  `0.3333333333333333` (`3/9`), task precision `0.7142857142857143`, p90
+  `13,948 ms`, tokens `20,681/30,465`; report sha256
+  `ca01e73f1662fae0841a86245175f9dd97b67b0536c2a5f025261a41181312b7`.
+- A0 replicate 2: overall `0.5`, joined `0.5789473684210527`, minted
+  `0.3333333333333333` (`3/9`), task precision `0.8214285714285714`, p90
+  `15,194 ms`, tokens `20,681/30,947`; report sha256
+  `358b01ff31ad95d7ff00e4b7ecee8c5336c07507342ea3b0f44092d9e6dda693`.
+- A0 replicate 3: overall `0.5357142857142857`, joined
+  `0.631578947368421`, minted `0.3333333333333333` (`3/9`), task precision
+  `0.7857142857142857`, p90 `11,320 ms`, tokens `20,681/26,418`; report
+  sha256 `93fa02d1a938e8cc05108207c13b5678e6a2a9ec9c215e1952cc34f8fa185a4a`.
+- B replicate 1: overall `0.5`, joined `0.631578947368421`, minted
+  `0.2222222222222222` (`2/9`), task precision `0.7142857142857143`, p90
+  `13,521 ms`, tokens `25,385/30,745`; report sha256
+  `75c4e1278fe0bd5d9e26db8b971cfc2d46c37a48b16c0d6900daae86ac5eea0d`.
+- B replicate 2: overall `0.42857142857142855`, joined
+  `0.5789473684210527`, minted `0.1111111111111111` (`1/9`), task precision
+  `0.6428571428571429`, p90 `16,690 ms`, tokens `25,385/35,191`; report
+  sha256 `8155882c07b8a80fe438938f500749d1a5ffd2783f8cb05400903c2b4189e0a0`.
+- B replicate 3: overall `0.42857142857142855`, joined
+  `0.5263157894736842`, minted `0.2222222222222222` (`2/9`), task precision
+  `0.6071428571428571`, p90 `14,475 ms`, tokens `25,385/32,954`; report
+  sha256 `db2fe6e95848317d9b33184ba7a7a70a00a0dd146f7758096d9338206154fd01`.
+
+Common aggregate (arithmetic mean of run means; p90 over all 84 successful
+case latencies):
+
+- A: coverage `1.0`; overall `0.5595238095238094`; joined
+  `0.6666666666666666`; minted `0.3333333333333333` (`9/27`);
+  name-equivalence `0.3333333333333333`; task recall `1.0`; task precision
+  `0.8214285714285713`; provenance/schema `1.0`; p90 `13,033 ms`.
+- A0: coverage `1.0`; overall `0.5119047619047619`; joined
+  `0.5964912280701754`; minted `0.3333333333333333` (`9/27`);
+  name-equivalence `0.3333333333333333`; task recall `1.0`; task precision
+  `0.7738095238095237`; provenance/schema `1.0`; p90 `13,398 ms`.
+- B: coverage `1.0`; overall `0.4523809523809524`; joined
+  `0.5789473684210527`; minted `0.1851851851851852` (`5/27`);
+  name-equivalence `0.1851851851851852`; task recall `1.0`; task precision
+  `0.6547619047619048`; provenance/schema `1.0`; p90 `15,474 ms`.
+
+Causal deltas (right minus left):
+
+- A→A0 temperature effect: overall `-0.0476190476190475`, joined
+  `-0.0701754385964912`, minted `0`, task precision
+  `-0.0476190476190476`, p90 `+365 ms`.
+- A0→B prompt effect: overall `-0.0595238095238095`, joined
+  `-0.0175438596491227`, minted `-0.1481481481481481`, task precision
+  `-0.1190476190476189`, p90 `+2,076 ms`.
+
+### Eligibility, blinded rubric, and outcome
+
+- A fails overall (`<0.90`), joined (`<0.90`), and minted (`<0.80`).
+- A0 fails those three floors and task precision below A.
+- B fails those three floors and task precision below A.
+- Every candidate passes coverage, recall, provenance, schema, hard-failure,
+  latency, and same-model comparability conditions. Gateway money is absent
+  (`not reported`), but A/A0/B remain comparable because provider/model are
+  identical, exactly as pre-registered.
+- No candidate fails only minted exact, so the
+  `naming-measurement-mismatch` condition cannot apply and the blinded rubric
+  cannot alter the automatic outcome. The owner-only 81-item packet was
+  generated from the pre-committed rubric (packet sha256
+  `33dc4afbd19d7158526179675bfce50c8f6bcafa9ada61809cb56339c75a3b70`);
+  candidate/model/prompt/temperature and expected labels are hidden.
+  Product-owner decisions remain pending diagnostic review and were not
+  fabricated.
+- Definitive binding outcome: **`NONE`**. Content-free record:
+  `packages/evals/experiments/organize/6.6/no-winner.json`, sha256
+  `ade96188018a7ae44b2c724609eeef4d41295aa3aca5271da6094bb74a8e4ccd`
+  at creation (the follow-up records the committed byte hash).
+
+### Verification and privacy
+
+- Focused provider tests: 27/27 passed. Focused/eval package run: 162 total,
+  161 passed, 0 failed, 1 database-gated skip.
+- Full local `npm test`: **528 total / 527 passed / 0 failed / 1 skipped**.
+- Full `npm run typecheck`: clean across all workspaces.
+- Dataset validation: all registered and supplementary envelopes pass;
+  validation-v3 lock intact; dev is exactly v60/28/hash above.
+- Deterministic baseline check: **59 cases** (adversarial 8, provenance 5,
+  buckets 3, memory 4, emotion 8, retrieval 24, full-loop 7), all pass with
+  zero hard failures.
+- PR #1 deterministic CI for locked-plan commit `e3c9215`: green; **537/537
+  tests**, typecheck, all dataset validation, and the same 59 deterministic
+  cases passed. Credential-gated live CI skipped by design; the nine approved
+  live runs completed locally.
+- Runtime candidate inputs contained only transcript plus capture-time bucket
+  snapshot; every run printed `no label fields supplied`. Private candidate
+  reports/review sources contain no credentials and are owner-only/gitignored.
+  Committed evidence contains scores/counts/hashes only.
+- Real pilot state was not written or deleted. Because no winner exists, the
+  private P-00 diagnostic was correctly not invoked and no P-00 state was
+  read by that path.
+
+### Limitations, rollback, and blocker
+
+- AC-6's product-owner blinded rubric decisions remain a pending diagnostic.
+  This cannot change `NONE` because all candidates fail multiple binding
+  floors, but the diagnostic packet is ready for review.
+- AC-8 through AC-14 are unreachable: no winner means no canonical product
+  prompt/config delta, validation-v3 winner run, private-context diagnostic,
+  fresh P-00 matrix, fresh lock/final, or graduation report. This is required
+  safe-stop behavior, not missing evidence presented as success.
+- No Phase 6 graduation is claimed. Phase 7 remains blocked.
+- Rollback: no winner product delta exists. Revert `39fc012` and `e3c9215`
+  to remove experimental tooling/plan while preserving the approval and all
+  immutable audit evidence. The explicit v2 prompt field in canonical config
+  does not change behavior.
+- Exact next product action: examine the blinded minted-name packet for
+  diagnostic insight, then return Spec 6.6 to draft/reject it and approve a
+  new prompt/model remediation. Do **not** record the fresh P-00 matrix,
+  run validation-v3, or invoke the private diagnostic under this outcome.
 
 ## Review gate
 

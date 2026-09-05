@@ -1,0 +1,139 @@
+{
+  "schema": "donna.organize-experiment-no-winner.v1",
+  "spec": "6.6",
+  "planSha256": "3c7a7e09e359090d2e00794f9b08d251915e5ec509477a3b196a1b49b6ee963a",
+  "tariffOutcome": "C-excluded-before-runs-no-authoritative-tariff",
+  "bindingRuns": {
+    "candidates": ["A", "A0", "B"],
+    "replicatesEach": 3,
+    "total": 9,
+    "casesPerRun": 28,
+    "totalCaseExecutions": 252,
+    "noBestOfThree": true
+  },
+  "candidates": [
+    {
+      "id": "A",
+      "reportSha256": [
+        "24f3547e0fc5c3e0cb10fec2874f1802bb6456f1c9fb1a85e1804fc1e16cc739",
+        "5bafe7ad3d31322dd92544c8e600f0918af55848c18547ec81187fb8246622e4",
+        "7742bc7b382e1b4482c06be2c27fca79f7a5d33f2fe972deef6e7bdbb7e3e05b"
+      ],
+      "metrics": {
+        "thoughtCoverage": 1,
+        "bucketOverall": 0.5595238095238094,
+        "bucketJoined": 0.6666666666666666,
+        "bucketMinted": 0.3333333333333333,
+        "bucketMintedCount": "9/27",
+        "nameEquivalence": 0.3333333333333333,
+        "taskRecall": 1,
+        "taskPrecision": 0.8214285714285713,
+        "provenance": 1,
+        "schema": 1,
+        "latencyP90Ms": 13033
+      },
+      "errors": {"external": 0, "product": 0, "hardFailures": 0},
+      "gatewayCost": "not reported",
+      "tokens": {"prompt": 62043, "completion": 87786, "total": 149829},
+      "eligibilityFailures": ["bucket-overall", "bucket-joined", "bucket-minted"]
+    },
+    {
+      "id": "A0",
+      "reportSha256": [
+        "ca01e73f1662fae0841a86245175f9dd97b67b0536c2a5f025261a41181312b7",
+        "358b01ff31ad95d7ff00e4b7ecee8c5336c07507342ea3b0f44092d9e6dda693",
+        "93fa02d1a938e8cc05108207c13b5678e6a2a9ec9c215e1952cc34f8fa185a4a"
+      ],
+      "metrics": {
+        "thoughtCoverage": 1,
+        "bucketOverall": 0.5119047619047619,
+        "bucketJoined": 0.5964912280701754,
+        "bucketMinted": 0.3333333333333333,
+        "bucketMintedCount": "9/27",
+        "nameEquivalence": 0.3333333333333333,
+        "taskRecall": 1,
+        "taskPrecision": 0.7738095238095237,
+        "provenance": 1,
+        "schema": 1,
+        "latencyP90Ms": 13398
+      },
+      "errors": {"external": 0, "product": 0, "hardFailures": 0},
+      "gatewayCost": "not reported",
+      "tokens": {"prompt": 62043, "completion": 87830, "total": 149873},
+      "eligibilityFailures": [
+        "bucket-overall",
+        "bucket-joined",
+        "bucket-minted",
+        "task-precision-below-A"
+      ]
+    },
+    {
+      "id": "B",
+      "reportSha256": [
+        "75c4e1278fe0bd5d9e26db8b971cfc2d46c37a48b16c0d6900daae86ac5eea0d",
+        "8155882c07b8a80fe438938f500749d1a5ffd2783f8cb05400903c2b4189e0a0",
+        "db2fe6e95848317d9b33184ba7a7a70a00a0dd146f7758096d9338206154fd01"
+      ],
+      "metrics": {
+        "thoughtCoverage": 1,
+        "bucketOverall": 0.4523809523809524,
+        "bucketJoined": 0.5789473684210527,
+        "bucketMinted": 0.1851851851851852,
+        "bucketMintedCount": "5/27",
+        "nameEquivalence": 0.1851851851851852,
+        "taskRecall": 1,
+        "taskPrecision": 0.6547619047619048,
+        "provenance": 1,
+        "schema": 1,
+        "latencyP90Ms": 15474
+      },
+      "errors": {"external": 0, "product": 0, "hardFailures": 0},
+      "gatewayCost": "not reported",
+      "tokens": {"prompt": 76155, "completion": 98890, "total": 175045},
+      "eligibilityFailures": [
+        "bucket-overall",
+        "bucket-joined",
+        "bucket-minted",
+        "task-precision-below-A"
+      ]
+    }
+  ],
+  "comparisons": [
+    {
+      "label": "A-vs-A0-temperature",
+      "deltasRightMinusLeft": {
+        "bucketOverall": -0.0476190476190475,
+        "bucketJoined": -0.0701754385964912,
+        "bucketMinted": 0,
+        "taskPrecision": -0.0476190476190476,
+        "latencyP90Ms": 365
+      }
+    },
+    {
+      "label": "A0-vs-B-prompt",
+      "deltasRightMinusLeft": {
+        "bucketOverall": -0.0595238095238095,
+        "bucketJoined": -0.0175438596491227,
+        "bucketMinted": -0.1481481481481481,
+        "taskPrecision": -0.1190476190476189,
+        "latencyP90Ms": 2076
+      }
+    }
+  ],
+  "outcome": "NONE",
+  "reason": "Every candidate fails multiple binding exact-bucket floors. No candidate fails only minted exact, so blinded rubric decisions cannot create a winner or naming-measurement-mismatch.",
+  "blindedMintedReview": {
+    "rubricSha256": "46357cb114d9d28f28bab79c5a7be07e133e9317f212d83c1ef567c221910b52",
+    "packetSha256": "33dc4afbd19d7158526179675bfce50c8f6bcafa9ada61809cb56339c75a3b70",
+    "items": 81,
+    "status": "pending-product-owner-diagnostic",
+    "canOverrideAutomaticGate": false
+  },
+  "postSelectionRuns": {
+    "validationV3": false,
+    "privateContextDiagnostic": false,
+    "freshBlind": false,
+    "reason": "Forbidden because no eligible winner exists."
+  },
+  "privacy": "Counts, scores, candidate IDs, and report hashes only; no participant content or identity."
+}

@@ -14,6 +14,9 @@ packages/evals/reports/retrieval/*.json
 packages/evals/reports/*/*.json
 packages/evals/reports/*/*.md
 !packages/evals/reports/*/.gitkeep
+# Spec 6.6 private candidate/review/diagnostic artifacts are nested one level
+# deeper and must never enter git.
+packages/evals/reports/organize/6.6/
 packages/evals/fixtures/audio/
 packages/evals/.eval-scratch/
 data/
