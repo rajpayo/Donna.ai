@@ -1,0 +1,115 @@
+# Model registry — the ONLY place models are chosen.
+# Swap a model here and every stage, eval, and the CLI pick it up. No code changes.
+#
+# Lanes:
+#   default    — handles routine volume cheaply
+#   escalation — invoked on low confidence / schema repair / demo-quality runs
+#
+# `provider` selects the adapter in packages/providers. `model` is the catalog ID
+# as exposed by the gateway. Any catalog model can be dropped in here.
+
+version: 1
+
+stages:
+  transcribe:
+    default:
+      provider: openai-compatible
+      model: gpt-4o-transcribe
+      params:
+        response_format: json
+        # language: en   # pin to skip auto-detect latency once launch language is decided
+    # NOTE (verified 2026-09-02): the gateway's gpt-4o-transcribe rejects
+    # verbose_json — no native segment timestamps. The adapter falls back to
+    # silence-aware local chunking (real chunk-window timestamps). Requested
+    # from the TrueFoundry admin: whisper-1 or gpt-4o-transcribe-diarize for
+    # native sentence-level timestamps; either drops in here with no code change.
+    # Also requested: gpt-4o-mini-transcribe ($0.003/min, half the cost).
+    # escalation:
+    #   provider: openai-compatible
+    #   model: gpt-4o-transcribe-diarize
+
+  organize:
+    default:
+      provider: openai-compatible
+      model: gpt-5-mini
+      prompt: donna.organize-prompt.v2
+      params:
+        temperature: 0.2
+    escalation:
+      provider: anthropic
+      model: claude-sonnet-5
+      prompt: donna.organize-prompt.v2
+      params:
+        temperature: 0.2
+
+  embed:
+    default:
+      provider: openai-compatible
+      model: text-embedding-3-large
+      params:
+        dimensions: 1024   # Matryoshka truncation: cheaper storage, faster search
+
+  tts:
+    default:
+      provider: openai-compatible
+      model: gpt-4o-mini-tts
+      params:
+        voice: marin
+
+# Dynamic bucket engine tuning (see packages/buckets).
+buckets:
+  assign_threshold: 0.82    # cosine sim ≥ this → join existing bucket
+  create_threshold: 0.65    # below this → propose a new bucket
+  # between the two: assign to best match but flag low-confidence for review
+
+# Context assembly budgets (Spec 2.2) — how much private memory may enter an
+# organize prompt. Selection is query-specific; truncation is deterministic
+# with source priority (trusted user settings → buckets → inferred memory →
+# recent captures). Tokens are estimated as chars/4.
+context:
+  max_tokens: 1200          # total across all context elements
+  max_items: 24             # total element cap
+  recent_captures: 3        # recent capture excerpts considered
+  max_memories: 12          # confirmed-memory element cap
+  max_bucket_summaries: 10  # bucket-summary element cap
+  max_correction_examples: 3  # personalized correction examples (Spec 2.3)
+  max_external_snippets: 6  # external M365 snippet cap per packet (Spec 5.2)
+
+# Hybrid retrieval ranking (Spec 3.3) — versioned, explainable features and
+# weights. Every query result can report exactly why it ranked (FR-3).
+retrieval:
+  ranking_version: donna.hybrid-ranking.v1
+  weights:
+    text: 0.30            # normalized full-text token overlap
+    semantic: 0.30        # cosine similarity (query embedding vs thought)
+    bucket_affinity: 0.10 # cosine similarity (query embedding vs bucket centroid)
+    recency: 0.10         # exponential decay, half-life below
+    personalization: 0.15 # accepted-correction affinity (Spec 2.3 signals)
+    task_match: 0.05      # task-intent query + task-bearing thought
+  recency_half_life_days: 30
+  candidate_limit: 100    # ACL/filtered candidates re-ranked per query
+  min_score: 0.20         # relevance floor — weaker hits are dropped
+  # Grounded answer synthesis lane (optional). When absent, retrieval is
+  # hits-only (FR-1). Every synthesized claim must cite live hit IDs (FR-2).
+  answer:
+    provider: openai-compatible
+    model: gpt-5-mini
+    params:
+      temperature: 0
+  # LLM reranking lane (optional). Deterministic ranking is the default;
+  # a configured reranker may only reorder hits, never add or remove any.
+  # rerank:
+  #   provider: anthropic
+  #   model: claude-sonnet-5
+
+# Corrections tuning (Spec 2.3/3.3)
+corrections:
+  # Semantic adherence applicability: cosine similarity between the placed
+  # thought and the correction's thought summary at or above this threshold
+  # counts as applicable. Falls back to deterministic keyword overlap when
+  # no embedder is available.
+  # Calibrated 2026-09-03 against live text-embedding-3-large@1024: the
+  # product-owner-witnessed paraphrase pair ("test removing email
+  # verification" vs "try one-click signup" class) scores ~0.55; unrelated
+  # text scores ~0.16. 0.5 sits in the gap; revisit with more real pairs.
+  adherence_semantic_threshold: 0.5

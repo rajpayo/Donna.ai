@@ -5,3 +5,6 @@
 # (core.autocrlf=true would otherwise produce CRLF working trees on
 # Windows, changing the hash of unchanged content).
 packages/evals/datasets/**/*.json text eol=lf
+# Spec 6.6 plan/config manifests are also byte-hashed and CI-validated.
+packages/evals/experiments/**/*.json text eol=lf
+packages/evals/experiments/**/*.yaml text eol=lf

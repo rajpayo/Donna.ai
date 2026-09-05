@@ -1,0 +1,23 @@
+{
+  "schema": "donna.minted-name-rubric.v1",
+  "version": "donna.minted-name-rubric.v1",
+  "immutableBeforeResults": true,
+  "candidateBlind": true,
+  "expectedLabelBlind": true,
+  "diagnosticOnly": true,
+  "criteria": [
+    "concise",
+    "reusable",
+    "correctTopic",
+    "distinctFromExisting",
+    "avoidsDatesAndOneOffActionWording"
+  ],
+  "instructions": {
+    "concise": "short bucket label rather than a sentence",
+    "reusable": "useful for later related thoughts rather than this occurrence",
+    "correctTopic": "represents the thought's durable subject",
+    "distinctFromExisting": "not a synonym or near-duplicate of an existing bucket",
+    "avoidsDatesAndOneOffActionWording": "contains no transient date, deadline, imperative, or episode title"
+  },
+  "stopRule": "If a candidate fails only minted exact-name eligibility while all of its reviewed minted outputs pass this rubric, stop as naming-measurement-mismatch. Never override, relabel, or retry."
+}
